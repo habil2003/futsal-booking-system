@@ -760,13 +760,13 @@ class TournamentProvider with ChangeNotifier {
 String _tournamentStatusToString(TournamentStatus status) {
   switch (status) {
     case TournamentStatus.draft:
-      return 'draft';
+      return 'DRAFT';
     case TournamentStatus.ongoing:
-      return 'ongoing';
+      return 'ONGOING';
     case TournamentStatus.completed:
-      return 'completed';
+      return 'COMPLETED';
     case TournamentStatus.cancelled:
-      return 'cancelled';
+      return 'CANCELLED';
   }
 }
 
