@@ -25,6 +25,12 @@ class AdminProvider with ChangeNotifier {
   List<Map<String, dynamic>> _allFutsals = [];
   List<Map<String, dynamic>> get allFutsals => _allFutsals;
 
+  // Bookings
+List<Map<String, dynamic>> _allBookings = [];
+List<Map<String, dynamic>> get allBookings => _allBookings;
+int totalBookingsCount = 0;
+int totalPages = 0;
+
   /// =========================
   /// Load Dashboard Stats
   /// =========================
@@ -57,7 +63,7 @@ class AdminProvider with ChangeNotifier {
       totalUsers = data['totalUsers'] ?? 0;
       totalFutsals = data['totalFutsals'] ?? 0;
       pendingApprovals = data['pendingFutsals'] ?? 0;
-      todayBookings = data['totalBookings'] ?? 0;
+      todayBookings = data['todayBookings'] ?? 0;
       totalRevenue = (data['totalRevenue'] ?? 0).toDouble();
     } catch (e) {
       totalUsers = 0;
@@ -226,6 +232,45 @@ class AdminProvider with ChangeNotifier {
       return {'status': 'error', 'message': e.toString()};
     }
   }
+
+  Future<void> loadAllBookings({
+  String status = 'ALL',
+  String? from,
+  String? to,
+  int page = 1,
+}) async {
+  try {
+    final response = await ApiService.getAdminBookings(
+      status: status,
+      from: from,
+      to: to,
+      page: page,
+    );
+    _allBookings = List<Map<String, dynamic>>.from(
+        response['bookings'] ?? []);
+    totalBookingsCount = response['total'] ?? 0;
+    totalPages = response['totalPages'] ?? 1;
+    notifyListeners();
+  } catch (e) {
+    debugPrint('Load bookings error: $e');
+    _allBookings = [];
+    notifyListeners();
+  }
+}
+
+// Analytics
+Map<String, dynamic> _adminAnalytics = {};
+Map<String, dynamic> get adminAnalytics => _adminAnalytics;
+
+Future<void> loadAdminAnalytics() async {
+  try {
+    final response = await ApiService.getAdminAnalytics();
+    _adminAnalytics = response;
+    notifyListeners();
+  } catch (e) {
+    debugPrint('Load admin analytics error: $e');
+  }
+}
 
   /// =========================
   /// Clear Data

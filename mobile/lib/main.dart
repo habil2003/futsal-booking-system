@@ -21,6 +21,9 @@ import 'screens/player/PaymentVerifyPage.dart';
 import 'screens/admin/futsal_approval_screen.dart';
 import 'screens/admin/user_management_screen.dart';
 import 'screens/admin/admin_all_futsals_screen.dart';
+import 'screens/admin/admin_bookings_screen.dart';
+import 'screens/admin/system_settings_screen.dart';
+import 'screens/admin/admin_analytics_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -64,6 +67,9 @@ class MyApp extends StatelessWidget {
           "/admin/futsal-approvals": (ctx) => const FutsalApprovalScreen(),
           "/admin/users": (ctx) => const AdminUsersScreen(),
           '/admin/futsals': (context) => const AdminAllFutsalsScreen(),
+          '/admin/bookings': (context) => const AdminBookingsScreen(),
+          '/admin/settings': (context) => const SystemSettingsScreen(),
+          '/admin/analytics': (context) => const AdminAnalyticsScreen(),
         },
       ),
     );

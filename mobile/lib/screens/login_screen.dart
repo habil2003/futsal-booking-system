@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../screens/auth/otp_screen.dart';
+import '../../services/api_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -9,7 +11,8 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
+class _LoginScreenState extends State<LoginScreen>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
 
   final _emailController = TextEditingController();
@@ -22,11 +25,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   bool _submitting = false;
   bool _rememberMe = false;
   bool _obscurePassword = true;
-  
+
   // For forgot password
   bool _showForgotPassword = false;
   bool _resetEmailSent = false;
-  
+
   // Animation controller for forgot password
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -42,7 +45,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       parent: _animationController,
       curve: Curves.easeInOut,
     );
-    
+
     // Check for saved email (remember me)
     _loadSavedEmail();
   }
@@ -84,7 +87,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         _emailController.text.trim(),
         _passwordController.text.trim(),
       );
-      
+
       // Save credentials if remember me is checked
       if (response['status'] == 'success') {
         await _saveCredentials();
@@ -111,52 +114,59 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       if (_isLogin) {
         debugPrint('✅ Login successful, navigating based on role');
         await Future.delayed(const Duration(milliseconds: 500));
-        
+
         if (!mounted) return;
         auth.navigateBasedOnRole(context);
       } else {
-        // Registration success - switch to login
-        setState(() {
-          _isLogin = true;
-          _passwordController.clear();
-          _nameController.clear();
-        });
-        
-        _showSnackBar('Registration successful! Please login.', true);
+        // Registration success - go to OTP verification
+        if (response['requiresVerification'] == true) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => OtpScreen(
+                email: _emailController.text.trim(),
+                type: OtpScreenType.emailVerification,
+              ),
+            ),
+          );
+        }
       }
     }
   }
 
-  Future<void> _handleForgotPassword() async {
-    if (_forgotEmailController.text.isEmpty) {
-      _showSnackBar('Please enter your email', false);
-      return;
-    }
+Future<void> _handleForgotPassword() async {
+  if (_forgotEmailController.text.isEmpty) {
+    _showSnackBar('Please enter your email', false);
+    return;
+  }
 
-    setState(() => _submitting = true);
+  setState(() => _submitting = true);
 
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 2));
-
-    setState(() {
-      _submitting = false;
-      _resetEmailSent = true;
-    });
-
-    _showSnackBar('Password reset link sent to your email!', true);
+  try {
+    // ✅ Save email before clearing
+    final email = _forgotEmailController.text.trim();
     
-    // Auto close after 3 seconds
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        setState(() {
-          _showForgotPassword = false;
-          _resetEmailSent = false;
-          _forgotEmailController.clear();
-        });
-        _animationController.reverse();
-      }
-    });
+    final response = await ApiService.forgotPassword(email);
+
+    setState(() => _submitting = false);
+
+    if (!mounted) return;
+
+    _toggleForgotPassword(); // clears controller — but email is already saved
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => OtpScreen(
+          email: email, // ✅ uses saved variable
+          type: OtpScreenType.passwordReset,
+        ),
+      ),
+    );
+  } catch (e) {
+    setState(() => _submitting = false);
+    _showSnackBar('Error: $e', false);
   }
+}
 
   void _showSnackBar(String message, bool isSuccess) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -208,7 +218,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                 children: [
                   // Logo and App Name
                   _buildLogo(),
-                  
+
                   const SizedBox(height: 20),
 
                   // Forgot Password View
@@ -599,9 +609,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
               const SizedBox(width: 40), // Balance the row
             ],
           ),
-          
+
           const SizedBox(height: 24),
-          
+
           // Icon
           Container(
             padding: const EdgeInsets.all(16),
@@ -615,22 +625,22 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
               color: Colors.green.shade700,
             ),
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Instructions
           Text(
-            _resetEmailSent 
-                ? 'Check your email!' 
+            _resetEmailSent
+                ? 'Check your email!'
                 : 'Enter your email to receive password reset link',
             style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w500,
             ),
           ),
-          
+
           const SizedBox(height: 24),
-          
+
           // Email Field
           if (!_resetEmailSent) ...[
             TextFormField(
@@ -649,14 +659,15 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                   borderRadius: BorderRadius.circular(12),
                   borderSide: const BorderSide(color: Colors.green, width: 2),
                 ),
-                prefixIcon: const Icon(Icons.email_outlined, color: Colors.green),
+                prefixIcon:
+                    const Icon(Icons.email_outlined, color: Colors.green),
                 filled: true,
                 fillColor: Colors.grey.shade50,
               ),
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Send Button
             SizedBox(
               width: double.infinity,

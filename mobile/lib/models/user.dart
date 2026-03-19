@@ -5,6 +5,7 @@ class User {
   final String? phoneNumber;
   final String role;
   final bool isApproved;
+  final DateTime? createdAt;  // ← ADD
 
   User({
     required this.id,
@@ -13,6 +14,7 @@ class User {
     this.phoneNumber,
     required this.role,
     required this.isApproved,
+    this.createdAt,  // ← ADD
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -23,6 +25,9 @@ class User {
       phoneNumber: json['phoneNumber'],
       role: json['role'],
       isApproved: json['isApproved'],
+      createdAt: json['createdAt'] != null  // ← ADD
+          ? DateTime.parse(json['createdAt'])
+          : null,
     );
   }
 
@@ -34,6 +39,7 @@ class User {
       'phoneNumber': phoneNumber,
       'role': role,
       'isApproved': isApproved,
+      'createdAt': createdAt?.toIso8601String(),  // ← ADD
     };
   }
 }

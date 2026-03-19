@@ -10,6 +10,7 @@ import 'court_management_screen.dart';
 import 'bookings_screen.dart';
 import '../owner/tournament_list_screen.dart';
 import 'owner_reviews_screen.dart';
+import 'analytics_screen.dart';
 
 class OwnerDashboard extends StatefulWidget {
   const OwnerDashboard({super.key});
@@ -449,7 +450,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
         const SizedBox(height: 16),
 
         // Quick Actions Section
-        _buildQuickActions(futsalProvider.myFutsals.first),
+       _buildQuickActions(futsalProvider.myFutsals.first, futsalProvider),
 
         const SizedBox(height: 16),
 
@@ -480,7 +481,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     );
   }
 
-  Widget _buildQuickActions(Futsal currentFutsal) {
+  Widget _buildQuickActions(Futsal currentFutsal, FutsalProvider futsalProvider) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -537,10 +538,17 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                 icon: Icons.bar_chart,
                 label: 'Analytics',
                 onTap: () {
-                  // Navigate to analytics
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Analytics coming soon!')),
-                  );
+                  if (futsalProvider.myFutsals.isNotEmpty) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => AnalyticsScreen(
+                          futsalId: futsalProvider.myFutsals.first.id,
+                          futsalName: futsalProvider.myFutsals.first.name,
+                        ),
+                      ),
+                    );
+                  }
                 },
                 color: Colors.orange,
               ),
@@ -1004,7 +1012,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                     } else if (value == 'view_bookings') {
                       _navigateToBookings(futsal);
                     } else if (value == 'view_reviews') {
-                    _navigateToReviews(futsal);
+                      _navigateToReviews(futsal);
                     }
                   },
                   itemBuilder: (ctx) => [

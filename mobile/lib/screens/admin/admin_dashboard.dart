@@ -26,6 +26,16 @@ class _AdminDashboardState extends State<AdminDashboard> {
       appBar: AppBar(
         title: const Text("Admin Dashboard"),
         centerTitle: true,
+        backgroundColor: Colors.green,
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => Provider.of<AdminProvider>(context, listen: false)
+                .loadDashboardStats(),
+            tooltip: 'Refresh',
+          ),
+        ],
       ),
       body: Consumer<AdminProvider>(
         builder: (context, adminProvider, child) {
@@ -95,24 +105,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       style:
                           TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      _actionButton(
-                          "Pending Futsals", Icons.approval, Colors.orange, () {
-                        Navigator.pushNamed(context, "/admin/futsal-approvals");
-                      }),
-                      const SizedBox(width: 12),
-                      _actionButton(
-                          "Manage Users", Icons.people_alt, Colors.blue, () {
-                        Navigator.pushNamed(context, "/admin/users");
-                      }),
-                      const SizedBox(width: 12),
-                      _actionButton(
-                          "All Futsals", Icons.sports_soccer, Colors.green, () {
-                        Navigator.pushNamed(context, "/admin/futsals");
-                      }),
-                    ],
-                  ),
+                  _buildQuickActions(),
 
                   const SizedBox(height: 30),
 
@@ -202,48 +195,115 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Widget _statCard(String title, String value, IconData icon, Color color) {
-    return SizedBox(
-      width: 160,
-      child: Card(
-        elevation: 4,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, size: 28, color: color),
-              const SizedBox(height: 8),
-              Text(value,
-                  style: TextStyle(
-                      fontSize: 22, fontWeight: FontWeight.bold, color: color)),
-              const SizedBox(height: 4),
-              Text(title,
-                  style: const TextStyle(fontSize: 14, color: Colors.black54)),
-            ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = (MediaQuery.of(context).size.width - 48) / 2;
+        return SizedBox(
+          width: width,
+          child: Card(
+            elevation: 4,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(icon, size: 28, color: color),
+                  const SizedBox(height: 8),
+                  Text(value,
+                      style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: color)),
+                  const SizedBox(height: 4),
+                  Text(title,
+                      style:
+                          const TextStyle(fontSize: 12, color: Colors.black54)),
+                ],
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
-  Widget _actionButton(
-      String title, IconData icon, Color color, VoidCallback onTap) {
-    return Expanded(
+  Widget _buildQuickActions() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final itemWidth = (constraints.maxWidth - 36) / 2;
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            _actionButton(
+                "Pending Futsals",
+                Icons.approval,
+                Colors.orange,
+                () => Navigator.pushNamed(context, "/admin/futsal-approvals"),
+                itemWidth),
+            _actionButton("Manage Users", Icons.people_alt, Colors.blue,
+                () => Navigator.pushNamed(context, "/admin/users"), itemWidth),
+            _actionButton(
+                "All Futsals",
+                Icons.sports_soccer,
+                Colors.green,
+                () => Navigator.pushNamed(context, "/admin/futsals"),
+                itemWidth),
+            _actionButton(
+                "All Bookings",
+                Icons.book_online,
+                Colors.teal,
+                () => Navigator.pushNamed(context, "/admin/bookings"),
+                itemWidth),
+            _actionButton(
+                "Settings",
+                Icons.settings,
+                Colors.grey,
+                () => Navigator.pushNamed(context, "/admin/settings"),
+                itemWidth),
+            _actionButton(
+                "Analytics",
+                Icons.analytics,
+                Colors.indigo,
+                () => Navigator.pushNamed(context, "/admin/analytics"),
+                itemWidth),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _actionButton(String title, IconData icon, Color color,
+      VoidCallback onTap, double width) {
+    return SizedBox(
+      width: width,
       child: InkWell(
         onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
         child: Container(
           height: 90,
           decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12)),
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(icon, color: color, size: 28),
-            const SizedBox(height: 6),
-            Text(title,
+            color: color.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: color, size: 28),
+              const SizedBox(height: 6),
+              Text(
+                title,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontWeight: FontWeight.bold, color: color))
-          ]),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

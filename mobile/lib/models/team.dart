@@ -10,7 +10,7 @@ class Team {
   final List<String>? players;
   final String? jerseyColor;
   final DateTime registeredAt;
-  
+
   // Tournament statistics
   final int? matchesPlayed;
   final int? wins;
@@ -44,19 +44,48 @@ class Team {
   });
 
   factory Team.fromJson(Map<String, dynamic> json) {
+    // Extract player names from TeamMember objects
+    List<String>? playerNames;
+    if (json['players'] != null) {
+      final playersList = json['players'] as List;
+      playerNames = playersList
+          .map((p) {
+            if (p is String) return p;
+            // Backend returns TeamMember objects
+            return p['playerName']?.toString() ?? '';
+          })
+          .where((name) => name.isNotEmpty)
+          .toList();
+    }
+
+    // Extract captain info from players list
+    String? captainName;
+    String? captainPhone;
+    String? jerseyColor;
+    if (json['players'] != null) {
+      final playersList = json['players'] as List;
+      final captain = playersList.firstWhere(
+        (p) => p is Map && p['role'] == 'CAPTAIN',
+        orElse: () => null,
+      );
+      if (captain != null) {
+        captainName = captain['playerName'];
+        captainPhone = captain['playerPhone'];
+        jerseyColor = captain['jerseyColor'];
+      }
+    }
+
     return Team(
       id: json['id'] ?? 0,
       tournamentId: json['tournamentId'] ?? 0,
       name: json['name'] ?? 'Unnamed Team',
       logo: json['logo'],
-      captainName: json['captainName'] ?? json['captain']?['name'],
-      captainPhone: json['captainPhone'] ?? json['captain']?['phone'],
-      players: json['players'] != null 
-          ? List<String>.from(json['players']) 
-          : null,
-      jerseyColor: json['jerseyColor'],
-      registeredAt: json['registeredAt'] != null 
-          ? DateTime.parse(json['registeredAt']) 
+      captainName: json['captainName'] ?? captainName,
+      captainPhone: json['captainPhone'] ?? captainPhone,
+      players: playerNames,
+      jerseyColor: json['jerseyColor'] ?? jerseyColor,
+      registeredAt: json['registeredAt'] != null
+          ? DateTime.parse(json['registeredAt'])
           : DateTime.now(),
       matchesPlayed: json['matchesPlayed'],
       wins: json['wins'],
@@ -71,27 +100,27 @@ class Team {
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'tournamentId': tournamentId,
-      'name': name,
-      'logo': logo,
-      'captainName': captainName,
-      'captainPhone': captainPhone,
-      'players': players,
-      'jerseyColor': jerseyColor,
-      'registeredAt': registeredAt.toIso8601String(),
-      'matchesPlayed': matchesPlayed,
-      'wins': wins,
-      'draws': draws,
-      'losses': losses,
-      'goalsFor': goalsFor,
-      'goalsAgainst': goalsAgainst,
-      'points': points,
-      'groupName': groupName,
-      'groupPosition': groupPosition,
-    };
-  }
+  return {
+    'id': id,
+    'tournamentId': tournamentId,
+    'name': name,
+    'logo': logo,
+    'captainName': captainName,
+    'captainPhone': captainPhone,
+    'players': players,
+    'jerseyColor': jerseyColor,
+    'registeredAt': registeredAt.toIso8601String(),
+    'matchesPlayed': matchesPlayed,
+    'wins': wins,
+    'draws': draws,
+    'losses': losses,
+    'goalsFor': goalsFor,
+    'goalsAgainst': goalsAgainst,
+    'points': points,
+    'groupName': groupName,
+    'groupPosition': groupPosition,
+  };
+}
 
   Team copyWith({
     int? id,
@@ -137,7 +166,7 @@ class Team {
 
   // Helper getters
   int get goalDifference => (goalsFor ?? 0) - (goalsAgainst ?? 0);
-  
+
   String get formDisplay {
     if (wins == null || draws == null || losses == null) return 'N/A';
     return 'W: $wins | D: $draws | L: $losses';

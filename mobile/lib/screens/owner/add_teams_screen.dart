@@ -23,8 +23,7 @@ class AddTeamsScreen extends StatefulWidget {
 class _AddTeamsScreenState extends State<AddTeamsScreen> {
   final List<Team> _teams = [];
   final _formKey = GlobalKey<FormState>();
-  
-  // Controllers for adding a team
+
   final _nameController = TextEditingController();
   final _captainNameController = TextEditingController();
   final _captainPhoneController = TextEditingController();
@@ -35,7 +34,9 @@ class _AddTeamsScreenState extends State<AddTeamsScreen> {
   void initState() {
     super.initState();
     _loadTeams();
-    _addPlayerField(); // Start with one player field
+    for (int i = 0; i < 5; i++) {
+      _addPlayerField();
+    }
   }
 
   @override
@@ -50,15 +51,18 @@ class _AddTeamsScreenState extends State<AddTeamsScreen> {
     super.dispose();
   }
 
-  Future<void> _loadTeams() async {
-    final provider = Provider.of<TournamentProvider>(context, listen: false);
-    await provider.loadTeams(widget.tournamentId);
-    setState(() {
-      _teams.clear();
-      _teams.addAll(provider.teams);
-    });
+Future<void> _loadTeams() async {
+  final provider = Provider.of<TournamentProvider>(context, listen: false);
+  await provider.loadTeams(widget.tournamentId);
+  debugPrint('🏆 Teams loaded: ${provider.teams.length}');
+  for (var team in provider.teams) {
+    debugPrint('🏆 Team: ${team.name}, players: ${team.players}');
   }
-
+  setState(() {
+    _teams.clear();
+    _teams.addAll(provider.teams);
+  });
+}
   void _addPlayerField() {
     setState(() {
       _playerControllers.add(TextEditingController());
@@ -74,12 +78,22 @@ class _AddTeamsScreenState extends State<AddTeamsScreen> {
 
   Future<void> _addTeam() async {
     if (!_formKey.currentState!.validate()) return;
-    
-    // Collect players
+
     List<String> players = _playerControllers
         .map((c) => c.text.trim())
         .where((p) => p.isNotEmpty)
         .toList();
+
+    if (players.length < 5) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please add at least 5 players'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
 
     final teamData = {
       'name': _nameController.text.trim(),
@@ -89,23 +103,20 @@ class _AddTeamsScreenState extends State<AddTeamsScreen> {
       'players': players,
     };
 
-    // Show loading
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => const Center(
-        child: CircularProgressIndicator(color: Colors.green),
-      ),
+      builder: (ctx) =>
+          const Center(child: CircularProgressIndicator(color: Colors.green)),
     );
 
     final provider = Provider.of<TournamentProvider>(context, listen: false);
     final response = await provider.addTeam(widget.tournamentId, teamData);
 
     if (!mounted) return;
-    Navigator.pop(context); // Close loading
+    Navigator.pop(context);
 
     if (response['status'] == 'success') {
-      // Clear form
       _nameController.clear();
       _captainNameController.clear();
       _captainPhoneController.clear();
@@ -113,10 +124,7 @@ class _AddTeamsScreenState extends State<AddTeamsScreen> {
       for (var controller in _playerControllers) {
         controller.clear();
       }
-      
-      // Refresh teams list
       await _loadTeams();
-      
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Team added successfully'),
@@ -157,20 +165,18 @@ class _AddTeamsScreenState extends State<AddTeamsScreen> {
 
     if (confirm != true) return;
 
-    // Show loading
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => const Center(
-        child: CircularProgressIndicator(color: Colors.green),
-      ),
+      builder: (ctx) =>
+          const Center(child: CircularProgressIndicator(color: Colors.green)),
     );
 
     final provider = Provider.of<TournamentProvider>(context, listen: false);
     final response = await provider.deleteTeam(teamId);
 
     if (!mounted) return;
-    Navigator.pop(context); // Close loading
+    Navigator.pop(context);
 
     if (response['status'] == 'success') {
       await _loadTeams();
@@ -204,13 +210,12 @@ class _AddTeamsScreenState extends State<AddTeamsScreen> {
       return;
     }
 
-    // Show confirmation
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Generate Fixtures'),
         content: Text(
-          'Generate ${widget.tournamentType == TournamentType.knockout ? 'knockout bracket' : 'round robin fixtures'} with $_teams teams?',
+          'Generate ${widget.tournamentType == TournamentType.knockout ? 'knockout bracket' : 'round robin fixtures'} with ${_teams.length} teams?',
         ),
         actions: [
           TextButton(
@@ -231,28 +236,28 @@ class _AddTeamsScreenState extends State<AddTeamsScreen> {
 
     if (confirm != true) return;
 
-    // Show loading
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => const Center(
-        child: CircularProgressIndicator(color: Colors.green),
-      ),
+      builder: (ctx) =>
+          const Center(child: CircularProgressIndicator(color: Colors.green)),
     );
 
     final provider = Provider.of<TournamentProvider>(context, listen: false);
     final response = await provider.generateFixtures(widget.tournamentId);
 
     if (!mounted) return;
-    Navigator.pop(context); // Close loading
+    Navigator.pop(context);
 
     if (response['status'] == 'success') {
-      // Navigate to fixtures screen
-      Navigator.pushReplacementNamed(
-        context,
-        '/tournament/fixtures',
-        arguments: widget.tournamentId,
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Fixtures generated successfully!'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+        ),
       );
+      Navigator.pop(context); // Go back to tournament details
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -288,7 +293,7 @@ class _AddTeamsScreenState extends State<AddTeamsScreen> {
       ),
       body: Column(
         children: [
-          // Header with team count
+          // Header
           Container(
             padding: const EdgeInsets.all(16),
             color: Colors.green.shade50,
@@ -309,7 +314,7 @@ class _AddTeamsScreenState extends State<AddTeamsScreen> {
                       const SizedBox(height: 4),
                       Text(
                         widget.tournamentType == TournamentType.knockout
-                            ? 'Knockout tournament needs 2, 4, 8, 16, or 32 teams'
+                            ? 'Knockout: needs 2, 4, 8, 16, or 32 teams'
                             : 'Round robin: all teams play each other',
                         style: TextStyle(
                           fontSize: 12,
@@ -322,9 +327,7 @@ class _AddTeamsScreenState extends State<AddTeamsScreen> {
                 if (!canAddMore)
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
+                        horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: Colors.orange.shade100,
                       borderRadius: BorderRadius.circular(20),
@@ -342,203 +345,228 @@ class _AddTeamsScreenState extends State<AddTeamsScreen> {
             ),
           ),
 
-          // Add Team Form (if can add more)
-          if (canAddMore)
-            Container(
-              margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(15),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Add New Team',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+          // Scrollable content
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  // Add Team Form
+                  if (canAddMore)
+                    Container(
+                      margin: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(15),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.1),
+                            blurRadius: 10,
+                            offset: const Offset(0, 5),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Team Name
-                    TextFormField(
-                      controller: _nameController,
-                      decoration: InputDecoration(
-                        labelText: 'Team Name *',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        prefixIcon: const Icon(Icons.group, color: Colors.green),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter team name';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Captain Name
-                    TextFormField(
-                      controller: _captainNameController,
-                      decoration: InputDecoration(
-                        labelText: 'Captain Name',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        prefixIcon: const Icon(Icons.person, color: Colors.green),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Captain Phone
-                    TextFormField(
-                      controller: _captainPhoneController,
-                      keyboardType: TextInputType.phone,
-                      decoration: InputDecoration(
-                        labelText: 'Captain Phone',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        prefixIcon: const Icon(Icons.phone, color: Colors.green),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Jersey Color
-                    TextFormField(
-                      controller: _jerseyColorController,
-                      decoration: InputDecoration(
-                        labelText: 'Jersey Color',
-                        hintText: 'e.g., Red, Blue, Green',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        prefixIcon: const Icon(Icons.color_lens, color: Colors.green),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Players
-                    const Text(
-                      'Players',
-                      style: TextStyle(fontWeight: FontWeight.w500),
-                    ),
-                    const SizedBox(height: 8),
-
-                    ..._playerControllers.asMap().entries.map((entry) {
-                      final index = entry.key;
-                      final controller = entry.value;
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Row(
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: TextFormField(
-                                controller: controller,
-                                decoration: InputDecoration(
-                                  hintText: 'Player ${index + 1} name',
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  prefixIcon: const Icon(Icons.person_outline, size: 20),
-                                ),
+                            const Text(
+                              'Add New Team',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                            if (_playerControllers.length > 1)
-                              IconButton(
-                                icon: const Icon(Icons.remove_circle, color: Colors.red),
-                                onPressed: () => _removePlayerField(index),
+                            const SizedBox(height: 16),
+
+                            // Team Name
+                            TextFormField(
+                              controller: _nameController,
+                              decoration: InputDecoration(
+                                labelText: 'Team Name *',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                prefixIcon: const Icon(Icons.group,
+                                    color: Colors.green),
                               ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter team name';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 12),
+
+                            // Captain Name
+                            TextFormField(
+                              controller: _captainNameController,
+                              decoration: InputDecoration(
+                                labelText: 'Captain Name *',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                prefixIcon: const Icon(Icons.person,
+                                    color: Colors.green),
+                              ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter captain name';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 12),
+
+                            // Captain Phone
+                            TextFormField(
+                              controller: _captainPhoneController,
+                              keyboardType: TextInputType.phone,
+                              decoration: InputDecoration(
+                                labelText: 'Captain Phone',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                prefixIcon: const Icon(Icons.phone,
+                                    color: Colors.green),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+
+                            // Jersey Color
+                            TextFormField(
+                              controller: _jerseyColorController,
+                              decoration: InputDecoration(
+                                labelText: 'Jersey Color',
+                                hintText: 'e.g., Red, Blue, Green',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                prefixIcon: const Icon(Icons.color_lens,
+                                    color: Colors.green),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+
+                            // Players
+                            const Text(
+                              'Players (minimum 5)',
+                              style: TextStyle(fontWeight: FontWeight.w500),
+                            ),
+                            const SizedBox(height: 8),
+
+                            ..._playerControllers.asMap().entries.map((entry) {
+                              final index = entry.key;
+                              final controller = entry.value;
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextFormField(
+                                        controller: controller,
+                                        decoration: InputDecoration(
+                                          hintText: 'Player ${index + 1} name',
+                                          border: OutlineInputBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(10),
+                                          ),
+                                          prefixIcon: const Icon(
+                                              Icons.person_outline,
+                                              size: 20),
+                                        ),
+                                      ),
+                                    ),
+                                    if (_playerControllers.length > 5)
+                                      IconButton(
+                                        icon: const Icon(Icons.remove_circle,
+                                            color: Colors.red),
+                                        onPressed: () =>
+                                            _removePlayerField(index),
+                                      ),
+                                  ],
+                                ),
+                              );
+                            }),
+
+                            TextButton.icon(
+                              onPressed: _addPlayerField,
+                              icon: const Icon(Icons.add),
+                              label: const Text('Add Player'),
+                              style: TextButton.styleFrom(
+                                  foregroundColor: Colors.green),
+                            ),
+
+                            const SizedBox(height: 16),
+
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: _addTeam,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                child: const Text('Add Team'),
+                              ),
+                            ),
                           ],
                         ),
-                      );
-                    }),
-
-                    // Add player button
-                    TextButton.icon(
-                      onPressed: _addPlayerField,
-                      icon: const Icon(Icons.add),
-                      label: const Text('Add Player'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.green,
                       ),
                     ),
 
-                    const SizedBox(height: 16),
-
-                    // Submit button
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _addTeam,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                  // Teams List
+                  if (_teams.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Column(
+                        children: [
+                          Icon(Icons.group_add,
+                              size: 80, color: Colors.grey.shade400),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No teams added yet',
+                            style: TextStyle(
+                                fontSize: 18, color: Colors.grey.shade600),
                           ),
-                        ),
-                        child: const Text('Add Team'),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Add teams to start the tournament',
+                            style: TextStyle(color: Colors.grey.shade500),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Teams (${_teams.length})',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          ..._teams.map((team) => _buildTeamCard(team)),
+                        ],
                       ),
                     ),
-                  ],
-                ),
+
+                  const SizedBox(height: 32),
+                ],
               ),
             ),
-
-          // Teams List
-          Expanded(
-            child: _teams.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.group_add,
-                          size: 80,
-                          color: Colors.grey.shade400,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No teams added yet',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Add teams to start the tournament',
-                          style: TextStyle(
-                            color: Colors.grey.shade500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _teams.length,
-                    itemBuilder: (context, index) {
-                      final team = _teams[index];
-                      return _buildTeamCard(team);
-                    },
-                  ),
           ),
         ],
       ),
@@ -548,76 +576,57 @@ class _AddTeamsScreenState extends State<AddTeamsScreen> {
   Widget _buildTeamCard(Team team) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: Column(
+        child: Row(
           children: [
-            Row(
-              children: [
-                // Team icon with jersey color
-                Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: _getColorFromString(team.jerseyColor),
-                    shape: BoxShape.circle,
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: _getColorFromString(team.jerseyColor),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  team.name[0].toUpperCase(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
                   ),
-                  child: Center(
-                    child: Text(
-                      team.name[0].toUpperCase(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    team.name,
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  if (team.captainName != null)
+                    Text(
+                      'Captain: ${team.captainName}',
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.grey.shade600),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-
-                // Team details
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        team.name,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (team.captainName != null) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          'Captain: ${team.captainName}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                      ],
-                      if (team.players != null && team.players!.isNotEmpty)
-                        Text(
-                          '${team.players!.length} players',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-
-                // Delete button
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.red),
-                  onPressed: () => _deleteTeam(team.id),
-                ),
-              ],
+                  if (team.players != null && team.players!.isNotEmpty)
+                    Text(
+                      '${team.players!.length} players',
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.grey.shade500),
+                    ),
+                ],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              onPressed: () => _deleteTeam(team.id),
             ),
           ],
         ),
@@ -627,7 +636,6 @@ class _AddTeamsScreenState extends State<AddTeamsScreen> {
 
   Color _getColorFromString(String? colorName) {
     if (colorName == null) return Colors.green.shade300;
-    
     switch (colorName.toLowerCase()) {
       case 'red':
         return Colors.red;

@@ -55,7 +55,6 @@ Future<void> _fetchPlayerLocation() async {
 }
 
 Future<void> fetchFutsals() async {
-  debugPrint('📍 Provider: Fetching all futsals');
   _isLoading = true;
   _error = null;
   notifyListeners();
@@ -89,12 +88,9 @@ Future<void> fetchFutsals() async {
         (a.distance ?? 999).compareTo(b.distance ?? 999)
       );
     }
-
-    debugPrint('✅ Provider: Loaded ${_futsals.length} futsals');
     _isLoading = false;
     notifyListeners();
   } catch (e) {
-    debugPrint('❌ Provider: Fetch failed - $e');
     _isLoading = false;
     _error = 'Failed to load futsals: $e';
     notifyListeners();
@@ -105,7 +101,6 @@ Future<void> fetchFutsals() async {
   // FETCH SINGLE FUTSAL - Get details by ID
   // ============================================
   Future<Futsal?> fetchFutsalById(int id) async {
-    debugPrint('📍 Provider: Fetching futsal $id');
     
     try {
       final response = await ApiService.get('futsals/$id');

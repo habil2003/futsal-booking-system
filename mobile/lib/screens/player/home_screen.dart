@@ -31,10 +31,6 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
   double _minPrice = 0;
   double _maxPrice = 5000;
 
-  // User location (simulated)
-  double? _userLat;
-  double? _userLng;
-
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
@@ -70,7 +66,6 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
   void initState() {
     super.initState();
     _loadFutsals();
-    _getUserLocation();
 
     _animationController = AnimationController(
       vsync: this,
@@ -87,6 +82,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
   }
 
   void _autoScrollBanner() {
+    if (_disposed) return;
     if (_bannerController.hasClients) {
       _currentBanner = (_currentBanner + 1) % _banners.length;
       _bannerController.animateToPage(
@@ -98,8 +94,11 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     }
   }
 
+  bool _disposed = false;
+
   @override
   void dispose() {
+    _disposed = true;
     _searchController.dispose();
     _bannerController.dispose();
     _animationController.dispose();
@@ -125,28 +124,6 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
       });
     }
   }
-
-  void _getUserLocation() {
-    // Simulate getting user location
-    _userLat = 27.7172; // Kathmandu latitude
-    _userLng = 85.3240; // Kathmandu longitude
-  }
-
-  double _calculateDistance(
-      double lat1, double lon1, double lat2, double lon2) {
-    const R = 6371;
-    var dLat = _deg2rad(lat2 - lat1);
-    var dLon = _deg2rad(lon2 - lon1);
-    var a = math.sin(dLat / 2) * math.sin(dLat / 2) +
-        math.cos(_deg2rad(lat1)) *
-            math.cos(_deg2rad(lat2)) *
-            math.sin(dLon / 2) *
-            math.sin(dLon / 2);
-    var c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
-    return R * c;
-  }
-
-  double _deg2rad(double deg) => deg * (math.pi / 180);
 
   List<Futsal> get _filteredFutsals {
     final futsalProvider = Provider.of<FutsalProvider>(context, listen: false);
@@ -186,47 +163,45 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
         slivers: [
           // Custom App Bar
           SliverAppBar(
-            expandedHeight: 200,
+            expandedHeight: 160, // ← reduced from 200
             floating: false,
             pinned: true,
             backgroundColor: Colors.green,
+            automaticallyImplyLeading: false,
             flexibleSpace: FlexibleSpaceBar(
-              titlePadding: const EdgeInsets.only(left: 20, bottom: 20),
-              title: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Hello, ${auth.user?.fullName?.split(' ')[0] ?? 'Player'}!',
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Ready to play today?',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.white.withOpacity(0.9),
-                    ),
-                  ),
-                ],
-              ),
               background: Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [
-                      Colors.green,
-                      Colors.green.shade700,
-                    ],
+                    colors: [Colors.green, Colors.green.shade700],
                   ),
-                  image: const DecorationImage(
-                    image: AssetImage('assets/pattern.png'),
-                    opacity: 0.1,
-                    repeat: ImageRepeat.repeat,
+                ),
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 20, top: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Hello, ${auth.user?.fullName?.split(' ')[0] ?? 'Player'}! 👋',
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Ready to play today?',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.white.withOpacity(0.9),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -453,94 +428,87 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     );
   }
 
-  Widget _buildFilterPanel() {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      height: _showFilters ? 200 : 0,
-      child: _showFilters
-          ? Container(
-              margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(15),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  // Distance filter
-                  Row(
-                    children: [
-                      const Icon(Icons.place_outlined,
-                          size: 20, color: Colors.green),
-                      const SizedBox(width: 8),
-                      Text('Within $_distanceRadius km'),
-                      const Spacer(),
-                      TextButton(
-                        onPressed: () {
-                          _getUserLocation();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Location updated'),
-                              backgroundColor: Colors.green,
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        },
-                        child: const Text('Use My Location'),
-                      ),
-                    ],
-                  ),
-                  Slider(
-                    value: _distanceRadius,
-                    min: 1,
-                    max: 20,
-                    divisions: 19,
-                    activeColor: Colors.green,
-                    onChanged: (value) {
-                      setState(() {
-                        _distanceRadius = value;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 8),
+Widget _buildFilterPanel() {
+  if (!_showFilters) return const SizedBox.shrink();
 
-                  // Price range filter
-                  Row(
-                    children: [
-                      const Icon(Icons.attach_money,
-                          size: 20, color: Colors.green),
-                      const SizedBox(width: 8),
-                      Text(
-                        'रू ${_priceRange.start.round()} - रू ${_priceRange.end.round()}',
-                        style: const TextStyle(fontWeight: FontWeight.w500),
-                      ),
-                    ],
+  return Container(
+    margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(15),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.grey.withOpacity(0.1),
+          blurRadius: 10,
+          offset: const Offset(0, 5),
+        ),
+      ],
+    ),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Distance filter
+        Row(
+          children: [
+            const Icon(Icons.place_outlined, size: 20, color: Colors.green),
+            const SizedBox(width: 8),
+            Text('Within $_distanceRadius km'),
+            const Spacer(),
+            TextButton(
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Location updated'),
+                    backgroundColor: Colors.green,
+                    behavior: SnackBarBehavior.floating,
                   ),
-                  RangeSlider(
-                    values: _priceRange,
-                    min: _minPrice,
-                    max: _maxPrice,
-                    divisions: 20,
-                    activeColor: Colors.green,
-                    onChanged: (values) {
-                      setState(() {
-                        _priceRange = values;
-                      });
-                    },
-                  ),
-                ],
-              ),
-            )
-          : const SizedBox.shrink(),
-    );
-  }
+                );
+              },
+              child: const Text('Use My Location'),
+            ),
+          ],
+        ),
+        Slider(
+          value: _distanceRadius,
+          min: 1,
+          max: 20,
+          divisions: 19,
+          activeColor: Colors.green,
+          onChanged: (value) {
+            setState(() {
+              _distanceRadius = value;
+            });
+          },
+        ),
+        const SizedBox(height: 8),
+        // Price range filter
+        Row(
+          children: [
+            const Icon(Icons.attach_money, size: 20, color: Colors.green),
+            const SizedBox(width: 8),
+            Text(
+              'रू ${_priceRange.start.round()} - रू ${_priceRange.end.round()}',
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+        RangeSlider(
+          values: _priceRange,
+          min: _minPrice,
+          max: _maxPrice,
+          divisions: 20,
+          activeColor: Colors.green,
+          onChanged: (values) {
+            setState(() {
+              _priceRange = values;
+            });
+          },
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildBannerCard(Map<String, String> banner) {
     return Container(
@@ -852,24 +820,6 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                           ),
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.green.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          'OPEN',
-                          style: TextStyle(
-                            color: Colors.green.shade700,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -927,13 +877,17 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                   const SizedBox(height: 8),
 
                   // Amenities Preview
+                  // Replace the entire amenity Row with this
                   Row(
                     children: [
-                      _buildAmenityChip(Icons.sports_soccer, '5 Courts'),
+                      _buildAmenityChip(Icons.sports_soccer, 'Futsal'),
                       const SizedBox(width: 8),
-                      _buildAmenityChip(Icons.local_parking, 'Parking'),
-                      const SizedBox(width: 8),
-                      _buildAmenityChip(Icons.local_cafe, 'Cafe'),
+                      _buildAmenityChip(
+                        Icons.star_outline,
+                        futsal.averageRating != null
+                            ? '${futsal.averageRating!.toStringAsFixed(1)} rated'
+                            : 'New venue',
+                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -1146,7 +1100,11 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
             _buildProfileTile(Icons.person, 'Role', user.role),
             if (user.phoneNumber != null)
               _buildProfileTile(Icons.phone, 'Phone', user.phoneNumber!),
-            _buildProfileTile(Icons.calendar_today, 'Member since', '2024'),
+            _buildProfileTile(
+              Icons.calendar_today,
+              'Member since',
+              user.createdAt != null ? user.createdAt!.year.toString() : 'N/A',
+            ),
             const SizedBox(height: 20),
             Row(
               children: [

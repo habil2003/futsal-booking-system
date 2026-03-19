@@ -15,7 +15,7 @@ class Match {
   final int? round; // For knockout: round number
   final String? groupName; // For round robin: group name
   final int? matchNumber; // Match number in tournament
-  
+
   // Teams
   final int? team1Id;
   final String team1Name;
@@ -23,13 +23,13 @@ class Match {
   final int? team2Id;
   final String team2Name;
   final String? team2Logo;
-  
+
   // Scores
   final int? team1Score;
   final int? team2Score;
   final int? team1Penalty; // For penalty shootouts
   final int? team2Penalty;
-  
+
   // Details
   final DateTime scheduledDate;
   final DateTime? startTime;
@@ -40,7 +40,7 @@ class Match {
   final String? winnerTeam;
   final String? manOfTheMatch;
   final String? notes;
-  
+
   // For round robin points
   final int? team1Points;
   final int? team2Points;
@@ -79,32 +79,35 @@ class Match {
     return Match(
       id: json['id'] ?? 0,
       tournamentId: json['tournamentId'] ?? 0,
-      tournamentName: json['tournamentName'] ?? json['tournament']?['name'] ?? 'Unknown Tournament',
-      round: json['round'],
+      tournamentName:
+          json['tournamentName'] ?? json['tournament']?['name'] ?? 'Unknown',
+      round: json['round'] is int ? json['round'] : null,
+      team1Id: json['team1Id'] ?? json['homeTeamId'], // ← ADD fallback
+      team1Name: json['team1Name'] ??
+          json['homeTeam']?['name'] ??
+          'TBD', // ← ADD fallback
+      team2Id: json['team2Id'] ?? json['awayTeamId'], // ← ADD fallback
+      team2Name: json['team2Name'] ??
+          json['awayTeam']?['name'] ??
+          'TBD', // ← ADD fallback
+      team1Score: json['team1Score'] ?? json['homeScore'], // ← ADD fallback
+      team2Score: json['team2Score'] ?? json['awayScore'], // ← ADD fallback
+      scheduledDate: json['scheduledDate'] != null
+          ? DateTime.parse(json['scheduledDate'])
+          : json['matchDate'] != null // ← ADD fallback
+              ? DateTime.parse(json['matchDate'])
+              : DateTime.now(),
+      status: _parseMatchStatus(json['status']),
+      team1Penalty: json['team1Penalty'] ?? json['homePenalty'],
+      team2Penalty: json['team2Penalty'] ?? json['awayPenalty'],
       groupName: json['groupName'],
       matchNumber: json['matchNumber'],
-      team1Id: json['team1Id'],
-      team1Name: json['team1Name'] ?? json['team1']?['name'] ?? 'TBD',
-      team1Logo: json['team1Logo'] ?? json['team1']?['logo'],
-      team2Id: json['team2Id'],
-      team2Name: json['team2Name'] ?? json['team2']?['name'] ?? 'TBD',
-      team2Logo: json['team2Logo'] ?? json['team2']?['logo'],
-      team1Score: json['team1Score'],
-      team2Score: json['team2Score'],
-      team1Penalty: json['team1Penalty'],
-      team2Penalty: json['team2Penalty'],
-      scheduledDate: json['scheduledDate'] != null 
-          ? DateTime.parse(json['scheduledDate']) 
-          : DateTime.now(),
-      startTime: json['startTime'] != null 
-          ? DateTime.parse(json['startTime']) 
-          : null,
-      endTime: json['endTime'] != null 
-          ? DateTime.parse(json['endTime']) 
-          : null,
+      team1Logo: json['team1Logo'] ?? json['homeTeam']?['logo'],
+      team2Logo: json['team2Logo'] ?? json['awayTeam']?['logo'],
+      startTime: null,
+      endTime: null,
       venue: json['venue'],
       referee: json['referee'],
-      status: _parseMatchStatus(json['status']),
       winnerTeam: json['winnerTeam'],
       manOfTheMatch: json['manOfTheMatch'],
       notes: json['notes'],
@@ -151,10 +154,10 @@ class Match {
   bool get isCompleted => status == MatchStatus.completed;
   bool get isPostponed => status == MatchStatus.postponed;
   bool get isCancelled => status == MatchStatus.cancelled;
-  
+
   bool get hasScore => team1Score != null && team2Score != null;
   bool get hasPenalty => team1Penalty != null && team2Penalty != null;
-  
+
   String get scoreDisplay {
     if (!hasScore) return 'vs';
     if (hasPenalty && team1Score == team2Score) {
@@ -162,7 +165,7 @@ class Match {
     }
     return '$team1Score - $team2Score';
   }
-  
+
   String? get winner {
     if (!hasScore) return null;
     if (team1Score! > team2Score!) return team1Name;
@@ -171,7 +174,7 @@ class Match {
     if (hasPenalty && team2Penalty! > team1Penalty!) return team2Name;
     return null; // Draw
   }
-  
+
   bool get isDraw {
     if (!hasScore) return false;
     if (team1Score == team2Score) {

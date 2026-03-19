@@ -133,6 +133,15 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> saveAuthData(String token, Map<String, dynamic> userData) async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setString('token', token);
+  await prefs.setString('user', json.encode(userData));
+  _user = User.fromJson(userData);
+  _token = token;
+  notifyListeners();
+}
+
   // Helper method to get role-based home route
   String get homeRoute {
     if (isAdmin) return '/admin/dashboard';

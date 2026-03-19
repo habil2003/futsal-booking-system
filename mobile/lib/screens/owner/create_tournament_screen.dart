@@ -6,7 +6,12 @@ import '../../models/tournament.dart';
 import 'add_teams_screen.dart';
 
 class CreateTournamentScreen extends StatefulWidget {
-  const CreateTournamentScreen({super.key});
+  final Tournament? tournamentToEdit; // Add this parameter
+
+  const CreateTournamentScreen({
+    super.key,
+    this.tournamentToEdit, // Add this
+  });
 
   @override
   State<CreateTournamentScreen> createState() => _CreateTournamentScreenState();
@@ -14,26 +19,64 @@ class CreateTournamentScreen extends StatefulWidget {
 
 class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
   final _formKey = GlobalKey<FormState>();
-  
+
   // Form controllers
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _prizePoolController = TextEditingController();
   final _entryFeeController = TextEditingController();
   final _rulesController = TextEditingController();
-  
+
   // Selected values
   int? _selectedFutsalId;
   TournamentType _selectedType = TournamentType.knockout;
   DateTime _startDate = DateTime.now().add(const Duration(days: 7));
   DateTime? _endDate;
-  int _numberOfTeams = 8;
-  int? _maxTeams;
+  int _numberOfTeams = 8; // This is sent as maxTeams to backend
   bool _isPublished = false;
-  
+
   // Prize list
   final List<String> _prizes = [];
   final TextEditingController _prizeController = TextEditingController();
+
+  // Add edit mode flag
+  bool get _isEditing => widget.tournamentToEdit != null;
+
+  @override
+  void initState() {
+    super.initState();
+    // If editing, populate form with existing tournament data
+    if (_isEditing) {
+      _populateForm();
+    }
+  }
+
+  void _populateForm() {
+    final tournament = widget.tournamentToEdit!;
+
+    _selectedFutsalId = tournament.futsalId;
+    _nameController.text = tournament.name;
+    _descriptionController.text = tournament.description ?? '';
+    _selectedType = tournament.type;
+    _startDate = tournament.startDate;
+    _endDate = tournament.endDate;
+    _numberOfTeams = tournament.maxTeams ?? 8;
+    _isPublished = tournament.isPublished;
+
+    if (tournament.entryFee != null) {
+      _entryFeeController.text = tournament.entryFee!.toString();
+    }
+
+    if (tournament.prizePool != null) {
+      _prizePoolController.text = tournament.prizePool!.toString();
+    }
+
+    _rulesController.text = tournament.rules ?? '';
+
+    if (tournament.prizes != null && tournament.prizes!.isNotEmpty) {
+      _prizes.addAll(tournament.prizes!);
+    }
+  }
 
   @override
   void dispose() {
@@ -64,7 +107,9 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
   Future<void> _selectDate(BuildContext context, bool isStart) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: isStart ? _startDate : (_endDate ?? _startDate.add(const Duration(days: 30))),
+      initialDate: isStart
+          ? _startDate
+          : (_endDate ?? _startDate.add(const Duration(days: 30))),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
@@ -79,25 +124,68 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
     }
   }
 
-  Future<void> _createTournament() async {
+  // In create_tournament_screen.dart - Update the _saveTournament method start:
+
+  Future<void> _saveTournament() async {
     if (!_formKey.currentState!.validate()) return;
+
+    // Validate maxTeams is set
+    if (_numberOfTeams <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select number of teams'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Validate futsal selection
+    if (_selectedFutsalId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a futsal'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Validate tournament name
+    if (_nameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter tournament name'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
     // Prepare tournament data
     final tournamentData = {
       'futsalId': _selectedFutsalId,
-      'name': _nameController.text,
-      'description': _descriptionController.text.isNotEmpty ? _descriptionController.text : null,
-      'type': _selectedType == TournamentType.knockout ? 'knockout' : 'round_robin',
+      'name': _nameController.text.trim(),
+      'description': _descriptionController.text.isNotEmpty
+          ? _descriptionController.text
+          : null,
+      'type':
+          _selectedType == TournamentType.knockout ? 'KNOCKOUT' : 'ROUND_ROBIN',
       'startDate': _startDate.toIso8601String(),
       'endDate': _endDate?.toIso8601String(),
-      'numberOfTeams': _numberOfTeams,
-      'maxTeams': _maxTeams,
-      'entryFee': _entryFeeController.text.isNotEmpty ? double.parse(_entryFeeController.text) : null,
-      'prizePool': _prizePoolController.text.isNotEmpty ? double.parse(_prizePoolController.text) : null,
+      'maxTeams': _numberOfTeams,
+      'entryFee': _entryFeeController.text.isNotEmpty
+          ? double.parse(_entryFeeController.text)
+          : null,
+      'prizePool': _prizePoolController.text.isNotEmpty
+          ? double.parse(_prizePoolController.text)
+          : null,
       'rules': _rulesController.text.isNotEmpty ? _rulesController.text : null,
       'prizes': _prizes.isEmpty ? null : _prizes,
       'isPublished': _isPublished,
     };
+
+    debugPrint('🏆 Saving tournament data: $tournamentData');
 
     // Show loading dialog
     showDialog(
@@ -110,7 +198,10 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
 
     // Call API
     final provider = Provider.of<TournamentProvider>(context, listen: false);
-    final response = await provider.createTournament(tournamentData);
+    final response = _isEditing
+        ? await provider.updateTournament(
+            widget.tournamentToEdit!.id, tournamentData)
+        : await provider.createTournament(tournamentData);
 
     // Close loading dialog
     if (!mounted) return;
@@ -120,36 +211,42 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(response['message']),
-        backgroundColor: response['status'] == 'success' ? Colors.green : Colors.red,
+        backgroundColor:
+            response['status'] == 'success' ? Colors.green : Colors.red,
         behavior: SnackBarBehavior.floating,
       ),
     );
 
-if (response['status'] == 'success') {
-  Navigator.pop(context); // Close loading
-  Navigator.pop(context, true); // Return success to previous screen
-  
-  // Navigate to add teams screen
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => AddTeamsScreen(
-        tournamentId: response['tournamentId'],
-        maxTeams: _numberOfTeams,
-        tournamentType: _selectedType,
-      ),
-    ),
-  );
-}
+    if (response['status'] == 'success') {
+      if (_isEditing) {
+        // For edit, just go back to details screen
+        Navigator.pop(context, true); // Return success
+      } else {
+        // For create, navigate to add teams screen
+        Navigator.pop(context); // Close loading
+        Navigator.pop(context, true); // Return success to previous screen
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AddTeamsScreen(
+              tournamentId: response['tournamentId'] ?? 0,
+              maxTeams: _numberOfTeams,
+              tournamentType: _selectedType,
+            ),
+          ),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final futsalProvider = Provider.of<FutsalProvider>(context);
-    
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Create Tournament'),
+        title: Text(_isEditing ? 'Edit Tournament' : 'Create Tournament'),
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -183,7 +280,8 @@ if (response['status'] == 'success') {
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        prefixIcon: const Icon(Icons.sports_soccer, color: Colors.green),
+                        prefixIcon: const Icon(Icons.sports_soccer,
+                            color: Colors.green),
                       ),
                       items: futsalProvider.myFutsals.map((futsal) {
                         return DropdownMenuItem<int>(
@@ -191,16 +289,33 @@ if (response['status'] == 'success') {
                           child: Text(futsal.name),
                         );
                       }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedFutsalId = value;
-                        });
-                      },
+                      onChanged: _isEditing &&
+                              widget.tournamentToEdit!.status !=
+                                  TournamentStatus.draft
+                          ? null // Disable if tournament is not in draft
+                          : (value) {
+                              setState(() {
+                                _selectedFutsalId = value;
+                              });
+                            },
                       validator: (value) {
                         if (value == null) return 'Please select a futsal';
                         return null;
                       },
                     ),
+                    if (_isEditing &&
+                        widget.tournamentToEdit!.status !=
+                            TournamentStatus.draft)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          'Futsal cannot be changed after tournament starts',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.orange.shade700,
+                          ),
+                        ),
+                      ),
                     const SizedBox(height: 16),
 
                     // Tournament Name
@@ -212,7 +327,8 @@ if (response['status'] == 'success') {
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        prefixIcon: const Icon(Icons.emoji_events, color: Colors.green),
+                        prefixIcon:
+                            const Icon(Icons.emoji_events, color: Colors.green),
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
@@ -233,7 +349,8 @@ if (response['status'] == 'success') {
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        prefixIcon: const Icon(Icons.description, color: Colors.green),
+                        prefixIcon:
+                            const Icon(Icons.description, color: Colors.green),
                       ),
                     ),
                   ],
@@ -268,7 +385,8 @@ if (response['status'] == 'success') {
                             title: 'Knockout',
                             icon: Icons.emoji_events,
                             description: 'Single elimination bracket',
-                            isSelected: _selectedType == TournamentType.knockout,
+                            isSelected:
+                                _selectedType == TournamentType.knockout,
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -278,11 +396,25 @@ if (response['status'] == 'success') {
                             title: 'Round Robin',
                             icon: Icons.people,
                             description: 'Everyone plays everyone',
-                            isSelected: _selectedType == TournamentType.roundRobin,
+                            isSelected:
+                                _selectedType == TournamentType.roundRobin,
                           ),
                         ),
                       ],
                     ),
+                    if (_isEditing &&
+                        widget.tournamentToEdit!.status !=
+                            TournamentStatus.draft)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          'Tournament type cannot be changed after creation',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.orange.shade700,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -308,21 +440,27 @@ if (response['status'] == 'success') {
 
                     // Start Date
                     ListTile(
-                      leading: const Icon(Icons.calendar_today, color: Colors.green),
+                      leading:
+                          const Icon(Icons.calendar_today, color: Colors.green),
                       title: const Text('Start Date *'),
                       subtitle: Text(
                         '${_startDate.day}/${_startDate.month}/${_startDate.year}',
                       ),
-                      trailing: TextButton(
-                        onPressed: () => _selectDate(context, true),
-                        child: const Text('Select'),
-                      ),
+                      trailing: _isEditing &&
+                              widget.tournamentToEdit!.status !=
+                                  TournamentStatus.draft
+                          ? null
+                          : TextButton(
+                              onPressed: () => _selectDate(context, true),
+                              child: const Text('Select'),
+                            ),
                     ),
                     const Divider(),
 
                     // End Date (Optional)
                     ListTile(
-                      leading: const Icon(Icons.calendar_today, color: Colors.orange),
+                      leading: const Icon(Icons.calendar_today,
+                          color: Colors.orange),
                       title: const Text('End Date (Optional)'),
                       subtitle: Text(
                         _endDate == null
@@ -332,7 +470,10 @@ if (response['status'] == 'success') {
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (_endDate != null)
+                          if (_endDate != null &&
+                              !(_isEditing &&
+                                  widget.tournamentToEdit!.status !=
+                                      TournamentStatus.draft))
                             IconButton(
                               icon: const Icon(Icons.clear, size: 16),
                               onPressed: () {
@@ -341,10 +482,13 @@ if (response['status'] == 'success') {
                                 });
                               },
                             ),
-                          TextButton(
-                            onPressed: () => _selectDate(context, false),
-                            child: const Text('Select'),
-                          ),
+                          if (!(_isEditing &&
+                              widget.tournamentToEdit!.status !=
+                                  TournamentStatus.draft))
+                            TextButton(
+                              onPressed: () => _selectDate(context, false),
+                              child: const Text('Select'),
+                            ),
                         ],
                       ),
                     ),
@@ -380,50 +524,45 @@ if (response['status'] == 'success') {
                             style: const TextStyle(fontSize: 16),
                           ),
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.remove_circle_outline),
-                          onPressed: _numberOfTeams > 2
-                              ? () {
-                                  setState(() {
-                                    _numberOfTeams--;
-                                  });
-                                }
-                              : null,
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.add_circle_outline),
-                          onPressed: _numberOfTeams < 32
-                              ? () {
-                                  setState(() {
-                                    _numberOfTeams++;
-                                  });
-                                }
-                              : null,
-                        ),
+                        if (!(_isEditing &&
+                            widget.tournamentToEdit!.status !=
+                                TournamentStatus.draft)) ...[
+                          IconButton(
+                            icon: const Icon(Icons.remove_circle_outline),
+                            onPressed: _numberOfTeams > 2
+                                ? () {
+                                    setState(() {
+                                      _numberOfTeams--;
+                                    });
+                                  }
+                                : null,
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.add_circle_outline),
+                            onPressed: _numberOfTeams < 32
+                                ? () {
+                                    setState(() {
+                                      _numberOfTeams++;
+                                    });
+                                  }
+                                : null,
+                          ),
+                        ],
                       ],
                     ),
-                    const SizedBox(height: 8),
-
-                    // Max Teams (Optional)
-                    TextFormField(
-                      controller: TextEditingController(
-                        text: _maxTeams?.toString() ?? '',
-                      ),
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        labelText: 'Maximum Teams (Optional)',
-                        hintText: 'e.g., 16',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
+                    if (_isEditing &&
+                        widget.tournamentToEdit!.status !=
+                            TournamentStatus.draft)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          'Number of teams cannot be changed after tournament starts',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.orange.shade700,
+                          ),
                         ),
-                        prefixIcon: const Icon(Icons.people, color: Colors.green),
                       ),
-                      onChanged: (value) {
-                        setState(() {
-                          _maxTeams = value.isNotEmpty ? int.parse(value) : null;
-                        });
-                      },
-                    ),
                   ],
                 ),
               ),
@@ -457,7 +596,8 @@ if (response['status'] == 'success') {
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        prefixIcon: const Icon(Icons.currency_rupee, color: Colors.green),
+                        prefixIcon: const Icon(Icons.currency_rupee,
+                            color: Colors.green),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -472,7 +612,8 @@ if (response['status'] == 'success') {
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        prefixIcon: const Icon(Icons.emoji_events, color: Colors.orange),
+                        prefixIcon: const Icon(Icons.emoji_events,
+                            color: Colors.orange),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -483,7 +624,7 @@ if (response['status'] == 'success') {
                       style: TextStyle(fontWeight: FontWeight.w500),
                     ),
                     const SizedBox(height: 8),
-                    
+
                     // Prize input row
                     Row(
                       children: [
@@ -500,7 +641,8 @@ if (response['status'] == 'success') {
                         ),
                         const SizedBox(width: 8),
                         IconButton(
-                          icon: const Icon(Icons.add_circle, color: Colors.green),
+                          icon:
+                              const Icon(Icons.add_circle, color: Colors.green),
                           onPressed: _addPrize,
                         ),
                       ],
@@ -566,11 +708,15 @@ if (response['status'] == 'success') {
                 subtitle: const Text('Make tournament visible to players'),
                 value: _isPublished,
                 activeColor: Colors.green,
-                onChanged: (value) {
-                  setState(() {
-                    _isPublished = value;
-                  });
-                },
+                onChanged: _isEditing &&
+                        widget.tournamentToEdit!.status !=
+                            TournamentStatus.draft
+                    ? null
+                    : (value) {
+                        setState(() {
+                          _isPublished = value;
+                        });
+                      },
               ),
             ),
 
@@ -578,7 +724,7 @@ if (response['status'] == 'success') {
 
             // Submit Button
             ElevatedButton(
-              onPressed: _createTournament,
+              onPressed: _saveTournament,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
                 foregroundColor: Colors.white,
@@ -587,9 +733,10 @@ if (response['status'] == 'success') {
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
-              child: const Text(
-                'Create Tournament',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              child: Text(
+                _isEditing ? 'Update Tournament' : 'Create Tournament',
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
 
@@ -607,12 +754,17 @@ if (response['status'] == 'success') {
     required String description,
     required bool isSelected,
   }) {
+    final bool canChangeType = !_isEditing ||
+        widget.tournamentToEdit!.status == TournamentStatus.draft;
+
     return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedType = type;
-        });
-      },
+      onTap: canChangeType
+          ? () {
+              setState(() {
+                _selectedType = type;
+              });
+            }
+          : null,
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(

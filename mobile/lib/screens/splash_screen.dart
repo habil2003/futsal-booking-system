@@ -18,19 +18,36 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> _checkAuth() async {
     await Future.delayed(const Duration(seconds: 2));
-    
+
     final auth = Provider.of<AuthProvider>(context, listen: false);
     await auth.checkAuth();
 
     if (!mounted) return;
 
+    // Debug logs
+    debugPrint('🔄 SplashScreen - Auth check completed');
+    debugPrint('   isAuthenticated: ${auth.isAuthenticated}');
+    debugPrint('   isAdmin: ${auth.isAdmin}');
+    debugPrint('   isOwner: ${auth.isOwner}');
+    debugPrint('   isPlayer: ${auth.isPlayer}');
+
     if (auth.isAuthenticated) {
-      if (auth.isOwner) {
+      if (auth.isAdmin) {
+        debugPrint('   ➡️ Navigating to Admin Dashboard');
+        Navigator.pushReplacementNamed(context, '/admin/dashboard');
+      } else if (auth.isOwner) {
+        debugPrint('   ➡️ Navigating to Owner Dashboard');
         Navigator.pushReplacementNamed(context, '/owner/dashboard');
-      } else {
+      } else if (auth.isPlayer) {
+        debugPrint('   ➡️ Navigating to Player Home');
         Navigator.pushReplacementNamed(context, '/player/home');
+      } else {
+        debugPrint('   ⚠️ Unknown role, logging out');
+        await auth.logout();
+        Navigator.pushReplacementNamed(context, '/login');
       }
     } else {
+      debugPrint('   ➡️ Not authenticated, going to login');
       Navigator.pushReplacementNamed(context, '/login');
     }
   }
