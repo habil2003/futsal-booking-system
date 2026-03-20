@@ -578,6 +578,7 @@ class TournamentProvider with ChangeNotifier {
       if (response['status'] == 'success') {
         // Refresh matches
         await loadMatches(tournamentId);
+        await loadTournament(tournamentId);
 
         isLoading = false;
         notifyListeners();

@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../../providers/tournament_provider.dart';
 import '../../models/tournament.dart';
 import '../../models/team.dart';
+import 'tournament/knockout_bracket.dart';
+import 'tournament/round_robin_leaderboard.dart';
 
 class AddTeamsScreen extends StatefulWidget {
   final int tournamentId;
@@ -198,76 +200,105 @@ Future<void> _loadTeams() async {
     }
   }
 
-  Future<void> _generateFixtures() async {
-    if (_teams.length < 2) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Need at least 2 teams to generate fixtures'),
-          backgroundColor: Colors.orange,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Generate Fixtures'),
-        content: Text(
-          'Generate ${widget.tournamentType == TournamentType.knockout ? 'knockout bracket' : 'round robin fixtures'} with ${_teams.length} teams?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Generate'),
-          ),
-        ],
+ Future<void> _generateFixtures() async {
+  if (_teams.length < 2) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Need at least 2 teams to generate fixtures'),
+        backgroundColor: Colors.orange,
+        behavior: SnackBarBehavior.floating,
       ),
     );
+    return;
+  }
 
-    if (confirm != true) return;
+  final confirm = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Generate Fixtures'),
+      content: Text(
+        'Generate ${widget.tournamentType == TournamentType.knockout ? 'knockout bracket' : 'round robin fixtures'} with ${_teams.length} teams?',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.green,
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Generate'),
+        ),
+      ],
+    ),
+  );
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) =>
-          const Center(child: CircularProgressIndicator(color: Colors.green)),
+  if (confirm != true) return;
+
+  // Show loading dialog
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) =>
+        const Center(child: CircularProgressIndicator(color: Colors.green)),
+  );
+
+  final provider = Provider.of<TournamentProvider>(context, listen: false);
+  final response = await provider.generateFixtures(widget.tournamentId);
+
+  if (!mounted) return;
+  
+  // Close loading dialog
+  Navigator.pop(context);
+
+  if (response['status'] == 'success') {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Fixtures generated successfully!'),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+      ),
     );
-
-    final provider = Provider.of<TournamentProvider>(context, listen: false);
-    final response = await provider.generateFixtures(widget.tournamentId);
-
-    if (!mounted) return;
-    Navigator.pop(context);
-
-    if (response['status'] == 'success') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Fixtures generated successfully!'),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
+    
+    // Get the current navigation stack
+    final tournamentDetailsContext = context;
+    
+    // First, pop the AddTeamsScreen to go back to TournamentDetails
+    Navigator.pop(tournamentDetailsContext); // This takes us to TournamentDetails
+    
+    // THEN push the bracket screen on top of TournamentDetails
+    if (widget.tournamentType == TournamentType.knockout) {
+      Navigator.push(
+        tournamentDetailsContext,
+        MaterialPageRoute(
+          builder: (_) => KnockoutBracket(
+            tournamentId: widget.tournamentId,
+          ),
         ),
       );
-      Navigator.pop(context); // Go back to tournament details
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(response['message']),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
+      Navigator.push(
+        tournamentDetailsContext,
+        MaterialPageRoute(
+          builder: (_) => RoundRobinLeaderboard(
+            tournamentId: widget.tournamentId,
+          ),
         ),
       );
     }
+  } else {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(response['message']),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
+}
 
   @override
   Widget build(BuildContext context) {

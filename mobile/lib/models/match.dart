@@ -12,7 +12,7 @@ class Match {
   final int id;
   final int tournamentId;
   final String tournamentName;
-  final int? round; // For knockout: round number
+  final String? round; // For knockout: round number
   final String? groupName; // For round robin: group name
   final int? matchNumber; // Match number in tournament
 
@@ -81,7 +81,7 @@ class Match {
       tournamentId: json['tournamentId'] ?? 0,
       tournamentName:
           json['tournamentName'] ?? json['tournament']?['name'] ?? 'Unknown',
-      round: json['round'] is int ? json['round'] : null,
+      round: json['round'],
       team1Id: json['team1Id'] ?? json['homeTeamId'], // ← ADD fallback
       team1Name: json['team1Name'] ??
           json['homeTeam']?['name'] ??

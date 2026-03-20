@@ -330,6 +330,24 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen>
     );
   }
 
+  // Add this helper method
+  String _formatRoundName(String round) {
+    switch (round) {
+      case 'QUARTER_FINAL':
+        return 'Quarter Finals';
+      case 'SEMI_FINAL':
+        return 'Semi Finals';
+      case 'FINAL':
+        return 'Final';
+      case 'GROUP_STAGE':
+        return 'Group Stage';
+      default:
+         return round.replaceAll('_', ' ').split(' ')
+          .map((word) => word[0].toUpperCase() + word.substring(1).toLowerCase())
+          .join(' ');
+    }
+  }
+
   // ============================================
   // OVERVIEW TAB
   // ============================================
@@ -719,6 +737,15 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen>
   // FIXTURES TAB
   // ============================================
   Widget _buildFixturesTab(Tournament tournament, TournamentProvider provider) {
+
+     // ADD THESE DEBUG PRINTS
+  debugPrint('🏆 ===== FIXTURES TAB DEBUG =====');
+  debugPrint('🏆 Total matches: ${provider.matches.length}');
+  
+  for (var i = 0; i < provider.matches.length; i++) {
+    final match = provider.matches[i];
+    debugPrint('🏆 Match ${i + 1}: ID=${match.id}, Round="${match.round}", ${match.team1Name} vs ${match.team2Name}');
+  }
     if (provider.matches.isEmpty) {
       return Center(
         child: Column(
@@ -735,16 +762,43 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen>
             if (provider.teams.length >= 2 && tournament.isDraft) ...[
               const SizedBox(height: 16),
               ElevatedButton.icon(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => AddTeamsScreen(
-                      tournamentId: widget.tournamentId,
-                      maxTeams: tournament.maxTeams ?? 0,
-                      tournamentType: tournament.type,
+                onPressed: () async {
+                  debugPrint('🏆 Generate Fixtures button clicked');
+
+                  showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (ctx) => const Center(
+                      child: CircularProgressIndicator(color: Colors.green),
                     ),
-                  ),
-                ).then((_) => provider.loadTournament(widget.tournamentId)),
+                  );
+
+                  final result =
+                      await provider.generateFixtures(widget.tournamentId);
+
+                  if (mounted) {
+                    // Close loading dialog
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(result['message']),
+                        backgroundColor: result['status'] == 'success'
+                            ? Colors.green
+                            : Colors.red,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+
+                    if (result['status'] == 'success') {
+                      // Refresh all data
+                      await provider.loadTournament(widget.tournamentId);
+                      await provider.loadMatches(widget.tournamentId);
+
+                      // Force UI to rebuild
+                      setState(() {});
+                    }
+                  }
+                },
                 icon: const Icon(Icons.auto_fix_high),
                 label: const Text('Generate Fixtures'),
                 style: ElevatedButton.styleFrom(
@@ -753,45 +807,163 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen>
                 ),
               ),
             ],
+            // In tournament_details_screen.dart, update the button section at the bottom:
+
+            if (provider.matches.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              if (tournament.type == TournamentType.knockout)
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => KnockoutBracket(
+                            tournamentId: widget.tournamentId,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.account_tree),
+                    label: const Text('View Bracket'), // 'label' is required
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.purple,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              if (tournament.type == TournamentType.roundRobin)
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => RoundRobinLeaderboard(
+                            tournamentId: widget.tournamentId,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.leaderboard),
+                    label: const Text('View Standings'), // 'label' is required
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+            ],
           ],
         ),
       );
     }
 
-    // Group matches by round
-    final groupedMatches = <String, List<Match>>{};
-    for (final match in provider.matches) {
-      final round = match.round?.toString() ?? 'Round 1';
-      groupedMatches.putIfAbsent(round, () => []).add(match);
-    }
+    // In _buildFixturesTab method, replace the grouping logic:
+
+// Group matches by round
+final Map<String, List<Match>> groupedMatches = {};
+for (final match in provider.matches) {
+  // Get round name from match
+  String round = match.round ?? 'GROUP_STAGE';
+  
+  // Debug print to see what rounds are coming
+  debugPrint('🏆 Match ${match.id} round: $round');
+  
+  if (!groupedMatches.containsKey(round)) {
+    groupedMatches[round] = [];
+  }
+  groupedMatches[round]!.add(match);
+}
+
+// Debug print all rounds found
+debugPrint('🏆 Rounds found: ${groupedMatches.keys.join(', ')}');
+
+// Define round order for sorting
+const Map<String, int> roundOrder = {
+  'QUARTER_FINAL': 1,
+  'SEMI_FINAL': 2,
+  'FINAL': 3,
+  'GROUP_STAGE': 0,
+};
+
+// Sort rounds in correct order
+final sortedRounds = groupedMatches.keys.toList()
+  ..sort((a, b) {
+    final aOrder = roundOrder[a] ?? 99;
+    final bOrder = roundOrder[b] ?? 99;
+    return aOrder.compareTo(bOrder);
+  });
+
+  debugPrint('🏆 Sorted rounds: ${sortedRounds.join(", ")}');
 
     return ListView(
       padding: const EdgeInsets.all(16),
-      children: groupedMatches.entries.map((entry) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.green.shade700,
-                  borderRadius: BorderRadius.circular(8),
+      children: sortedRounds.expand((round) {
+        final matches = groupedMatches[round]!;
+        final allCompleted = matches.every((m) => m.isCompleted);
+
+        return [
+          // Round Header
+          Container(
+            margin: const EdgeInsets.only(top: 8, bottom: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: allCompleted
+                    ? [Colors.green.shade700, Colors.green.shade500]
+                    : [Colors.blue.shade700, Colors.blue.shade500],
+              ),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  round == 'FINAL'
+                      ? Icons.emoji_events
+                      : round == 'SEMI_FINAL'
+                          ? Icons.account_tree
+                          : Icons.sports_soccer,
+                  color: Colors.white,
+                  size: 20,
                 ),
-                child: Text(
-                  entry.key,
+                const SizedBox(width: 8),
+                Text(
+                  _formatRoundName(round),
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
+                    fontSize: 16,
                   ),
                 ),
-              ),
+                const Spacer(),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${matches.where((m) => m.isCompleted).length}/${matches.length}',
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                  ),
+                ),
+              ],
             ),
-            ...entry.value.map((match) => _buildMatchCard(match, provider)),
-          ],
-        );
+          ),
+          // Matches
+          ...matches.map((match) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _buildMatchCard(match, provider),
+              )),
+
+          const SizedBox(height: 16),
+        ];
       }).toList(),
     );
   }

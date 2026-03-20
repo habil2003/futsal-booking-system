@@ -1,4 +1,4 @@
-import { prisma } from '../index.js';
+import { prisma } from "../index.js";
 
 // ============================================
 // TOURNAMENT CRUD OPERATIONS
@@ -22,14 +22,14 @@ export const createTournament = async (req, res) => {
       prizePool,
       rules,
       prizes,
-      isPublished
+      isPublished,
     } = req.body;
 
     // Validate required fields
     if (!futsalId || !name || !type || !startDate || !maxTeams) {
       return res.status(400).json({
-        status: 'error',
-        message: 'Missing required fields'
+        status: "error",
+        message: "Missing required fields",
       });
     }
 
@@ -37,14 +37,14 @@ export const createTournament = async (req, res) => {
     const futsal = await prisma.futsal.findFirst({
       where: {
         id: parseInt(futsalId),
-        ownerId: req.user.id
-      }
+        ownerId: req.user.id,
+      },
     });
 
     if (!futsal) {
       return res.status(404).json({
-        status: 'error',
-        message: 'Futsal not found or you do not have permission'
+        status: "error",
+        message: "Futsal not found or you do not have permission",
       });
     }
 
@@ -62,22 +62,21 @@ export const createTournament = async (req, res) => {
         prizePool: prizePool ? parseFloat(prizePool) : null,
         rules,
         prizes: prizes || [],
-        status: 'DRAFT',
-        isPublished: isPublished || false
-      }
+        status: "DRAFT",
+        isPublished: isPublished || false,
+      },
     });
 
     res.status(201).json({
-      status: 'success',
-      message: 'Tournament created successfully',
-      tournament
+      status: "success",
+      message: "Tournament created successfully",
+      tournament,
     });
-
   } catch (error) {
-    console.error('Create tournament error:', error);
+    console.error("Create tournament error:", error);
     res.status(500).json({
-      status: 'error',
-      message: 'Server error'
+      status: "error",
+      message: "Server error",
     });
   }
 };
@@ -92,7 +91,7 @@ export const getAllTournaments = async (req, res) => {
 
     const whereClause = {
       isPublished: true,
-      status: { not: 'DRAFT' }
+      status: { not: "DRAFT" },
     };
 
     if (status) whereClause.status = status;
@@ -107,32 +106,31 @@ export const getAllTournaments = async (req, res) => {
             id: true,
             name: true,
             address: true,
-            images: true
-          }
+            images: true,
+          },
         },
         _count: {
           select: {
             teams: true,
-            matches: true
-          }
-        }
+            matches: true,
+          },
+        },
       },
       orderBy: {
-        startDate: 'asc'
-      }
+        startDate: "asc",
+      },
     });
 
     res.json({
-      status: 'success',
+      status: "success",
       results: tournaments.length,
-      tournaments
+      tournaments,
     });
-
   } catch (error) {
-    console.error('Get all tournaments error:', error);
+    console.error("Get all tournaments error:", error);
     res.status(500).json({
-      status: 'error',
-      message: 'Server error'
+      status: "error",
+      message: "Server error",
     });
   }
 };
@@ -146,39 +144,38 @@ export const getMyTournaments = async (req, res) => {
     const tournaments = await prisma.tournament.findMany({
       where: {
         futsal: {
-          ownerId: req.user.id
-        }
+          ownerId: req.user.id,
+        },
       },
       include: {
         futsal: {
           select: {
             id: true,
-            name: true
-          }
+            name: true,
+          },
         },
         _count: {
           select: {
             teams: true,
-            matches: true
-          }
-        }
+            matches: true,
+          },
+        },
       },
       orderBy: {
-        createdAt: 'desc'
-      }
+        createdAt: "desc",
+      },
     });
 
     res.json({
-      status: 'success',
+      status: "success",
       results: tournaments.length,
-      tournaments
+      tournaments,
     });
-
   } catch (error) {
-    console.error('Get my tournaments error:', error);
+    console.error("Get my tournaments error:", error);
     res.status(500).json({
-      status: 'error',
-      message: 'Server error'
+      status: "error",
+      message: "Server error",
     });
   }
 };
@@ -199,8 +196,8 @@ export const getTournamentById = async (req, res) => {
             id: true,
             name: true,
             address: true,
-            ownerId: true
-          }
+            ownerId: true,
+          },
         },
         teams: {
           include: {
@@ -210,42 +207,41 @@ export const getTournamentById = async (req, res) => {
                   select: {
                     id: true,
                     fullName: true,
-                    email: true
-                  }
-                }
-              }
-            }
-          }
+                    email: true,
+                  },
+                },
+              },
+            },
+          },
         },
         matches: {
           include: {
             homeTeam: true,
-            awayTeam: true
+            awayTeam: true,
           },
           orderBy: {
-            matchDate: 'asc'
-          }
-        }
-      }
+            matchDate: "asc",
+          },
+        },
+      },
     });
 
     if (!tournament) {
       return res.status(404).json({
-        status: 'error',
-        message: 'Tournament not found'
+        status: "error",
+        message: "Tournament not found",
       });
     }
 
     res.json({
-      status: 'success',
-      tournament
+      status: "success",
+      tournament,
     });
-
   } catch (error) {
-    console.error('Get tournament by ID error:', error);
+    console.error("Get tournament by ID error:", error);
     res.status(500).json({
-      status: 'error',
-      message: 'Server error'
+      status: "error",
+      message: "Server error",
     });
   }
 };
@@ -259,36 +255,39 @@ export const updateTournament = async (req, res) => {
     const { id } = req.params;
     const updates = req.body;
 
-    console.log('=== UPDATE TOURNAMENT DEBUG ===');
-    console.log('Tournament ID:', id);
-    console.log('Updates received:', JSON.stringify(updates, null, 2));
+    console.log("=== UPDATE TOURNAMENT DEBUG ===");
+    console.log("Tournament ID:", id);
+    console.log("Updates received:", JSON.stringify(updates, null, 2));
 
-     console.log('PRIZES RECEIVED:', updates.prizes);
-    console.log('PRIZES TYPE:', typeof updates.prizes);
-    console.log('PRIZES IS ARRAY?', Array.isArray(updates.prizes));
+    console.log("PRIZES RECEIVED:", updates.prizes);
+    console.log("PRIZES TYPE:", typeof updates.prizes);
+    console.log("PRIZES IS ARRAY?", Array.isArray(updates.prizes));
 
     // Check ownership
     const tournament = await prisma.tournament.findUnique({
       where: { id: parseInt(id) },
-      include: { futsal: true }
+      include: { futsal: true },
     });
 
     if (!tournament) {
       return res.status(404).json({
-        status: 'error',
-        message: 'Tournament not found'
+        status: "error",
+        message: "Tournament not found",
       });
     }
 
-    if (tournament.futsal.ownerId !== req.user.id && req.user.role !== 'ADMIN') {
+    if (
+      tournament.futsal.ownerId !== req.user.id &&
+      req.user.role !== "ADMIN"
+    ) {
       return res.status(403).json({
-        status: 'error',
-        message: 'You do not have permission to update this tournament'
+        status: "error",
+        message: "You do not have permission to update this tournament",
       });
     }
 
     // Don't allow updating certain fields after tournament starts
-    if (tournament.status !== 'DRAFT') {
+    if (tournament.status !== "DRAFT") {
       delete updates.type;
       delete updates.maxTeams;
       delete updates.startDate;
@@ -296,9 +295,9 @@ export const updateTournament = async (req, res) => {
 
     // Prepare data for Prisma - handle special cases
     const { futsalId, prizes, ...otherUpdates } = updates;
-    
+
     const updateData = {
-      ...otherUpdates
+      ...otherUpdates,
     };
 
     // Handle prizes: if null or undefined, set to empty array
@@ -312,32 +311,34 @@ export const updateTournament = async (req, res) => {
     // Handle futsal connection
     if (futsalId) {
       updateData.futsal = {
-        connect: { id: parseInt(futsalId) }
+        connect: { id: parseInt(futsalId) },
       };
     }
 
-    console.log('Final updateData:', JSON.stringify(updateData, null, 2));
+    console.log("Final updateData:", JSON.stringify(updateData, null, 2));
 
     const updatedTournament = await prisma.tournament.update({
       where: { id: parseInt(id) },
-      data: updateData
+      data: updateData,
     });
 
-    console.log('UPDATED TOURNAMENT FROM DB:', JSON.stringify(updatedTournament, null, 2));
-console.log('SAVED PRIZES:', updatedTournament.prizes);
+    console.log(
+      "UPDATED TOURNAMENT FROM DB:",
+      JSON.stringify(updatedTournament, null, 2),
+    );
+    console.log("SAVED PRIZES:", updatedTournament.prizes);
 
     res.json({
-      status: 'success',
-      message: 'Tournament updated successfully',
-      tournament: updatedTournament
+      status: "success",
+      message: "Tournament updated successfully",
+      tournament: updatedTournament,
     });
-
   } catch (error) {
-    console.error('=== UPDATE TOURNAMENT ERROR ===');
+    console.error("=== UPDATE TOURNAMENT ERROR ===");
     console.error(error);
     res.status(500).json({
-      status: 'error',
-      message: 'Server error'
+      status: "error",
+      message: "Server error",
     });
   }
 };
@@ -353,28 +354,31 @@ export const deleteTournament = async (req, res) => {
     // Check ownership
     const tournament = await prisma.tournament.findUnique({
       where: { id: parseInt(id) },
-      include: { futsal: true, teams: true, matches: true }
+      include: { futsal: true, teams: true, matches: true },
     });
 
     if (!tournament) {
       return res.status(404).json({
-        status: 'error',
-        message: 'Tournament not found'
+        status: "error",
+        message: "Tournament not found",
       });
     }
 
-    if (tournament.futsal.ownerId !== req.user.id && req.user.role !== 'ADMIN') {
+    if (
+      tournament.futsal.ownerId !== req.user.id &&
+      req.user.role !== "ADMIN"
+    ) {
       return res.status(403).json({
-        status: 'error',
-        message: 'You do not have permission to delete this tournament'
+        status: "error",
+        message: "You do not have permission to delete this tournament",
       });
     }
 
     // Don't allow deletion if tournament has started
-    if (tournament.status !== 'DRAFT') {
+    if (tournament.status !== "DRAFT") {
       return res.status(400).json({
-        status: 'error',
-        message: 'Cannot delete tournament after it has started'
+        status: "error",
+        message: "Cannot delete tournament after it has started",
       });
     }
 
@@ -382,40 +386,39 @@ export const deleteTournament = async (req, res) => {
     await prisma.$transaction(async (tx) => {
       // Delete matches
       await tx.match.deleteMany({
-        where: { tournamentId: parseInt(id) }
+        where: { tournamentId: parseInt(id) },
       });
 
       // Delete teams and their members
       const teams = await tx.team.findMany({
-        where: { tournamentId: parseInt(id) }
+        where: { tournamentId: parseInt(id) },
       });
 
       for (const team of teams) {
         await tx.teamMember.deleteMany({
-          where: { teamId: team.id }
+          where: { teamId: team.id },
         });
       }
 
       await tx.team.deleteMany({
-        where: { tournamentId: parseInt(id) }
+        where: { tournamentId: parseInt(id) },
       });
 
       // Delete tournament
       await tx.tournament.delete({
-        where: { id: parseInt(id) }
+        where: { id: parseInt(id) },
       });
     });
 
     res.json({
-      status: 'success',
-      message: 'Tournament deleted successfully'
+      status: "success",
+      message: "Tournament deleted successfully",
     });
-
   } catch (error) {
-    console.error('Delete tournament error:', error);
+    console.error("Delete tournament error:", error);
     res.status(500).json({
-      status: 'error',
-      message: 'Server error'
+      status: "error",
+      message: "Server error",
     });
   }
 };
@@ -429,58 +432,60 @@ export const updateTournamentStatus = async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    const validStatuses = ['DRAFT', 'ONGOING', 'COMPLETED', 'CANCELLED'];
+    const validStatuses = ["DRAFT", "ONGOING", "COMPLETED", "CANCELLED"];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
-        status: 'error',
-        message: 'Invalid status'
+        status: "error",
+        message: "Invalid status",
       });
     }
 
     // Check ownership
     const tournament = await prisma.tournament.findUnique({
       where: { id: parseInt(id) },
-      include: { futsal: true }
+      include: { futsal: true },
     });
 
     if (!tournament) {
       return res.status(404).json({
-        status: 'error',
-        message: 'Tournament not found'
+        status: "error",
+        message: "Tournament not found",
       });
     }
 
-    if (tournament.futsal.ownerId !== req.user.id && req.user.role !== 'ADMIN') {
+    if (
+      tournament.futsal.ownerId !== req.user.id &&
+      req.user.role !== "ADMIN"
+    ) {
       return res.status(403).json({
-        status: 'error',
-        message: 'You do not have permission'
+        status: "error",
+        message: "You do not have permission",
       });
     }
 
     // Validate status transitions
-    if (tournament.status === 'COMPLETED') {
+    if (tournament.status === "COMPLETED") {
       return res.status(400).json({
-        status: 'error',
-        message: 'Cannot change status of completed tournament'
+        status: "error",
+        message: "Cannot change status of completed tournament",
       });
     }
 
     const updatedTournament = await prisma.tournament.update({
       where: { id: parseInt(id) },
-      data: { status }
+      data: { status },
     });
 
     res.json({
-      status: 'success',
+      status: "success",
       message: `Tournament status updated to ${status}`,
-      tournament: updatedTournament
+      tournament: updatedTournament,
     });
-
   } catch (error) {
-    console.error('Update tournament status error:', error);
+    console.error("Update tournament status error:", error);
     res.status(500).json({
-      status: 'error',
-      message: 'Server error'
+      status: "error",
+      message: "Server error",
     });
   }
 };
@@ -501,25 +506,25 @@ export const addTeam = async (req, res) => {
     // Check tournament exists and is in DRAFT status
     const tournament = await prisma.tournament.findUnique({
       where: { id: parseInt(tournamentId) },
-      include: { futsal: true }
+      include: { futsal: true },
     });
 
     if (!tournament) {
       return res.status(404).json({
-        status: 'error',
-        message: 'Tournament not found'
+        status: "error",
+        message: "Tournament not found",
       });
     }
 
     // Check if tournament is full
     const teamCount = await prisma.team.count({
-      where: { tournamentId: parseInt(tournamentId) }
+      where: { tournamentId: parseInt(tournamentId) },
     });
 
     if (teamCount >= tournament.maxTeams) {
       return res.status(400).json({
-        status: 'error',
-        message: 'Tournament is full'
+        status: "error",
+        message: "Tournament is full",
       });
     }
 
@@ -527,14 +532,14 @@ export const addTeam = async (req, res) => {
     const existingTeam = await prisma.team.findFirst({
       where: {
         tournamentId: parseInt(tournamentId),
-        name: name
-      }
+        name: name,
+      },
     });
 
     if (existingTeam) {
       return res.status(400).json({
-        status: 'error',
-        message: 'Team name already exists'
+        status: "error",
+        message: "Team name already exists",
       });
     }
 
@@ -545,8 +550,8 @@ export const addTeam = async (req, res) => {
         data: {
           tournamentId: parseInt(tournamentId),
           name,
-          logo: null // Will implement image upload later
-        }
+          logo: null, // Will implement image upload later
+        },
       });
 
       // Create captain as team member if user exists
@@ -556,11 +561,11 @@ export const addTeam = async (req, res) => {
           data: {
             teamId: team.id,
             userId: null,
-            role: 'CAPTAIN',
+            role: "CAPTAIN",
             playerName: captainName,
             playerPhone: captainPhone,
-            jerseyColor
-          }
+            jerseyColor,
+          },
         });
       }
 
@@ -571,9 +576,9 @@ export const addTeam = async (req, res) => {
             data: {
               teamId: team.id,
               userId: null,
-              role: 'PLAYER',
-              playerName: player
-            }
+              role: "PLAYER",
+              playerName: player,
+            },
           });
         }
       }
@@ -582,16 +587,15 @@ export const addTeam = async (req, res) => {
     });
 
     res.status(201).json({
-      status: 'success',
-      message: 'Team added successfully',
-      team: result
+      status: "success",
+      message: "Team added successfully",
+      team: result,
     });
-
   } catch (error) {
-    console.error('Add team error:', error);
+    console.error("Add team error:", error);
     res.status(500).json({
-      status: 'error',
-      message: 'Server error'
+      status: "error",
+      message: "Server error",
     });
   }
 };
@@ -613,26 +617,25 @@ export const getTeams = async (req, res) => {
             role: true,
             playerName: true,
             playerPhone: true,
-            jerseyColor: true
-          }
-        }
+            jerseyColor: true,
+          },
+        },
       },
       orderBy: {
-        name: 'asc'
-      }
+        name: "asc",
+      },
     });
 
     res.json({
-      status: 'success',
+      status: "success",
       results: teams.length,
-      teams
+      teams,
     });
-
   } catch (error) {
-    console.error('Get teams error:', error);
+    console.error("Get teams error:", error);
     res.status(500).json({
-      status: 'error',
-      message: 'Server error'
+      status: "error",
+      message: "Server error",
     });
   }
 };
@@ -651,41 +654,43 @@ export const updateTeam = async (req, res) => {
       where: { id: parseInt(teamId) },
       include: {
         tournament: {
-          include: { futsal: true }
-        }
-      }
+          include: { futsal: true },
+        },
+      },
     });
 
     if (!team) {
       return res.status(404).json({
-        status: 'error',
-        message: 'Team not found'
+        status: "error",
+        message: "Team not found",
       });
     }
 
-    if (team.tournament.status !== 'DRAFT' && team.tournament.futsal.ownerId !== req.user.id) {
+    if (
+      team.tournament.status !== "DRAFT" &&
+      team.tournament.futsal.ownerId !== req.user.id
+    ) {
       return res.status(400).json({
-        status: 'error',
-        message: 'Cannot update team after tournament has started'
+        status: "error",
+        message: "Cannot update team after tournament has started",
       });
     }
 
     const updatedTeam = await prisma.team.update({
       where: { id: parseInt(teamId) },
-      data: updates
+      data: updates,
     });
 
     res.json({
-      status: 'success',
-      message: 'Team updated successfully',
-      team: updatedTeam
+      status: "success",
+      message: "Team updated successfully",
+      team: updatedTeam,
     });
-
   } catch (error) {
-    console.error('Update team error:', error);
+    console.error("Update team error:", error);
     res.status(500).json({
-      status: 'error',
-      message: 'Server error'
+      status: "error",
+      message: "Server error",
     });
   }
 };
@@ -703,45 +708,47 @@ export const deleteTeam = async (req, res) => {
       where: { id: parseInt(teamId) },
       include: {
         tournament: {
-          include: { futsal: true }
-        }
-      }
+          include: { futsal: true },
+        },
+      },
     });
 
     if (!team) {
       return res.status(404).json({
-        status: 'error',
-        message: 'Team not found'
+        status: "error",
+        message: "Team not found",
       });
     }
 
-    if (team.tournament.status !== 'DRAFT' && team.tournament.futsal.ownerId !== req.user.id) {
+    if (
+      team.tournament.status !== "DRAFT" &&
+      team.tournament.futsal.ownerId !== req.user.id
+    ) {
       return res.status(400).json({
-        status: 'error',
-        message: 'Cannot delete team after tournament has started'
+        status: "error",
+        message: "Cannot delete team after tournament has started",
       });
     }
 
     // Delete team members then team
     await prisma.$transaction([
       prisma.teamMember.deleteMany({
-        where: { teamId: parseInt(teamId) }
+        where: { teamId: parseInt(teamId) },
       }),
       prisma.team.delete({
-        where: { id: parseInt(teamId) }
-      })
+        where: { id: parseInt(teamId) },
+      }),
     ]);
 
     res.json({
-      status: 'success',
-      message: 'Team deleted successfully'
+      status: "success",
+      message: "Team deleted successfully",
     });
-
   } catch (error) {
-    console.error('Delete team error:', error);
+    console.error("Delete team error:", error);
     res.status(500).json({
-      status: 'error',
-      message: 'Server error'
+      status: "error",
+      message: "Server error",
     });
   }
 };
@@ -763,34 +770,37 @@ export const generateFixtures = async (req, res) => {
       where: { id: parseInt(tournamentId) },
       include: {
         teams: true,
-        futsal: true
-      }
+        futsal: true,
+      },
     });
 
     if (!tournament) {
       return res.status(404).json({
-        status: 'error',
-        message: 'Tournament not found'
+        status: "error",
+        message: "Tournament not found",
       });
     }
 
     // Verify ownership
-    if (tournament.futsal.ownerId !== req.user.id && req.user.role !== 'ADMIN') {
+    if (
+      tournament.futsal.ownerId !== req.user.id &&
+      req.user.role !== "ADMIN"
+    ) {
       return res.status(403).json({
-        status: 'error',
-        message: 'You do not have permission'
+        status: "error",
+        message: "You do not have permission",
       });
     }
 
     // Check if tournament already has fixtures
     const existingMatches = await prisma.match.count({
-      where: { tournamentId: parseInt(tournamentId) }
+      where: { tournamentId: parseInt(tournamentId) },
     });
 
     if (existingMatches > 0) {
       return res.status(400).json({
-        status: 'error',
-        message: 'Fixtures already generated'
+        status: "error",
+        message: "Fixtures already generated",
       });
     }
 
@@ -798,43 +808,50 @@ export const generateFixtures = async (req, res) => {
     const teamCount = tournament.teams.length;
     if (teamCount < 2) {
       return res.status(400).json({
-        status: 'error',
-        message: 'Need at least 2 teams to generate fixtures'
+        status: "error",
+        message: "Need at least 2 teams to generate fixtures",
       });
     }
 
     let matches = [];
 
-    if (tournament.type === 'KNOCKOUT') {
+    if (tournament.type === "KNOCKOUT") {
       // Generate knockout fixtures
-      matches = generateKnockoutFixtures(tournament.teams, tournament.startDate, tournamentId);
+      matches = generateKnockoutFixtures(
+        tournament.teams,
+        tournament.startDate,
+        tournamentId,
+      );
     } else {
       // Generate round robin fixtures
-      matches = generateRoundRobinFixtures(tournament.teams, tournament.startDate, tournamentId);
+      matches = generateRoundRobinFixtures(
+        tournament.teams,
+        tournament.startDate,
+        tournamentId,
+      );
     }
 
     // Save matches to database
     const createdMatches = await prisma.match.createMany({
-      data: matches
+      data: matches,
     });
 
     // Update tournament status to ONGOING
     await prisma.tournament.update({
       where: { id: parseInt(tournamentId) },
-      data: { status: 'ONGOING' }
+      data: { status: "ONGOING" },
     });
 
     res.json({
-      status: 'success',
-      message: 'Fixtures generated successfully',
-      matchesCount: matches.length
+      status: "success",
+      message: "Fixtures generated successfully",
+      matchesCount: matches.length,
     });
-
   } catch (error) {
-    console.error('Generate fixtures error:', error);
+    console.error("Generate fixtures error:", error);
     res.status(500).json({
-      status: 'error',
-      message: 'Server error'
+      status: "error",
+      message: "Server error",
     });
   }
 };
@@ -844,6 +861,24 @@ const generateKnockoutFixtures = (teams, startDate, tournamentId) => {
   const shuffled = [...teams].sort(() => 0.5 - Math.random());
   const matches = [];
   let matchDate = new Date(startDate);
+  
+  // Determine the correct round name based on number of teams
+  let firstRoundName = '';
+  const teamCount = teams.length;
+  
+  if (teamCount === 2) {
+    firstRoundName = 'FINAL';
+  } else if (teamCount === 4) {
+    firstRoundName = 'SEMI_FINAL';
+  } else if (teamCount === 8) {
+    firstRoundName = 'QUARTER_FINAL';
+  } else if (teamCount === 16) {
+    firstRoundName = 'ROUND_OF_16';
+  } else {
+    firstRoundName = 'QUARTER_FINAL'; // default
+  }
+
+  console.log(`🏆 Generating ${firstRoundName} matches for ${teamCount} teams`);
 
   for (let i = 0; i < shuffled.length; i += 2) {
     if (i + 1 < shuffled.length) {
@@ -852,7 +887,7 @@ const generateKnockoutFixtures = (teams, startDate, tournamentId) => {
         homeTeamId: shuffled[i].id,
         awayTeamId: shuffled[i + 1].id,
         matchDate: new Date(matchDate),
-        round: 'QUARTER_FINAL',
+        round: firstRoundName, // Use dynamic round name
         status: 'SCHEDULED'
       });
     }
@@ -861,6 +896,7 @@ const generateKnockoutFixtures = (teams, startDate, tournamentId) => {
 
   return matches;
 };
+
 
 // Helper function for round robin fixtures
 const generateRoundRobinFixtures = (teams, startDate, tournamentId) => {
@@ -875,8 +911,8 @@ const generateRoundRobinFixtures = (teams, startDate, tournamentId) => {
         homeTeamId: teams[i].id,
         awayTeamId: teams[j].id,
         matchDate: new Date(matchDate),
-        round: 'GROUP_STAGE',
-        status: 'SCHEDULED'
+        round: "GROUP_STAGE",
+        status: "SCHEDULED",
       });
       matchDate.setDate(matchDate.getDate() + 1);
     }
@@ -901,35 +937,33 @@ export const getMatches = async (req, res) => {
       where: { tournamentId: parseInt(tournamentId) },
       include: {
         homeTeam: {
-          select: { id: true, name: true }
+          select: { id: true, name: true },
         },
         awayTeam: {
-          select: { id: true, name: true }
-        }
+          select: { id: true, name: true },
+        },
       },
       orderBy: {
-        matchDate: 'asc'
-      }
+        matchDate: "asc",
+      },
     });
 
     res.json({
-      status: 'success',
+      status: "success",
       results: matches.length,
-      matches
+      matches,
     });
-
   } catch (error) {
-    console.error('Get matches error:', error);
+    console.error("Get matches error:", error);
     res.status(500).json({
-      status: 'error',
-      message: 'Server error'
+      status: "error",
+      message: "Server error",
     });
   }
 };
 
 /**
- * Update match score
- * @route   PATCH /api/matches/:matchId/score
+ * Update match score and trigger next round generation
  */
 export const updateMatchScore = async (req, res) => {
   try {
@@ -973,10 +1007,25 @@ export const updateMatchScore = async (req, res) => {
       }
     });
 
-    // For knockout tournaments, generate next round matches
-    if (match.tournament.type === 'KNOCKOUT' && match.round !== 'FINAL') {
-      await generateNextRoundMatch(match);
+    // For knockout tournaments, check if we need to generate next round
+    if (match.tournament.type === 'KNOCKOUT') {
+      // Check if all matches in current round are completed
+      const roundMatches = await prisma.match.findMany({
+        where: {
+          tournamentId: match.tournamentId,
+          round: match.round
+        }
+      });
+
+      const completedMatches = roundMatches.filter(m => m.status === 'COMPLETED');
+      
+      if (completedMatches.length === roundMatches.length) {
+        // All matches in this round are done, generate next round
+        await generateNextRoundMatches(match.tournamentId, match.round);
+      }
     }
+
+    // For round robin, update standings (optional - can be done on demand)
 
     res.json({
       status: 'success',
@@ -993,53 +1042,130 @@ export const updateMatchScore = async (req, res) => {
   }
 };
 
-// Helper to generate next round match
-const generateNextRoundMatch = async (match) => {
+/**
+ * Generate next round matches for knockout tournament
+ * Called automatically when all matches in current round are completed
+ */
+const generateNextRoundMatches = async (tournamentId, currentRound) => {
   try {
-    const winner = match.homeScore > match.awayScore ? match.homeTeamId : match.awayTeamId;
+    console.log(`🏆 Generating next round for tournament ${tournamentId} after ${currentRound}`);
 
-    // Get all matches in this round for this tournament
-    const roundMatches = await prisma.match.findMany({
+    // Get all completed matches in current round
+    const completedMatches = await prisma.match.findMany({
       where: {
-        tournamentId: match.tournamentId,
-        round: match.round
+        tournamentId: parseInt(tournamentId),
+        round: currentRound,
+        status: 'COMPLETED'
+      },
+      include: {
+        homeTeam: true,
+        awayTeam: true
       }
     });
 
-    // Check if all matches in this round are completed
-    const completedMatches = roundMatches.filter(m => m.status === 'COMPLETED');
-    const allCompleted = completedMatches.length === roundMatches.length;
+    if (completedMatches.length === 0) {
+      console.log('No completed matches found');
+      return;
+    }
 
-    if (allCompleted) {
-      // All matches in this round are done, create next round
-      const nextRound = getNextRound(match.round);
-      const winners = completedMatches.map(m =>
-        m.homeScore > m.awayScore ? m.homeTeamId : m.awayTeamId
-      );
+    // Get all matches in current round to check if all are completed
+    const allMatchesInRound = await prisma.match.count({
+      where: {
+        tournamentId: parseInt(tournamentId),
+        round: currentRound
+      }
+    });
 
-      if (winners.length === 2) {
-        // Create the next round match with both teams
-        await prisma.match.create({
-          data: {
-            tournamentId: match.tournamentId,
-            homeTeamId: winners[0],
-            awayTeamId: winners[1],
-            matchDate: new Date(match.matchDate.getTime() + 24 * 60 * 60 * 1000),
-            round: nextRound,
-            status: 'SCHEDULED'
-          }
+    // Only proceed if all matches in this round are completed
+    if (completedMatches.length !== allMatchesInRound) {
+      console.log('Not all matches in this round are completed yet');
+      return;
+    }
+
+    // Determine winners from completed matches
+    const winners = completedMatches.map(match => {
+      // Determine winner based on scores
+      if (match.homeScore > match.awayScore) {
+        return match.homeTeamId;
+      } else if (match.awayScore > match.homeScore) {
+        return match.awayTeamId;
+      } else {
+        // Handle draws - if penalties exist
+        if (match.homePenalty !== null && match.awayPenalty !== null) {
+          return match.homePenalty > match.awayPenalty ? match.homeTeamId : match.awayTeamId;
+        }
+        // If no penalties and draw, return null (should not happen in knockout)
+        return null;
+      }
+    }).filter(winner => winner !== null);
+
+    console.log(`Winners: ${winners.length} teams advancing`);
+
+    if (winners.length < 2) {
+      console.log('Not enough winners to create next round');
+      return;
+    }
+
+    // Determine next round name
+    const nextRound = getNextRound(currentRound);
+    if (!nextRound) {
+      console.log('No next round available');
+      return;
+    }
+
+    // Calculate next match date (day after last match)
+    const lastMatchDate = new Date(Math.max(...completedMatches.map(m => new Date(m.matchDate))));
+    const nextMatchDate = new Date(lastMatchDate.getTime() + 24 * 60 * 60 * 1000);
+
+    // Pair up winners for next round
+    const nextRoundMatches = [];
+    for (let i = 0; i < winners.length; i += 2) {
+      if (i + 1 < winners.length) {
+        nextRoundMatches.push({
+          tournamentId: parseInt(tournamentId),
+          homeTeamId: winners[i],
+          awayTeamId: winners[i + 1],
+          matchDate: new Date(nextMatchDate.getTime() + (i/2) * 24 * 60 * 60 * 1000),
+          round: nextRound,
+          status: 'SCHEDULED'
         });
+      } else {
+        // Odd number of teams - this team gets a bye to next round
+        console.log(`Team ${winners[i]} gets a bye to ${getNextRound(nextRound)}`);
+        
+        // Create a bye entry or handle specially
+        // For now, we'll create a placeholder match or handle in next round
+        // You might want to store this team as automatic qualifier
       }
     }
+
+    if (nextRoundMatches.length > 0) {
+      // Create next round matches
+      await prisma.match.createMany({
+        data: nextRoundMatches
+      });
+      console.log(`Created ${nextRoundMatches.length} matches for ${nextRound}`);
+    }
+
+    // Check if this was the final round
+    if (nextRound === 'FINAL' && nextRoundMatches.length === 1) {
+      console.log('Final round created - tournament will complete after this');
+    }
+
   } catch (error) {
-    console.error('Generate next round error:', error);
+    console.error('Error generating next round matches:', error);
   }
 };
 
 const getNextRound = (currentRound) => {
-  const rounds = ['QUARTER_FINAL', 'SEMI_FINAL', 'FINAL'];
-  const index = rounds.indexOf(currentRound);
-  return rounds[index + 1];
+  const roundProgression = {
+    'ROUND_OF_16': 'QUARTER_FINAL',
+    'QUARTER_FINAL': 'SEMI_FINAL',
+    'SEMI_FINAL': 'FINAL',
+    'FINAL': null
+  };
+  
+  return roundProgression[currentRound] || null;
 };
 
 /**
@@ -1051,30 +1177,29 @@ export const updateMatchStatus = async (req, res) => {
     const { matchId } = req.params;
     const { status } = req.body;
 
-    const validStatuses = ['SCHEDULED', 'ONGOING', 'COMPLETED', 'CANCELLED'];
+    const validStatuses = ["SCHEDULED", "ONGOING", "COMPLETED", "CANCELLED"];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
-        status: 'error',
-        message: 'Invalid status'
+        status: "error",
+        message: "Invalid status",
       });
     }
 
     const match = await prisma.match.update({
       where: { id: parseInt(matchId) },
-      data: { status }
+      data: { status },
     });
 
     res.json({
-      status: 'success',
-      message: 'Match status updated',
-      match
+      status: "success",
+      message: "Match status updated",
+      match,
     });
-
   } catch (error) {
-    console.error('Update match status error:', error);
+    console.error("Update match status error:", error);
     res.status(500).json({
-      status: 'error',
-      message: 'Server error'
+      status: "error",
+      message: "Server error",
     });
   }
 };
@@ -1097,37 +1222,46 @@ export const getTournamentStandings = async (req, res) => {
         teams: {
           include: {
             homeMatches: {
-              where: { status: 'COMPLETED' }
+              where: { status: "COMPLETED" },
             },
             awayMatches: {
-              where: { status: 'COMPLETED' }
-            }
-          }
-        }
-      }
+              where: { status: "COMPLETED" },
+            },
+          },
+        },
+      },
     });
 
     if (!tournament) {
       return res.status(404).json({
-        status: 'error',
-        message: 'Tournament not found'
+        status: "error",
+        message: "Tournament not found",
       });
     }
 
     // Calculate standings
-    const standings = tournament.teams.map(team => {
+    const standings = tournament.teams.map((team) => {
       const allMatches = [...team.homeMatches, ...team.awayMatches];
-      const wins = allMatches.filter(m => 
-        (m.homeTeamId === team.id && m.homeScore > m.awayScore) ||
-        (m.awayTeamId === team.id && m.awayScore > m.homeScore)
+      const wins = allMatches.filter(
+        (m) =>
+          (m.homeTeamId === team.id && m.homeScore > m.awayScore) ||
+          (m.awayTeamId === team.id && m.awayScore > m.homeScore),
       ).length;
-      
-      const draws = allMatches.filter(m => m.homeScore === m.awayScore).length;
+
+      const draws = allMatches.filter(
+        (m) => m.homeScore === m.awayScore,
+      ).length;
       const losses = allMatches.length - wins - draws;
-      const goalsFor = allMatches.reduce((sum, m) => 
-        sum + (m.homeTeamId === team.id ? m.homeScore : m.awayScore), 0);
-      const goalsAgainst = allMatches.reduce((sum, m) => 
-        sum + (m.homeTeamId === team.id ? m.awayScore : m.homeScore), 0);
+      const goalsFor = allMatches.reduce(
+        (sum, m) =>
+          sum + (m.homeTeamId === team.id ? m.homeScore : m.awayScore),
+        0,
+      );
+      const goalsAgainst = allMatches.reduce(
+        (sum, m) =>
+          sum + (m.homeTeamId === team.id ? m.awayScore : m.homeScore),
+        0,
+      );
 
       return {
         teamId: team.id,
@@ -1139,27 +1273,27 @@ export const getTournamentStandings = async (req, res) => {
         goalsFor,
         goalsAgainst,
         goalDifference: goalsFor - goalsAgainst,
-        points: (wins * 3) + draws
+        points: wins * 3 + draws,
       };
     });
 
     // Sort by points, then goal difference, then goals for
     standings.sort((a, b) => {
       if (a.points !== b.points) return b.points - a.points;
-      if (a.goalDifference !== b.goalDifference) return b.goalDifference - a.goalDifference;
+      if (a.goalDifference !== b.goalDifference)
+        return b.goalDifference - a.goalDifference;
       return b.goalsFor - a.goalsFor;
     });
 
     res.json({
-      status: 'success',
-      standings
+      status: "success",
+      standings,
     });
-
   } catch (error) {
-    console.error('Get standings error:', error);
+    console.error("Get standings error:", error);
     res.status(500).json({
-      status: 'error',
-      message: 'Server error'
+      status: "error",
+      message: "Server error",
     });
   }
 };
