@@ -861,21 +861,21 @@ const generateKnockoutFixtures = (teams, startDate, tournamentId) => {
   const shuffled = [...teams].sort(() => 0.5 - Math.random());
   const matches = [];
   let matchDate = new Date(startDate);
-  
+
   // Determine the correct round name based on number of teams
-  let firstRoundName = '';
+  let firstRoundName = "";
   const teamCount = teams.length;
-  
+
   if (teamCount === 2) {
-    firstRoundName = 'FINAL';
+    firstRoundName = "FINAL";
   } else if (teamCount === 4) {
-    firstRoundName = 'SEMI_FINAL';
+    firstRoundName = "SEMI_FINAL";
   } else if (teamCount === 8) {
-    firstRoundName = 'QUARTER_FINAL';
+    firstRoundName = "QUARTER_FINAL";
   } else if (teamCount === 16) {
-    firstRoundName = 'ROUND_OF_16';
+    firstRoundName = "ROUND_OF_16";
   } else {
-    firstRoundName = 'QUARTER_FINAL'; // default
+    firstRoundName = "QUARTER_FINAL"; // default
   }
 
   console.log(`🏆 Generating ${firstRoundName} matches for ${teamCount} teams`);
@@ -888,7 +888,7 @@ const generateKnockoutFixtures = (teams, startDate, tournamentId) => {
         awayTeamId: shuffled[i + 1].id,
         matchDate: new Date(matchDate),
         round: firstRoundName, // Use dynamic round name
-        status: 'SCHEDULED'
+        status: "SCHEDULED",
       });
     }
     matchDate.setDate(matchDate.getDate() + 1);
@@ -896,7 +896,6 @@ const generateKnockoutFixtures = (teams, startDate, tournamentId) => {
 
   return matches;
 };
-
 
 // Helper function for round robin fixtures
 const generateRoundRobinFixtures = (teams, startDate, tournamentId) => {
@@ -975,23 +974,26 @@ export const updateMatchScore = async (req, res) => {
       where: { id: parseInt(matchId) },
       include: {
         tournament: {
-          include: { futsal: true }
-        }
-      }
+          include: { futsal: true },
+        },
+      },
     });
 
     if (!match) {
       return res.status(404).json({
-        status: 'error',
-        message: 'Match not found'
+        status: "error",
+        message: "Match not found",
       });
     }
 
     // Verify ownership
-    if (match.tournament.futsal.ownerId !== req.user.id && req.user.role !== 'ADMIN') {
+    if (
+      match.tournament.futsal.ownerId !== req.user.id &&
+      req.user.role !== "ADMIN"
+    ) {
       return res.status(403).json({
-        status: 'error',
-        message: 'You do not have permission'
+        status: "error",
+        message: "You do not have permission",
       });
     }
 
@@ -1003,68 +1005,100 @@ export const updateMatchScore = async (req, res) => {
         awayScore,
         homePenalty,
         awayPenalty,
-        status: 'COMPLETED'
-      }
+        status: "COMPLETED",
+      },
     });
 
     // For knockout tournaments, check if we need to generate next round
-    if (match.tournament.type === 'KNOCKOUT') {
+    if (match.tournament.type === "KNOCKOUT") {
       // Check if all matches in current round are completed
       const roundMatches = await prisma.match.findMany({
         where: {
           tournamentId: match.tournamentId,
-          round: match.round
-        }
+          round: match.round,
+        },
       });
 
-      const completedMatches = roundMatches.filter(m => m.status === 'COMPLETED');
-      
+      const completedMatches = roundMatches.filter(
+        (m) => m.status === "COMPLETED",
+      );
+
       if (completedMatches.length === roundMatches.length) {
         // All matches in this round are done, generate next round
         await generateNextRoundMatches(match.tournamentId, match.round);
       }
     }
 
-    // For round robin, update standings (optional - can be done on demand)
+    // For round robin, check if all matches are completed
+    if (match.tournament.type === "ROUND_ROBIN") {
+      // Get all matches for this tournament
+      const allMatches = await prisma.match.findMany({
+        where: {
+          tournamentId: match.tournamentId,
+        },
+      });
+
+      const completedMatches = allMatches.filter(
+        (m) => m.status === "COMPLETED",
+      );
+
+      // If all matches are completed, mark tournament as COMPLETED
+      if (completedMatches.length === allMatches.length && allMatches.length > 0) {
+        await prisma.tournament.update({
+          where: { id: match.tournamentId },
+          data: { status: "COMPLETED" },
+        });
+        console.log("🏆 Round Robin tournament marked as COMPLETED");
+      }
+    }
+
+    // For knockout, check if final match was just completed
+    if (match.tournament.type === "KNOCKOUT" && match.round === "FINAL") {
+      await prisma.tournament.update({
+        where: { id: match.tournamentId },
+        data: { status: "COMPLETED" },
+      });
+      console.log("🏆 Knockout tournament marked as COMPLETED");
+    }
 
     res.json({
-      status: 'success',
-      message: 'Score updated successfully',
-      match: updatedMatch
+      status: "success",
+      message: "Score updated successfully",
+      match: updatedMatch,
     });
-
   } catch (error) {
-    console.error('Update match score error:', error);
+    console.error("Update match score error:", error);
     res.status(500).json({
-      status: 'error',
-      message: 'Server error'
+      status: "error",
+      message: "Server error",
     });
   }
 };
-
 /**
  * Generate next round matches for knockout tournament
  * Called automatically when all matches in current round are completed
  */
 const generateNextRoundMatches = async (tournamentId, currentRound) => {
   try {
-    console.log(`🏆 Generating next round for tournament ${tournamentId} after ${currentRound}`);
+    console.log(
+      `🏆 Generating next round for tournament ${tournamentId} after ${currentRound}`,
+    );
 
     // Get all completed matches in current round
     const completedMatches = await prisma.match.findMany({
       where: {
         tournamentId: parseInt(tournamentId),
         round: currentRound,
-        status: 'COMPLETED'
+        status: "COMPLETED",
       },
       include: {
         homeTeam: true,
-        awayTeam: true
-      }
+        awayTeam: true,
+      },
     });
 
     if (completedMatches.length === 0) {
-      console.log('No completed matches found');
+      console.log("No completed matches found");
       return;
     }
 
@@ -1072,50 +1106,58 @@ const generateNextRoundMatches = async (tournamentId, currentRound) => {
     const allMatchesInRound = await prisma.match.count({
       where: {
         tournamentId: parseInt(tournamentId),
-        round: currentRound
-      }
+        round: currentRound,
+      },
     });
 
     // Only proceed if all matches in this round are completed
     if (completedMatches.length !== allMatchesInRound) {
-      console.log('Not all matches in this round are completed yet');
+      console.log("Not all matches in this round are completed yet");
       return;
     }
 
     // Determine winners from completed matches
-    const winners = completedMatches.map(match => {
-      // Determine winner based on scores
-      if (match.homeScore > match.awayScore) {
-        return match.homeTeamId;
-      } else if (match.awayScore > match.homeScore) {
-        return match.awayTeamId;
-      } else {
-        // Handle draws - if penalties exist
-        if (match.homePenalty !== null && match.awayPenalty !== null) {
-          return match.homePenalty > match.awayPenalty ? match.homeTeamId : match.awayTeamId;
+    const winners = completedMatches
+      .map((match) => {
+        // Determine winner based on scores
+        if (match.homeScore > match.awayScore) {
+          return match.homeTeamId;
+        } else if (match.awayScore > match.homeScore) {
+          return match.awayTeamId;
+        } else {
+          // Handle draws - if penalties exist
+          if (match.homePenalty !== null && match.awayPenalty !== null) {
+            return match.homePenalty > match.awayPenalty
+              ? match.homeTeamId
+              : match.awayTeamId;
+          }
+          // If no penalties and draw, return null (should not happen in knockout)
+          return null;
         }
-        // If no penalties and draw, return null (should not happen in knockout)
-        return null;
-      }
-    }).filter(winner => winner !== null);
+      })
+      .filter((winner) => winner !== null);
 
     console.log(`Winners: ${winners.length} teams advancing`);
 
     if (winners.length < 2) {
-      console.log('Not enough winners to create next round');
+      console.log("Not enough winners to create next round");
       return;
     }
 
     // Determine next round name
     const nextRound = getNextRound(currentRound);
     if (!nextRound) {
-      console.log('No next round available');
+      console.log("No next round available");
       return;
     }
 
     // Calculate next match date (day after last match)
-    const lastMatchDate = new Date(Math.max(...completedMatches.map(m => new Date(m.matchDate))));
-    const nextMatchDate = new Date(lastMatchDate.getTime() + 24 * 60 * 60 * 1000);
+    const lastMatchDate = new Date(
+      Math.max(...completedMatches.map((m) => new Date(m.matchDate))),
+    );
+    const nextMatchDate = new Date(
+      lastMatchDate.getTime() + 24 * 60 * 60 * 1000,
+    );
 
     // Pair up winners for next round
     const nextRoundMatches = [];
@@ -1125,14 +1167,18 @@ const generateNextRoundMatches = async (tournamentId, currentRound) => {
           tournamentId: parseInt(tournamentId),
           homeTeamId: winners[i],
           awayTeamId: winners[i + 1],
-          matchDate: new Date(nextMatchDate.getTime() + (i/2) * 24 * 60 * 60 * 1000),
+          matchDate: new Date(
+            nextMatchDate.getTime() + (i / 2) * 24 * 60 * 60 * 1000,
+          ),
           round: nextRound,
-          status: 'SCHEDULED'
+          status: "SCHEDULED",
         });
       } else {
         // Odd number of teams - this team gets a bye to next round
-        console.log(`Team ${winners[i]} gets a bye to ${getNextRound(nextRound)}`);
-        
+        console.log(
+          `Team ${winners[i]} gets a bye to ${getNextRound(nextRound)}`,
+        );
+
         // Create a bye entry or handle specially
         // For now, we'll create a placeholder match or handle in next round
         // You might want to store this team as automatic qualifier
@@ -1142,29 +1188,30 @@ const generateNextRoundMatches = async (tournamentId, currentRound) => {
     if (nextRoundMatches.length > 0) {
       // Create next round matches
       await prisma.match.createMany({
-        data: nextRoundMatches
+        data: nextRoundMatches,
       });
-      console.log(`Created ${nextRoundMatches.length} matches for ${nextRound}`);
+      console.log(
+        `Created ${nextRoundMatches.length} matches for ${nextRound}`,
+      );
     }
 
     // Check if this was the final round
-    if (nextRound === 'FINAL' && nextRoundMatches.length === 1) {
-      console.log('Final round created - tournament will complete after this');
+    if (nextRound === "FINAL" && nextRoundMatches.length === 1) {
+      console.log("Final round created - tournament will complete after this");
     }
-
   } catch (error) {
-    console.error('Error generating next round matches:', error);
+    console.error("Error generating next round matches:", error);
   }
 };
 
 const getNextRound = (currentRound) => {
   const roundProgression = {
-    'ROUND_OF_16': 'QUARTER_FINAL',
-    'QUARTER_FINAL': 'SEMI_FINAL',
-    'SEMI_FINAL': 'FINAL',
-    'FINAL': null
+    ROUND_OF_16: "QUARTER_FINAL",
+    QUARTER_FINAL: "SEMI_FINAL",
+    SEMI_FINAL: "FINAL",
+    FINAL: null,
   };
-  
+
   return roundProgression[currentRound] || null;
 };
 
