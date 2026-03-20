@@ -259,6 +259,14 @@ export const updateTournament = async (req, res) => {
     const { id } = req.params;
     const updates = req.body;
 
+    console.log('=== UPDATE TOURNAMENT DEBUG ===');
+    console.log('Tournament ID:', id);
+    console.log('Updates received:', JSON.stringify(updates, null, 2));
+
+     console.log('PRIZES RECEIVED:', updates.prizes);
+    console.log('PRIZES TYPE:', typeof updates.prizes);
+    console.log('PRIZES IS ARRAY?', Array.isArray(updates.prizes));
+
     // Check ownership
     const tournament = await prisma.tournament.findUnique({
       where: { id: parseInt(id) },
@@ -286,10 +294,37 @@ export const updateTournament = async (req, res) => {
       delete updates.startDate;
     }
 
+    // Prepare data for Prisma - handle special cases
+    const { futsalId, prizes, ...otherUpdates } = updates;
+    
+    const updateData = {
+      ...otherUpdates
+    };
+
+    // Handle prizes: if null or undefined, set to empty array
+    // If it's an array, use it as is
+    if (prizes === null || prizes === undefined) {
+      updateData.prizes = []; // Set to empty array instead of null
+    } else if (Array.isArray(prizes)) {
+      updateData.prizes = prizes;
+    }
+
+    // Handle futsal connection
+    if (futsalId) {
+      updateData.futsal = {
+        connect: { id: parseInt(futsalId) }
+      };
+    }
+
+    console.log('Final updateData:', JSON.stringify(updateData, null, 2));
+
     const updatedTournament = await prisma.tournament.update({
       where: { id: parseInt(id) },
-      data: updates
+      data: updateData
     });
+
+    console.log('UPDATED TOURNAMENT FROM DB:', JSON.stringify(updatedTournament, null, 2));
+console.log('SAVED PRIZES:', updatedTournament.prizes);
 
     res.json({
       status: 'success',
@@ -298,7 +333,8 @@ export const updateTournament = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Update tournament error:', error);
+    console.error('=== UPDATE TOURNAMENT ERROR ===');
+    console.error(error);
     res.status(500).json({
       status: 'error',
       message: 'Server error'

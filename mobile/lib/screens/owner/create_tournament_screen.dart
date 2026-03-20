@@ -186,6 +186,8 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
     };
 
     debugPrint('🏆 Saving tournament data: $tournamentData');
+    debugPrint('🏆 _prizes list: $_prizes');
+    debugPrint('🏆 Sending prizes: ${_prizes.isEmpty ? null : _prizes}');
 
     // Show loading dialog
     showDialog(
@@ -647,6 +649,38 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
                         ),
                       ],
                     ),
+
+                    // Prize list display
+                    if (_prizes.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      const Text('Current prizes:',
+                          style: TextStyle(fontWeight: FontWeight.w500)),
+                      const SizedBox(height: 8),
+                      ..._prizes.asMap().entries.map((entry) {
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.emoji_events,
+                                  size: 16, color: Colors.amber.shade700),
+                              const SizedBox(width: 8),
+                              Expanded(child: Text(entry.value)),
+                              IconButton(
+                                icon: const Icon(Icons.close,
+                                    size: 16, color: Colors.red),
+                                onPressed: () => _removePrize(entry.key),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
 
                     // Prize list
                     if (_prizes.isNotEmpty) ...[

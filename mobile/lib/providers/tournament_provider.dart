@@ -182,9 +182,12 @@ class TournamentProvider with ChangeNotifier {
   }
 
   // Update tournament
+// In tournament_provider.dart - Update updateTournament method
+
   Future<Map<String, dynamic>> updateTournament(
       int tournamentId, Map<String, dynamic> tournamentData) async {
     debugPrint('🏆 TournamentProvider: Updating tournament $tournamentId');
+    debugPrint('🏆 Tournament data: $tournamentData');
 
     isLoading = true;
     error = null;
@@ -193,21 +196,15 @@ class TournamentProvider with ChangeNotifier {
     try {
       final response =
           await ApiService.updateTournament(tournamentId, tournamentData);
+      debugPrint('🏆 Update response: $response');
 
       if (response['status'] == 'success') {
-        // Update current tournament if it's the one being edited
         if (_currentTournament?.id == tournamentId) {
-          _currentTournament = Tournament.fromJson({
-            ..._currentTournament!.toJson(),
-            ...tournamentData,
-          });
+          await loadTournament(tournamentId);
         }
-
         await loadMyTournaments();
-
         isLoading = false;
         notifyListeners();
-
         return {
           'status': 'success',
           'message': response['message'] ?? 'Tournament updated successfully',
@@ -215,6 +212,16 @@ class TournamentProvider with ChangeNotifier {
       } else {
         isLoading = false;
         notifyListeners();
+
+        // Check if it's a 500 error
+        if (response.toString().contains('500')) {
+          return {
+            'status': 'error',
+            'message':
+                'Server error: Unable to update tournament. The tournament might have been modified or started.',
+          };
+        }
+
         return {
           'status': 'error',
           'message': response['message'] ?? 'Failed to update tournament',
@@ -224,9 +231,11 @@ class TournamentProvider with ChangeNotifier {
       isLoading = false;
       error = e.toString();
       notifyListeners();
+      debugPrint('🏆 Error updating tournament: $e');
+
       return {
         'status': 'error',
-        'message': e.toString(),
+        'message': 'Network error: Could not update tournament',
       };
     }
   }

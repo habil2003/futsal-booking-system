@@ -419,6 +419,25 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen>
                 if (tournament.prizePool != null && tournament.prizePool! > 0)
                   _buildInfoRow(Icons.emoji_events, 'Prize Pool',
                       'रू ${tournament.prizePool}'),
+                if (tournament.prizes != null &&
+                    tournament.prizes!.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Text('Prizes',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  ...tournament.prizes!.map((prize) => Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Row(
+                          children: [
+                            Icon(Icons.emoji_events,
+                                size: 16, color: Colors.amber.shade700),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text(prize)),
+                          ],
+                        ),
+                      )),
+                ],
               ],
             ),
           ),

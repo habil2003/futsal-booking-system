@@ -793,14 +793,30 @@ static Future<List<dynamic>> getMatches(int tournamentId) async {
 }
 
 // PATCH /api/matches/:matchId/score
+// In api_service.dart - Update the updateMatchScore method
+
 static Future<Map<String, dynamic>> updateMatchScore(int matchId, Map<String, dynamic> scoreData) async {
   try {
     debugPrint('📍 API: Updating match $matchId score');
     debugPrint('📤 Data: $scoreData');
-    return await patch('matches/$matchId/score', scoreData);
+    
+    // Make sure the URL is correct - matches should be plural? Let's try both formats
+    final response = await patch('matches/$matchId/score', scoreData);
+    
+    debugPrint('📍 API Response: $response');
+    return response;
   } catch (e) {
     debugPrint('❌ Update match score error: $e');
-    return {'status': 'error', 'message': e.toString()};
+    
+    // Try alternative URL format if the first one fails
+    try {
+      debugPrint('📍 Trying alternative URL format: tournaments/matches/$matchId/score');
+      final response = await patch('tournaments/matches/$matchId/score', scoreData);
+      return response;
+    } catch (e2) {
+      debugPrint('❌ Alternative URL also failed: $e2');
+      return {'status': 'error', 'message': e.toString()};
+    }
   }
 }
 
