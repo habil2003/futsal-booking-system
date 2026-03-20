@@ -201,6 +201,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen>
           tournamentId: widget.tournamentId,
           maxTeams: maxTeams,
           tournamentType: tournament.type,
+          tournamentStatus: tournament.status,
         ),
       ),
     ).then((_) => provider.loadTournament(widget.tournamentId));
@@ -342,9 +343,12 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen>
       case 'GROUP_STAGE':
         return 'Group Stage';
       default:
-         return round.replaceAll('_', ' ').split(' ')
-          .map((word) => word[0].toUpperCase() + word.substring(1).toLowerCase())
-          .join(' ');
+        return round
+            .replaceAll('_', ' ')
+            .split(' ')
+            .map((word) =>
+                word[0].toUpperCase() + word.substring(1).toLowerCase())
+            .join(' ');
     }
   }
 
@@ -634,6 +638,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen>
                       tournamentId: widget.tournamentId,
                       maxTeams: tournament.maxTeams ?? 0,
                       tournamentType: tournament.type,
+                      tournamentStatus: tournament.status,
                     ),
                   ),
                 ).then((_) => provider.loadTournament(widget.tournamentId)),
@@ -737,15 +742,15 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen>
   // FIXTURES TAB
   // ============================================
   Widget _buildFixturesTab(Tournament tournament, TournamentProvider provider) {
+    // ADD THESE DEBUG PRINTS
+    debugPrint('🏆 ===== FIXTURES TAB DEBUG =====');
+    debugPrint('🏆 Total matches: ${provider.matches.length}');
 
-     // ADD THESE DEBUG PRINTS
-  debugPrint('🏆 ===== FIXTURES TAB DEBUG =====');
-  debugPrint('🏆 Total matches: ${provider.matches.length}');
-  
-  for (var i = 0; i < provider.matches.length; i++) {
-    final match = provider.matches[i];
-    debugPrint('🏆 Match ${i + 1}: ID=${match.id}, Round="${match.round}", ${match.team1Name} vs ${match.team2Name}');
-  }
+    for (var i = 0; i < provider.matches.length; i++) {
+      final match = provider.matches[i];
+      debugPrint(
+          '🏆 Match ${i + 1}: ID=${match.id}, Round="${match.round}", ${match.team1Name} vs ${match.team2Name}');
+    }
     if (provider.matches.isEmpty) {
       return Center(
         child: Column(
@@ -866,40 +871,40 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen>
     // In _buildFixturesTab method, replace the grouping logic:
 
 // Group matches by round
-final Map<String, List<Match>> groupedMatches = {};
-for (final match in provider.matches) {
-  // Get round name from match
-  String round = match.round ?? 'GROUP_STAGE';
-  
-  // Debug print to see what rounds are coming
-  debugPrint('🏆 Match ${match.id} round: $round');
-  
-  if (!groupedMatches.containsKey(round)) {
-    groupedMatches[round] = [];
-  }
-  groupedMatches[round]!.add(match);
-}
+    final Map<String, List<Match>> groupedMatches = {};
+    for (final match in provider.matches) {
+      // Get round name from match
+      String round = match.round ?? 'GROUP_STAGE';
+
+      // Debug print to see what rounds are coming
+      debugPrint('🏆 Match ${match.id} round: $round');
+
+      if (!groupedMatches.containsKey(round)) {
+        groupedMatches[round] = [];
+      }
+      groupedMatches[round]!.add(match);
+    }
 
 // Debug print all rounds found
-debugPrint('🏆 Rounds found: ${groupedMatches.keys.join(', ')}');
+    debugPrint('🏆 Rounds found: ${groupedMatches.keys.join(', ')}');
 
 // Define round order for sorting
-const Map<String, int> roundOrder = {
-  'QUARTER_FINAL': 1,
-  'SEMI_FINAL': 2,
-  'FINAL': 3,
-  'GROUP_STAGE': 0,
-};
+    const Map<String, int> roundOrder = {
+      'QUARTER_FINAL': 1,
+      'SEMI_FINAL': 2,
+      'FINAL': 3,
+      'GROUP_STAGE': 0,
+    };
 
 // Sort rounds in correct order
-final sortedRounds = groupedMatches.keys.toList()
-  ..sort((a, b) {
-    final aOrder = roundOrder[a] ?? 99;
-    final bOrder = roundOrder[b] ?? 99;
-    return aOrder.compareTo(bOrder);
-  });
+    final sortedRounds = groupedMatches.keys.toList()
+      ..sort((a, b) {
+        final aOrder = roundOrder[a] ?? 99;
+        final bOrder = roundOrder[b] ?? 99;
+        return aOrder.compareTo(bOrder);
+      });
 
-  debugPrint('🏆 Sorted rounds: ${sortedRounds.join(", ")}');
+    debugPrint('🏆 Sorted rounds: ${sortedRounds.join(", ")}');
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -959,7 +964,7 @@ final sortedRounds = groupedMatches.keys.toList()
           // Matches
           ...matches.map((match) => Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: _buildMatchCard(match, provider),
+                child: _buildMatchCard(match, provider, tournament),
               )),
 
           const SizedBox(height: 16),
@@ -968,7 +973,8 @@ final sortedRounds = groupedMatches.keys.toList()
     );
   }
 
-  Widget _buildMatchCard(Match match, TournamentProvider provider) {
+  Widget _buildMatchCard(
+      Match match, TournamentProvider provider, Tournament tournament) {
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -1002,6 +1008,29 @@ final sortedRounds = groupedMatches.keys.toList()
                 ),
               ],
             ),
+
+            // Add cancelled tournament indicator
+            if (tournament.status == TournamentStatus.cancelled) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    Icon(Icons.cancel, size: 14, color: Colors.red),
+                    SizedBox(width: 4),
+                    Text(
+                      'Tournament Cancelled - No Further Updates',
+                      style: TextStyle(color: Colors.red, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
 
             const SizedBox(height: 12),
 
@@ -1052,7 +1081,9 @@ final sortedRounds = groupedMatches.keys.toList()
             ),
 
             // Update score button
-            if (!match.isCompleted && !match.isCancelled) ...[
+            if (!match.isCompleted &&
+                !match.isCancelled &&
+                tournament.status != TournamentStatus.cancelled) ...[
               const SizedBox(height: 8),
               TextButton.icon(
                 onPressed: () => _showUpdateScoreDialog(match, provider),
@@ -1223,6 +1254,7 @@ final sortedRounds = groupedMatches.keys.toList()
             tournamentId: widget.tournamentId,
             maxTeams: tournament.maxTeams ?? 0,
             tournamentType: tournament.type,
+            tournamentStatus: tournament.status,
           ),
         ),
       ).then((_) => provider.loadTournament(widget.tournamentId)),

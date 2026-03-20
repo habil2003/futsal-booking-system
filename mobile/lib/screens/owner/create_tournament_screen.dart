@@ -235,6 +235,7 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
               tournamentId: response['tournamentId'] ?? 0,
               maxTeams: _numberOfTeams,
               tournamentType: _selectedType,
+               tournamentStatus: TournamentStatus.draft,
             ),
           ),
         );

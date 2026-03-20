@@ -463,6 +463,14 @@ export const updateTournamentStatus = async (req, res) => {
       });
     }
 
+    // ✅ ADD THIS CHECK: Cannot change status of cancelled tournament
+    if (tournament.status === "CANCELLED") {
+      return res.status(400).json({
+        status: "error",
+        message: "Cannot change status of a cancelled tournament",
+      });
+    }
+
     // Validate status transitions
     if (tournament.status === "COMPLETED") {
       return res.status(400).json({
