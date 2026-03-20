@@ -18,12 +18,16 @@ class _TournamentListScreenState extends State<TournamentListScreen>
   late TabController _tabController;
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
+  bool _isRefreshing = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-    _loadTournaments();
+    // Changed from 3 to 4 to include CANCELLED tab
+    _tabController = TabController(length: 4, vsync: this);
+    _loadTournaments().then((_) {
+      _debugPrintStatusCounts();
+    });
   }
 
   @override
@@ -36,6 +40,19 @@ class _TournamentListScreenState extends State<TournamentListScreen>
   Future<void> _loadTournaments() async {
     final provider = Provider.of<TournamentProvider>(context, listen: false);
     await provider.loadMyTournaments();
+    if (mounted) {
+      setState(() {}); // Force rebuild
+    }
+  }
+
+  void _debugPrintStatusCounts() {
+    final provider = Provider.of<TournamentProvider>(context, listen: false);
+    debugPrint('🏆 TOTAL TOURNAMENTS: ${provider.myTournaments.length}');
+    
+    for (var status in TournamentStatus.values) {
+      final count = provider.myTournaments.where((t) => t.status == status).length;
+      debugPrint('🏆 $status: $count');
+    }
   }
 
   List<Tournament> _getFilteredTournaments(List<Tournament> tournaments) {
@@ -70,6 +87,7 @@ class _TournamentListScreenState extends State<TournamentListScreen>
             Tab(text: 'DRAFT', icon: Icon(Icons.edit)),
             Tab(text: 'ONGOING', icon: Icon(Icons.play_circle)),
             Tab(text: 'COMPLETED', icon: Icon(Icons.emoji_events)),
+            Tab(text: 'CANCELLED', icon: Icon(Icons.cancel)),
           ],
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white70,
@@ -77,8 +95,32 @@ class _TournamentListScreenState extends State<TournamentListScreen>
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadTournaments,
+            icon: _isRefreshing
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : const Icon(Icons.refresh),
+            onPressed: _isRefreshing
+                ? null
+                : () async {
+                    setState(() => _isRefreshing = true);
+                    await _loadTournaments();
+                    if (mounted) {
+                      setState(() => _isRefreshing = false);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Tournaments refreshed'),
+                          duration: Duration(seconds: 1),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    }
+                  },
           ),
         ],
       ),
@@ -119,46 +161,75 @@ class _TournamentListScreenState extends State<TournamentListScreen>
             ),
           ),
 
-          // Stats Summary
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                _buildStatCard(
-                  'Total',
-                  provider.myTournaments.length.toString(),
-                  Icons.tour,
-                  Colors.blue,
+          // Stats Summary - Cards that grow, shrink, and wrap
+          LayoutBuilder(
+            builder: (context, constraints) {
+              // Calculate card width based on available space
+              // Each card minimum 70px, maximum 100px
+              double spacing = 8;
+              int numberOfCards = 5;
+
+              // Calculate ideal card width
+              double totalSpacing = spacing * (numberOfCards - 1);
+              double availableWidth = constraints.maxWidth - totalSpacing - 32;
+              double cardWidth = availableWidth / numberOfCards;
+
+              // Constrain card width between min and max
+              cardWidth = cardWidth.clamp(65.0, 90.0);
+
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Wrap(
+                  spacing: spacing,
+                  runSpacing: 8,
+                  children: [
+                    _buildStatCard(
+                      'Total',
+                      provider.myTournaments.length.toString(),
+                      Icons.tour,
+                      Colors.blue,
+                      width: cardWidth,
+                    ),
+                    _buildStatCard(
+                      'Draft',
+                      _getTournamentsByStatus(TournamentStatus.draft)
+                          .length
+                          .toString(),
+                      Icons.edit,
+                      Colors.grey,
+                      width: cardWidth,
+                    ),
+                    _buildStatCard(
+                      'Ongoing',
+                      _getTournamentsByStatus(TournamentStatus.ongoing)
+                          .length
+                          .toString(),
+                      Icons.play_circle,
+                      Colors.green,
+                      width: cardWidth,
+                    ),
+                    _buildStatCard(
+                      'Completed',
+                      _getTournamentsByStatus(TournamentStatus.completed)
+                          .length
+                          .toString(),
+                      Icons.emoji_events,
+                      Colors.orange,
+                      width: cardWidth,
+                    ),
+                    _buildStatCard(
+                      'Cancelled',
+                      _getTournamentsByStatus(TournamentStatus.cancelled)
+                          .length
+                          .toString(),
+                      Icons.cancel,
+                      Colors.red,
+                      width: cardWidth,
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                _buildStatCard(
-                  'Draft',
-                  _getTournamentsByStatus(TournamentStatus.draft)
-                      .length
-                      .toString(),
-                  Icons.edit,
-                  Colors.grey,
-                ),
-                const SizedBox(width: 8),
-                _buildStatCard(
-                  'Ongoing',
-                  _getTournamentsByStatus(TournamentStatus.ongoing)
-                      .length
-                      .toString(),
-                  Icons.play_circle,
-                  Colors.green,
-                ),
-                const SizedBox(width: 8),
-                _buildStatCard(
-                  'Completed',
-                  _getTournamentsByStatus(TournamentStatus.completed)
-                      .length
-                      .toString(),
-                  Icons.emoji_events,
-                  Colors.orange,
-                ),
-              ],
-            ),
+              );
+            },
           ),
 
           const SizedBox(height: 8),
@@ -181,6 +252,9 @@ class _TournamentListScreenState extends State<TournamentListScreen>
                           _buildTournamentsList(_getFilteredTournaments(
                               _getTournamentsByStatus(
                                   TournamentStatus.completed))),
+                          _buildTournamentsList(_getFilteredTournaments(
+                              _getTournamentsByStatus(
+                                  TournamentStatus.cancelled))),
                         ],
                       ),
           ),
@@ -202,37 +276,40 @@ class _TournamentListScreenState extends State<TournamentListScreen>
     );
   }
 
-  Widget _buildStatCard(
-      String label, String value, IconData icon, Color color) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withOpacity(0.3)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 16),
-            const SizedBox(height: 2),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
+  Widget _buildStatCard(String label, String value, IconData icon, Color color,
+      {required double width}) {
+    return Container(
+      width: width,
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: width > 75 ? 14 : 12),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: width > 75 ? 12 : 10,
+              fontWeight: FontWeight.bold,
+              color: color,
             ),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 8,
-                color: Colors.grey.shade600,
-              ),
+          ),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: width > 75 ? 8 : 7,
+              color: Colors.grey.shade600,
             ),
-          ],
-        ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
@@ -348,7 +425,7 @@ class _TournamentListScreenState extends State<TournamentListScreen>
                 tournamentId: tournament.id,
               ),
             ),
-          );
+          ).then((_) => _loadTournaments());
         },
         borderRadius: BorderRadius.circular(15),
         child: Column(
@@ -527,7 +604,8 @@ class _TournamentListScreenState extends State<TournamentListScreen>
                     ),
 
                   const SizedBox(height: 12),
-// Action Buttons
+
+                  // Action Buttons
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
@@ -584,23 +662,41 @@ class _TournamentListScreenState extends State<TournamentListScreen>
                           style: TextButton.styleFrom(
                               foregroundColor: Colors.orange),
                         ),
-                      const SizedBox(width: 8),
-                      TextButton.icon(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => TournamentDetailsScreen(
-                                tournamentId: tournament.id,
+                      if (tournament.isCancelled)
+                        TextButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => TournamentDetailsScreen(
+                                  tournamentId: tournament.id,
+                                ),
                               ),
-                            ),
-                          ).then((_) => _loadTournaments());
-                        },
-                        icon: const Icon(Icons.visibility, size: 16),
-                        label: const Text('View'),
-                        style:
-                            TextButton.styleFrom(foregroundColor: Colors.green),
-                      ),
+                            ).then((_) => _loadTournaments());
+                          },
+                          icon: const Icon(Icons.cancel, size: 16),
+                          label: const Text('View'),
+                          style: TextButton.styleFrom(
+                              foregroundColor: Colors.red),
+                        ),
+                      const SizedBox(width: 8),
+                      if (!tournament.isCancelled)
+                        TextButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => TournamentDetailsScreen(
+                                  tournamentId: tournament.id,
+                                ),
+                              ),
+                            ).then((_) => _loadTournaments());
+                          },
+                          icon: const Icon(Icons.visibility, size: 16),
+                          label: const Text('View'),
+                          style: TextButton.styleFrom(
+                              foregroundColor: Colors.green),
+                        ),
                     ],
                   ),
                 ],
