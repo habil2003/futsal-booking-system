@@ -9,6 +9,16 @@ import '../../models/user.dart';
 import 'futsal_details_screen.dart';
 import 'booking_history_screen.dart';
 import '../../providers/favorite_provider.dart';
+import 'home/widgets/filter_chips.dart';
+import 'home/widgets/banner_card.dart';
+import 'home/widgets/filter_panel.dart';
+import 'home/widgets/futsal_card.dart';
+import '../../widgets/profile/profile_dialog.dart';
+import '../../widgets/empty_state.dart';
+import '../../widgets/loading_state.dart';
+import '../../widgets/search_bar.dart';
+import 'home/widgets/home_app_bar.dart';
+import 'home/widgets/banner_carousel.dart';
 
 class PlayerHomeScreen extends StatefulWidget {
   const PlayerHomeScreen({super.key});
@@ -24,21 +34,18 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
 
   String _searchQuery = '';
   String _selectedFilter = 'All';
-  int _currentBanner = 0;
   bool _showFilters = false;
 
   // Location state
   Position? _userPosition;
   bool _isGettingLocation = false;
-  double _distanceRadius = 5.0; // km
+  double _distanceRadius = 5.0;
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
-  // Available filters based on actual data
   List<String> _filters = ['All', 'Popular'];
 
-  // Banners (for now hardcoded - can be from API later)
   final List<Map<String, String>> _banners = [
     {
       'title': 'Weekend Special',
@@ -75,21 +82,6 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     );
     _animationController.forward();
 
-    // Auto scroll banner
-    Future.delayed(const Duration(seconds: 3), _autoScrollBanner);
-  }
-
-  void _autoScrollBanner() {
-    if (_disposed) return;
-    if (_bannerController.hasClients) {
-      _currentBanner = (_currentBanner + 1) % _banners.length;
-      _bannerController.animateToPage(
-        _currentBanner,
-        duration: const Duration(milliseconds: 500),
-        curve: Curves.easeInOut,
-      );
-      Future.delayed(const Duration(seconds: 3), _autoScrollBanner);
-    }
   }
 
   bool _disposed = false;
@@ -108,15 +100,11 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     final auth = Provider.of<AuthProvider>(context, listen: false);
 
     await futsalProvider.fetchFutsals();
-
-    // Update filters based on actual data
     _updateFilters();
 
-    // Reload favorites if user is logged in
     if (auth.isAuthenticated) {
       final favProvider = Provider.of<FavoriteProvider>(context, listen: false);
       await favProvider.loadFavorites();
-      debugPrint('✅ Favorites loaded: ${favProvider.favorites.length} items');
     }
   }
 
@@ -125,7 +113,6 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     final Set<String> filterSet = {'All', 'Popular'};
 
     for (var futsal in futsalProvider.futsals) {
-      // Add court types from actual courts
       final courtTypes = futsal.getCourtTypes();
       filterSet
           .addAll(courtTypes.map((t) => t == 'indoor' ? 'Indoor' : 'Outdoor'));
@@ -136,7 +123,6 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     });
   }
 
-  // Get user location
   Future<void> _getUserLocation() async {
     setState(() => _isGettingLocation = true);
 
@@ -190,7 +176,6 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     }
   }
 
-  // Calculate distance between two points
   double _calculateDistance(
       double lat1, double lng1, double lat2, double lng2) {
     const R = 6371.0;
@@ -209,7 +194,6 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     final futsalProvider = Provider.of<FutsalProvider>(context, listen: false);
     var futsals = futsalProvider.futsals;
 
-    // Apply search filter
     if (_searchQuery.isNotEmpty) {
       futsals = futsals.where((f) {
         return f.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
@@ -217,7 +201,6 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
       }).toList();
     }
 
-    // Apply type filter (Indoor/Outdoor) - skip for 'All' and 'Popular'
     if (_selectedFilter != 'All' && _selectedFilter != 'Popular') {
       final filterLower = _selectedFilter.toLowerCase();
       futsals = futsals.where((f) {
@@ -226,9 +209,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
       }).toList();
     }
 
-    // Apply distance filter if location is available
     if (_userPosition != null) {
-      // Calculate distance for each futsal
       for (var futsal in futsals) {
         if (futsal.latitude != null && futsal.longitude != null) {
           futsal.distance = _calculateDistance(
@@ -240,12 +221,10 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
         }
       }
 
-      // Filter by distance radius
       futsals = futsals.where((f) {
         return f.distance == null || f.distance! <= _distanceRadius;
       }).toList();
 
-      // Sort by distance
       futsals.sort((a, b) {
         final aDist = a.distance ?? double.infinity;
         final bDist = b.distance ?? double.infinity;
@@ -253,7 +232,6 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
       });
     }
 
-    // Apply Popular filter (sort by rating)
     if (_selectedFilter == 'Popular') {
       futsals.sort((a, b) {
         return (b.averageRating ?? 0).compareTo(a.averageRating ?? 0);
@@ -272,153 +250,32 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
       backgroundColor: Colors.grey.shade50,
       body: RefreshIndicator(
         onRefresh: () async {
-          final futsalProvider = Provider.of<FutsalProvider>(context, listen: false);
+          final futsalProvider =
+              Provider.of<FutsalProvider>(context, listen: false);
           final auth = Provider.of<AuthProvider>(context, listen: false);
-          
+
           await futsalProvider.fetchFutsals();
           _updateFilters();
-          
+
           if (auth.isAuthenticated) {
-            await Provider.of<FavoriteProvider>(context, listen: false).loadFavorites();
+            await Provider.of<FavoriteProvider>(context, listen: false)
+                .loadFavorites();
           }
         },
         child: CustomScrollView(
           slivers: [
-            // Custom App Bar
-            SliverAppBar(
-              expandedHeight: 160,
-              floating: false,
-              pinned: true,
-              backgroundColor: Colors.green,
-              automaticallyImplyLeading: false,
-              flexibleSpace: FlexibleSpaceBar(
-                background: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Colors.green, Colors.green.shade700],
-                    ),
-                  ),
-                  child: SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 20, top: 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'Hello, ${auth.user?.fullName?.split(' ')[0] ?? 'Player'}! 👋',
-                            style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Ready to play today?',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.white.withOpacity(0.9),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              actions: [
-                // Player Mode Indicator
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.person, size: 16, color: Colors.white),
-                      SizedBox(width: 4),
-                      Text('Player', style: TextStyle(color: Colors.white)),
-                    ],
-                  ),
-                ),
-
-                // Switch to Owner Mode
-                if (auth.isOwner)
-                  Container(
-                    margin: const EdgeInsets.only(right: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.business, color: Colors.white),
-                      onPressed: () {
-                        Navigator.pushReplacementNamed(
-                            context, '/owner/dashboard');
-                      },
-                      tooltip: 'Switch to Owner Mode',
-                    ),
-                  ),
-
-                // Filter Toggle
-                IconButton(
-                  icon: Icon(
-                    _showFilters ? Icons.filter_list : Icons.filter_list_outlined,
-                    color: Colors.white,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _showFilters = !_showFilters;
-                    });
-                  },
-                ),
-
-                // Notification Icon
-                Stack(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.notifications_outlined,
-                          color: Colors.white),
-                      onPressed: () {},
-                    ),
-                    Positioned(
-                      right: 8,
-                      top: 8,
-                      child: Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: Colors.red,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-                // Profile Icon
-                GestureDetector(
-                  onTap: () => _showProfileDialog(context, auth.user!),
-                  child: Container(
-                    margin: const EdgeInsets.only(right: 16),
-                    child: CircleAvatar(
-                      backgroundColor: Colors.white.withOpacity(0.2),
-                      child: Text(
-                        auth.user?.fullName?[0].toUpperCase() ?? 'U',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+            HomeAppBar(
+              user: auth.user!,
+              isOwner: auth.isOwner,
+              showFilters: _showFilters,
+              onFilterToggle: () {
+                setState(() {
+                  _showFilters = !_showFilters;
+                });
+              },
+              onSwitchToOwner: () {
+                Navigator.pushReplacementNamed(context, '/owner/dashboard');
+              },
             ),
 
             // Search Bar
@@ -427,46 +284,21 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                 padding: const EdgeInsets.all(16),
                 child: FadeTransition(
                   opacity: _fadeAnimation,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(15),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.grey.withOpacity(0.1),
-                          blurRadius: 10,
-                          offset: const Offset(0, 5),
-                        ),
-                      ],
-                    ),
-                    child: TextField(
-                      controller: _searchController,
-                      decoration: InputDecoration(
-                        hintText: 'Search by name or location...',
-                        prefixIcon: const Icon(Icons.search, color: Colors.green),
-                        suffixIcon: _searchQuery.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear, color: Colors.grey),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  setState(() {
-                                    _searchQuery = '';
-                                  });
-                                },
-                              )
-                            : null,
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 15,
-                        ),
-                      ),
-                      onChanged: (value) {
-                        setState(() {
-                          _searchQuery = value;
-                        });
-                      },
-                    ),
+                  child: CustomSearchBar(
+                    // ← Changed from SearchBar to CustomSearchBar
+                    controller: _searchController,
+                    hintText: 'Search by name or location...',
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = value;
+                      });
+                    },
+                    onClear: () {
+                      _searchController.clear();
+                      setState(() {
+                        _searchQuery = '';
+                      });
+                    },
                   ),
                 ),
               ),
@@ -474,76 +306,42 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
 
             // Filter Panel
             SliverToBoxAdapter(
-              child: _buildFilterPanel(),
+              child: _showFilters
+                  ? FilterPanel(
+                      userPosition: _userPosition,
+                      isGettingLocation: _isGettingLocation,
+                      distanceRadius: _distanceRadius,
+                      onGetLocation: _getUserLocation,
+                      onDistanceChanged: (value) {
+                        setState(() {
+                          _distanceRadius = value;
+                        });
+                      },
+                    )
+                  : const SizedBox.shrink(),
             ),
 
             // Banner Section
             SliverToBoxAdapter(
-              child: SizedBox(
-                height: 150,
-                child: PageView.builder(
-                  controller: _bannerController,
-                  itemCount: _banners.length,
-                  onPageChanged: (index) {
-                    setState(() {
-                      _currentBanner = index;
-                    });
-                  },
-                  itemBuilder: (context, index) {
-                    final banner = _banners[index];
-                    return _buildBannerCard(banner);
-                  },
-                ),
+              child: BannerCarousel(
+                banners: _banners,
+                pageController: _bannerController,
+                onPageChanged: (index) {
+                  // Optional: handle page change if needed
+                },
               ),
             ),
 
             // Filter Chips
             SliverToBoxAdapter(
-              child: SizedBox(
-                height: 50,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: _filters.length,
-                  itemBuilder: (context, index) {
-                    final filter = _filters[index];
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: FilterChip(
-                        label: Text(filter),
-                        selected: _selectedFilter == filter,
-                        onSelected: (selected) {
-                          setState(() {
-                            if (selected) {
-                              _selectedFilter = filter;
-                            } else {
-                              _selectedFilter = 'All';
-                            }
-                          });
-                        },
-                        backgroundColor: Colors.white,
-                        selectedColor: Colors.green.shade100,
-                        checkmarkColor: Colors.green,
-                        labelStyle: TextStyle(
-                          color: _selectedFilter == filter
-                              ? Colors.green
-                              : Colors.grey.shade700,
-                          fontWeight: _selectedFilter == filter
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                          side: BorderSide(
-                            color: _selectedFilter == filter
-                                ? Colors.green
-                                : Colors.grey.shade300,
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
+              child: FilterChips(
+                filters: _filters,
+                selectedFilter: _selectedFilter,
+                onFilterSelected: (filter) {
+                  setState(() {
+                    _selectedFilter = filter;
+                  });
+                },
               ),
             ),
 
@@ -555,193 +353,18 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     );
   }
 
-  Widget _buildFilterPanel() {
-    if (!_showFilters) return const SizedBox.shrink();
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Location button
-          Row(
-            children: [
-              const Icon(Icons.place_outlined, size: 20, color: Colors.green),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  _userPosition != null
-                      ? 'Showing futsals within $_distanceRadius km'
-                      : 'Enable location to find futsals near you',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: _userPosition != null
-                        ? Colors.green.shade700
-                        : Colors.grey.shade600,
-                  ),
-                ),
-              ),
-              if (_isGettingLocation)
-                const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              else
-                TextButton(
-                  onPressed: _getUserLocation,
-                  child: Text(
-                    _userPosition != null ? 'Update' : 'Use My Location',
-                    style: const TextStyle(color: Colors.green),
-                  ),
-                ),
-            ],
-          ),
-
-          // Distance slider (only show if location is set)
-          if (_userPosition != null) ...[
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                const Icon(Icons.place_outlined, size: 16, color: Colors.green),
-                const SizedBox(width: 8),
-                Text('Within $_distanceRadius km'),
-              ],
-            ),
-            Slider(
-              value: _distanceRadius,
-              min: 1,
-              max: 20,
-              divisions: 19,
-              activeColor: Colors.green,
-              onChanged: (value) {
-                setState(() {
-                  _distanceRadius = value;
-                });
-              },
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBannerCard(Map<String, String> banner) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Color(int.parse('0xFF${banner['color']}')),
-            Color(int.parse('0xFF${banner['color']}')).withOpacity(0.8),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: Color(int.parse('0xFF${banner['color']}')).withOpacity(0.3),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            right: 10,
-            bottom: 10,
-            child: Text(
-              banner['image']!,
-              style: const TextStyle(fontSize: 50),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  banner['title']!,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  banner['subtitle']!,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildFutsalsList(FutsalProvider provider) {
     if (provider.isLoading && provider.futsals.isEmpty) {
-      return const SliverFillRemaining(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(color: Colors.green),
-              SizedBox(height: 16),
-              Text('Loading amazing futsals...'),
-            ],
-          ),
-        ),
+      return SliverFillRemaining(
+        child: LoadingState.futsals(),
       );
     }
 
     if (provider.error != null) {
       return SliverFillRemaining(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.error_outline, size: 60, color: Colors.red.shade300),
-              const SizedBox(height: 16),
-              Text(
-                provider.error!,
-                style: const TextStyle(fontSize: 16),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _loadFutsals,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                child: const Text('Try Again'),
-              ),
-            ],
-          ),
+        child: EmptyState.error(
+          provider.error!,
+          onRetry: _loadFutsals,
         ),
       );
     }
@@ -750,47 +373,17 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
 
     if (filteredList.isEmpty) {
       return SliverFillRemaining(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                _searchQuery.isEmpty ? Icons.sports_soccer : Icons.search_off,
-                size: 80,
-                color: Colors.grey.shade400,
+        child: _searchQuery.isEmpty
+            ? EmptyState.noFutsals()
+            : EmptyState.noSearchResults(
+                onClearFilters: () {
+                  _searchController.clear();
+                  setState(() {
+                    _searchQuery = '';
+                    _selectedFilter = 'All';
+                  });
+                },
               ),
-              const SizedBox(height: 16),
-              Text(
-                _searchQuery.isEmpty
-                    ? 'No futsals available'
-                    : 'No matching futsals found',
-                style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
-              ),
-              if (_searchQuery.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(
-                  'Try adjusting your filters',
-                  style: TextStyle(color: Colors.grey.shade500),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () {
-                    _searchController.clear();
-                    setState(() {
-                      _searchQuery = '';
-                      _selectedFilter = 'All';
-                    });
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('Clear All Filters'),
-                ),
-              ],
-            ],
-          ),
-        ),
       );
     }
 
@@ -802,408 +395,14 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
             final futsal = filteredList[index];
             return FadeTransition(
               opacity: _fadeAnimation,
-              child: _buildFutsalCard(futsal),
+              child: FutsalCard(
+                futsal: futsal,
+                onTap: () => _navigateToDetails(futsal),
+              ),
             );
           },
           childCount: filteredList.length,
         ),
-      ),
-    );
-  }
-
-  Widget _buildFutsalCard(Futsal futsal) {
-    final amenities = futsal.getAllAmenities();
-    final minPrice = futsal.getMinPrice();
-    final courtTypes = futsal.getCourtTypes();
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: InkWell(
-        onTap: () => _navigateToDetails(futsal),
-        borderRadius: BorderRadius.circular(15),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Image Section
-            Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(15),
-                  ),
-                  child: futsal.images.isNotEmpty
-                      ? Image.network(
-                          futsal.images.first,
-                          height: 180,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return _buildPlaceholderImage();
-                          },
-                        )
-                      : _buildPlaceholderImage(),
-                ),
-
-                // Favorite Button
-                Positioned(
-                  top: 10,
-                  right: 10,
-                  child: Consumer<FavoriteProvider>(
-                    builder: (context, favProvider, child) {
-                      final isFav = favProvider.isFavorite(futsal.id);
-                      debugPrint('⭐ Futsal ${futsal.id} (${futsal.name}) - isFavorite: $isFav');
-                      return Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 5,
-                            ),
-                          ],
-                        ),
-                        child: IconButton(
-                          icon: Icon(
-                            isFav ? Icons.favorite : Icons.favorite_border,
-                            color: isFav ? Colors.red : Colors.grey.shade600,
-                            size: 20,
-                          ),
-                          onPressed: () async {
-                            final auth = Provider.of<AuthProvider>(context,
-                                listen: false);
-                            if (!auth.isAuthenticated) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content:
-                                      Text('Please log in to save favorites'),
-                                  backgroundColor: Colors.orange,
-                                ),
-                              );
-                              return;
-                            }
-
-                            final success =
-                                await favProvider.toggleFavorite(futsal.id);
-                            if (success) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    isFav
-                                        ? 'Removed from favorites'
-                                        : 'Added to favorites',
-                                  ),
-                                  backgroundColor: Colors.green,
-                                  duration: const Duration(seconds: 1),
-                                ),
-                              );
-                            }
-                          },
-                        ),
-                      );
-                    },
-                  ),
-                ),
-
-                // Rating Badge
-                if (futsal.averageRating != null)
-                  Positioned(
-                    bottom: 10,
-                    right: 10,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.amber.shade700,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.amber.shade700.withOpacity(0.3),
-                            blurRadius: 5,
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.star,
-                            size: 12,
-                            color: Colors.white,
-                          ),
-                          const SizedBox(width: 2),
-                          Text(
-                            futsal.averageRating!.toStringAsFixed(1),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 10,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-
-            // Content Section
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          futsal.name,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      // Court type badges
-                      if (courtTypes.isNotEmpty)
-                        ...courtTypes
-                            .map((type) => Container(
-                                  margin: const EdgeInsets.only(left: 4),
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: type == 'indoor'
-                                        ? Colors.blue.shade50
-                                        : Colors.green.shade50,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                      color: type == 'indoor'
-                                          ? Colors.blue.shade200
-                                          : Colors.green.shade200,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    type == 'indoor' ? 'Indoor' : 'Outdoor',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: type == 'indoor'
-                                          ? Colors.blue.shade700
-                                          : Colors.green.shade700,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ))
-                            .toList(),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Location with distance
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.location_on,
-                        size: 16,
-                        color: Colors.grey.shade500,
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          futsal.address,
-                          style: TextStyle(
-                            color: Colors.grey.shade600,
-                            fontSize: 14,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (futsal.distance != null)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.shade50,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.blue.shade200),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.near_me,
-                                  size: 12, color: Colors.blue.shade600),
-                              const SizedBox(width: 4),
-                              Text(
-                                futsal.distance! < 1
-                                    ? '${(futsal.distance! * 1000).round()}m'
-                                    : '${futsal.distance!.toStringAsFixed(1)}km',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.blue.shade700,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Amenities (now from real data)
-                  if (amenities.isNotEmpty)
-                    SizedBox(
-                      height: 32,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: amenities.take(3).length,
-                        itemBuilder: (context, index) {
-                          final amenity = amenities[index];
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: _buildAmenityChip(
-                              _getAmenityIcon(amenity),
-                              amenity.length > 15
-                                  ? '${amenity.substring(0, 12)}...'
-                                  : amenity,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  const SizedBox(height: 12),
-
-                  // Price and Book Button
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            minPrice != null ? 'Starting from' : 'Price varies',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade500,
-                            ),
-                          ),
-                          if (minPrice != null)
-                            RichText(
-                              text: TextSpan(
-                                children: [
-                                  TextSpan(
-                                    text: 'रू ',
-                                    style: TextStyle(
-                                      color: Colors.green.shade700,
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  TextSpan(
-                                    text: minPrice.toStringAsFixed(0),
-                                    style: const TextStyle(
-                                      color: Colors.green,
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const TextSpan(
-                                    text: '/hr',
-                                    style: TextStyle(
-                                      color: Colors.grey,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          else
-                            const Text(
-                              'Check availability',
-                              style: TextStyle(
-                                color: Colors.green,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                        ],
-                      ),
-                      ElevatedButton(
-                        onPressed: () => _navigateToDetails(futsal),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 12,
-                          ),
-                        ),
-                        child: const Text(
-                          'Book Now',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  IconData _getAmenityIcon(String amenity) {
-    final lower = amenity.toLowerCase();
-    if (lower.contains('parking')) return Icons.local_parking;
-    if (lower.contains('water')) return Icons.local_drink;
-    if (lower.contains('light')) return Icons.light_mode;
-    if (lower.contains('chair') || lower.contains('seating'))
-      return Icons.chair;
-    if (lower.contains('shower') || lower.contains('changing'))
-      return Icons.shower;
-    if (lower.contains('wifi')) return Icons.wifi;
-    if (lower.contains('ac')) return Icons.ac_unit;
-    return Icons.fitness_center;
-  }
-
-  Widget _buildAmenityChip(IconData icon, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: Colors.grey.shade700),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 10,
-              color: Colors.grey.shade700,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1227,164 +426,6 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
           futsal: futsal,
           initialTabIndex: 1,
         ),
-      ),
-    );
-  }
-
-  Widget _buildPlaceholderImage() {
-    return Container(
-      height: 180,
-      width: double.infinity,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.green.shade100, Colors.green.shade50],
-        ),
-      ),
-      child: Center(
-        child: Icon(
-          Icons.sports_soccer,
-          size: 50,
-          color: Colors.green.shade300,
-        ),
-      ),
-    );
-  }
-
-  void _showProfileDialog(BuildContext context, User user) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 20),
-            CircleAvatar(
-              radius: 40,
-              backgroundColor: Colors.green.shade100,
-              child: Text(
-                user.fullName[0].toUpperCase(),
-                style: const TextStyle(
-                  fontSize: 30,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              user.fullName,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              user.email,
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-            const SizedBox(height: 20),
-            ListTile(
-              leading: const Icon(Icons.history, color: Colors.green),
-              title: const Text('My Bookings'),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-              onTap: () {
-                Navigator.pop(ctx);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const BookingHistoryScreen(),
-                  ),
-                );
-              },
-            ),
-            _buildProfileTile(Icons.person, 'Role', user.role),
-            if (user.phoneNumber != null)
-              _buildProfileTile(Icons.phone, 'Phone', user.phoneNumber!),
-            _buildProfileTile(
-              Icons.calendar_today,
-              'Member since',
-              user.createdAt != null ? user.createdAt!.year.toString() : 'N/A',
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.green,
-                      side: const BorderSide(color: Colors.green),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    child: const Text('Close'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      Navigator.pop(ctx);
-                      await Provider.of<AuthProvider>(context, listen: false)
-                          .logout();
-                      if (mounted) {
-                        Navigator.pushReplacementNamed(context, '/login');
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    child: const Text('Logout'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProfileTile(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: Colors.green),
-          const SizedBox(width: 12),
-          Text(
-            '$label: ',
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          Text(
-            value,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ],
       ),
     );
   }
