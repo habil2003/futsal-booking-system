@@ -847,4 +847,49 @@ static Future<List<dynamic>> getTournamentStandings(int tournamentId) async {
   }
 }
 
+  // ============================================
+  // BLOCK METHODS
+  // ============================================
+
+  // GET /api/owner/blocks - Get all blocked players for owner
+  static Future<Map<String, dynamic>> getBlockedPlayers() async {
+    try {
+      final response = await get('owner/blocks');
+      return response;
+    } catch (e) {
+      debugPrint('❌ Get blocked players error: $e');
+      return {'blocks': []};
+    }
+  }
+
+  // POST /api/owner/blocks - Block a player
+  static Future<Map<String, dynamic>> blockPlayer({
+    required int playerId,
+    required int futsalId,
+    String? reason,
+  }) async {
+    try {
+      final response = await post('owner/blocks', {
+        'playerId': playerId,
+        'futsalId': futsalId,
+        'reason': reason,
+      });
+      return response;
+    } catch (e) {
+      debugPrint('❌ Block player error: $e');
+      return {'status': 'error', 'message': e.toString()};
+    }
+  }
+
+  // DELETE /api/owner/blocks/:blockId - Unblock a player
+  static Future<Map<String, dynamic>> unblockPlayer(int blockId) async {
+    try {
+      final response = await delete('owner/blocks/$blockId');
+      return response;
+    } catch (e) {
+      debugPrint('❌ Unblock player error: $e');
+      return {'status': 'error', 'message': e.toString()};
+    }
+  }
+
 }
