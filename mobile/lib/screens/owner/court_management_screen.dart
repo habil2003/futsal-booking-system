@@ -21,10 +21,10 @@ class _CourtManagementScreenState extends State<CourtManagementScreen> {
   final TextEditingController _courtNumberController = TextEditingController();
   final TextEditingController _basePriceController = TextEditingController();
   final TextEditingController _peakPriceController = TextEditingController();
-  
+
   String _selectedCourtType = 'indoor';
   List<String> _selectedAmenities = [];
-  
+
   final List<String> _courtTypes = ['indoor', 'outdoor'];
   final List<String> _availableAmenities = [
     'Lights',
@@ -44,7 +44,8 @@ class _CourtManagementScreenState extends State<CourtManagementScreen> {
   }
 
   Future<void> _loadCourts() async {
-    debugPrint('📍 CourtManagement: Loading courts for futsal ${widget.futsalId}');
+    debugPrint(
+        '📍 CourtManagement: Loading courts for futsal ${widget.futsalId}');
     final provider = Provider.of<CourtProvider>(context, listen: false);
     await provider.loadCourts(widget.futsalId);
   }
@@ -87,7 +88,8 @@ class _CourtManagementScreenState extends State<CourtManagementScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.error_outline, size: 60, color: Colors.red.shade300),
+                    Icon(Icons.error_outline,
+                        size: 60, color: Colors.red.shade300),
                     const SizedBox(height: 16),
                     Text(
                       provider.error!,
@@ -110,7 +112,8 @@ class _CourtManagementScreenState extends State<CourtManagementScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.sports_soccer, size: 80, color: Colors.grey.shade400),
+                  Icon(Icons.sports_soccer,
+                      size: 80, color: Colors.grey.shade400),
                   const SizedBox(height: 16),
                   Text(
                     'No courts added yet',
@@ -140,7 +143,7 @@ class _CourtManagementScreenState extends State<CourtManagementScreen> {
             children: [
               // Summary Card
               _buildSummaryCard(provider),
-              
+
               // Courts List
               Expanded(
                 child: ListView.builder(
@@ -169,7 +172,8 @@ class _CourtManagementScreenState extends State<CourtManagementScreen> {
   Widget _buildSummaryCard(CourtProvider provider) {
     final totalCourts = provider.courts.length;
     final activeCourts = provider.courts.where((c) => c.isActive).length;
-    final maintenanceCourts = provider.courts.where((c) => c.isUnderMaintenance).length;
+    final maintenanceCourts =
+        provider.courts.where((c) => c.isUnderMaintenance).length;
 
     return Container(
       width: double.infinity,
@@ -273,7 +277,8 @@ class _CourtManagementScreenState extends State<CourtManagementScreen> {
               padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
               decoration: BoxDecoration(
                 color: Colors.orange.shade100,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(12)),
               ),
               child: Row(
                 children: [
@@ -300,14 +305,14 @@ class _CourtManagementScreenState extends State<CourtManagementScreen> {
                 ],
               ),
             ),
-          
           if (!court.isActive)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
               decoration: BoxDecoration(
                 color: Colors.grey.shade200,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(12)),
               ),
               child: const Row(
                 children: [
@@ -324,7 +329,6 @@ class _CourtManagementScreenState extends State<CourtManagementScreen> {
                 ],
               ),
             ),
-
           Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -335,7 +339,7 @@ class _CourtManagementScreenState extends State<CourtManagementScreen> {
                   width: 50,
                   height: 50,
                   decoration: BoxDecoration(
-                    color: court.isActive 
+                    color: court.isActive
                         ? Colors.green.withOpacity(0.2)
                         : Colors.grey.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(12),
@@ -351,9 +355,9 @@ class _CourtManagementScreenState extends State<CourtManagementScreen> {
                     ),
                   ),
                 ),
-                
+
                 const SizedBox(width: 12),
-                
+
                 // Court Details
                 Expanded(
                   child: Column(
@@ -394,11 +398,12 @@ class _CourtManagementScreenState extends State<CourtManagementScreen> {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      
+
                       // Price info
                       Row(
                         children: [
-                          const Icon(Icons.currency_rupee, size: 14, color: Colors.grey),
+                          const Icon(Icons.currency_rupee,
+                              size: 14, color: Colors.grey),
                           const SizedBox(width: 2),
                           Text(
                             'रू ${court.basePrice}/hr',
@@ -417,7 +422,8 @@ class _CourtManagementScreenState extends State<CourtManagementScreen> {
                               decoration: BoxDecoration(
                                 color: Colors.orange.shade50,
                                 borderRadius: BorderRadius.circular(4),
-                                border: Border.all(color: Colors.orange.shade200),
+                                border:
+                                    Border.all(color: Colors.orange.shade200),
                               ),
                               child: Row(
                                 children: [
@@ -440,9 +446,9 @@ class _CourtManagementScreenState extends State<CourtManagementScreen> {
                           ],
                         ],
                       ),
-                      
+
                       const SizedBox(height: 8),
-                      
+
                       // Amenities
                       Wrap(
                         spacing: 4,
@@ -471,32 +477,38 @@ class _CourtManagementScreenState extends State<CourtManagementScreen> {
                     ],
                   ),
                 ),
-                
+
                 // Action Buttons
                 Column(
                   children: [
                     // Toggle Active/Inactive
                     IconButton(
                       icon: Icon(
-                        court.isActive ? Icons.visibility : Icons.visibility_off,
+                        court.isActive
+                            ? Icons.visibility
+                            : Icons.visibility_off,
                         color: court.isActive ? Colors.green : Colors.grey,
                         size: 20,
                       ),
                       onPressed: () => _toggleActive(court, provider),
                       tooltip: court.isActive ? 'Deactivate' : 'Activate',
                     ),
-                    
+
                     // Toggle Maintenance
                     IconButton(
                       icon: Icon(
                         Icons.build,
-                        color: court.isUnderMaintenance ? Colors.orange : Colors.grey,
+                        color: court.isUnderMaintenance
+                            ? Colors.orange
+                            : Colors.grey,
                         size: 20,
                       ),
                       onPressed: () => _toggleMaintenance(court, provider),
-                      tooltip: court.isUnderMaintenance ? 'Mark Available' : 'Mark Maintenance',
+                      tooltip: court.isUnderMaintenance
+                          ? 'Mark Available'
+                          : 'Mark Maintenance',
                     ),
-                    
+
                     // More options
                     PopupMenuButton(
                       icon: const Icon(Icons.more_vert, size: 20),
@@ -507,11 +519,13 @@ class _CourtManagementScreenState extends State<CourtManagementScreen> {
                             title: Text('Edit Court'),
                             contentPadding: EdgeInsets.zero,
                           ),
-                          onTap: () => _showEditCourtDialog(court.courtNumber, court),
+                          onTap: () =>
+                              _showEditCourtDialog(court.courtNumber, court),
                         ),
                         PopupMenuItem(
                           child: const ListTile(
-                            leading: Icon(Icons.trending_up, size: 18, color: Colors.orange),
+                            leading: Icon(Icons.trending_up,
+                                size: 18, color: Colors.orange),
                             title: Text('Set Peak Price'),
                             contentPadding: EdgeInsets.zero,
                           ),
@@ -519,8 +533,10 @@ class _CourtManagementScreenState extends State<CourtManagementScreen> {
                         ),
                         PopupMenuItem(
                           child: const ListTile(
-                            leading: Icon(Icons.delete, size: 18, color: Colors.red),
-                            title: Text('Delete Court', style: TextStyle(color: Colors.red)),
+                            leading:
+                                Icon(Icons.delete, size: 18, color: Colors.red),
+                            title: Text('Delete Court',
+                                style: TextStyle(color: Colors.red)),
                             contentPadding: EdgeInsets.zero,
                           ),
                           onTap: () => _showDeleteDialog(court, provider),
@@ -538,122 +554,221 @@ class _CourtManagementScreenState extends State<CourtManagementScreen> {
   }
 
   void _showAddCourtDialog() {
-    _courtNumberController.clear();
-    _basePriceController.clear();
-    _peakPriceController.clear();
-    _selectedCourtType = 'indoor';
-    _selectedAmenities = [];
+    // Create local copies for the dialog
+    TextEditingController localCourtNumberController = TextEditingController();
+    TextEditingController localBasePriceController = TextEditingController();
+    TextEditingController localPeakPriceController = TextEditingController();
+    String localSelectedCourtType = 'indoor';
+    List<String> localSelectedAmenities = [];
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Add New Court'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Court Number
-              TextField(
-                controller: _courtNumberController,
-                decoration: const InputDecoration(
-                  labelText: 'Court Number',
-                  hintText: 'e.g., 1, 2, A, B',
-                  border: OutlineInputBorder(),
-                ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Add New Court'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Court Number
+                  TextField(
+                    controller: localCourtNumberController,
+                    decoration: const InputDecoration(
+                      labelText: 'Court Number',
+                      hintText: 'e.g., 1, 2, A, B',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Court Type
+                  DropdownButtonFormField(
+                    value: localSelectedCourtType,
+                    items: _courtTypes.map((type) {
+                      return DropdownMenuItem(
+                        value: type,
+                        child: Text(type.toUpperCase()),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setDialogState(() {
+                        localSelectedCourtType = value.toString();
+                      });
+                    },
+                    decoration: const InputDecoration(
+                      labelText: 'Court Type',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Base Price
+                  TextField(
+                    controller: localBasePriceController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Base Price (per hour)',
+                      prefixText: 'रू ',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Peak Price (Optional)
+                  TextField(
+                    controller: localPeakPriceController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Peak Price (per hour) - Optional',
+                      prefixText: 'रू ',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Amenities Section
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Amenities',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _availableAmenities.map((amenity) {
+                          final isSelected =
+                              localSelectedAmenities.contains(amenity);
+                          return FilterChip(
+                            label: Text(amenity),
+                            selected: isSelected,
+                            onSelected: (selected) {
+                              setDialogState(() {
+                                if (selected) {
+                                  localSelectedAmenities.add(amenity);
+                                } else {
+                                  localSelectedAmenities.remove(amenity);
+                                }
+                              });
+                            },
+                            backgroundColor: Colors.grey.shade100,
+                            selectedColor: Colors.green.shade100,
+                            checkmarkColor: Colors.green,
+                            labelStyle: TextStyle(
+                              color: isSelected
+                                  ? Colors.green
+                                  : Colors.grey.shade700,
+                              fontWeight: isSelected
+                                  ? FontWeight.w500
+                                  : FontWeight.normal,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                              side: BorderSide(
+                                color: isSelected
+                                    ? Colors.green
+                                    : Colors.grey.shade300,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              
-              // Court Type
-              DropdownButtonFormField(
-                value: _selectedCourtType,
-                items: _courtTypes.map((type) {
-                  return DropdownMenuItem(
-                    value: type,
-                    child: Text(type.toUpperCase()),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  _selectedCourtType = value.toString();
-                },
-                decoration: const InputDecoration(
-                  labelText: 'Court Type',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              
-              // Peak Price
-              TextField(
-                controller: _basePriceController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Base Price (per hour)',
-                  prefixText: 'रू ',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              
-              // Amenities
-              DropdownButtonFormField(
-                items: _availableAmenities.map((amenity) {
-                  return DropdownMenuItem(
-                    value: amenity,
-                    child: Text(amenity),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  if (value != null && !_selectedAmenities.contains(value)) {
-                    setState(() {
-                      _selectedAmenities.add(value.toString());
-                    });
-                  }
-                },
-                decoration: const InputDecoration(
-                  labelText: 'Add Amenities',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              
-              if (_selectedAmenities.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 4,
-                  children: _selectedAmenities.map((amenity) {
-                    return Chip(
-                      label: Text(amenity),
-                      onDeleted: () {
-                        setState(() {
-                          _selectedAmenities.remove(amenity);
-                        });
-                      },
-                    );
-                  }).toList(),
-                ),
-              ],
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('CANCEL'),
-          ),
-          ElevatedButton(
-            onPressed: _addCourt,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
             ),
-            child: const Text('ADD COURT'),
-          ),
-        ],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('CANCEL'),
+              ),
+              ElevatedButton(
+                onPressed: () => _addCourt(
+                  localCourtNumberController.text,
+                  localBasePriceController.text,
+                  localPeakPriceController.text,
+                  localSelectedCourtType,
+                  localSelectedAmenities,
+                  ctx,
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('ADD COURT'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  void _addCourt() async {
-    if (_courtNumberController.text.isEmpty || _basePriceController.text.isEmpty) {
+  Widget _buildAmenitiesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Amenities',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _availableAmenities.map((amenity) {
+            final isSelected = _selectedAmenities.contains(amenity);
+            return FilterChip(
+              label: Text(amenity),
+              selected: isSelected,
+              onSelected: (selected) {
+                setState(() {
+                  if (selected) {
+                    _selectedAmenities.add(amenity);
+                  } else {
+                    _selectedAmenities.remove(amenity);
+                  }
+                });
+              },
+              backgroundColor: Colors.grey.shade100,
+              selectedColor: Colors.green.shade100,
+              checkmarkColor: Colors.green,
+              labelStyle: TextStyle(
+                color: isSelected ? Colors.green : Colors.grey.shade700,
+                fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(
+                  color: isSelected ? Colors.green : Colors.grey.shade300,
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  void _addCourt(
+    String courtNumber,
+    String basePrice,
+    String peakPrice,
+    String courtType,
+    List<String> amenities,
+    BuildContext dialogContext,
+  ) async {
+    if (courtNumber.isEmpty || basePrice.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please fill all required fields'),
@@ -663,19 +778,17 @@ class _CourtManagementScreenState extends State<CourtManagementScreen> {
       return;
     }
 
-    Navigator.pop(context); // Close dialog
+    Navigator.pop(dialogContext); // Close dialog
 
     final provider = Provider.of<CourtProvider>(context, listen: false);
-    
+
     final courtData = {
       'futsalId': widget.futsalId,
-      'courtNumber': _courtNumberController.text,
-      'courtType': _selectedCourtType,
-      'basePrice': int.parse(_basePriceController.text),
-      'peakPrice': _peakPriceController.text.isNotEmpty 
-          ? int.parse(_peakPriceController.text) 
-          : null,
-      'amenities': _selectedAmenities,
+      'courtNumber': courtNumber,
+      'courtType': courtType,
+      'basePrice': int.parse(basePrice),
+      'peakPrice': peakPrice.isNotEmpty ? int.parse(peakPrice) : null,
+      'amenities': amenities,
     };
 
     showDialog(
@@ -685,13 +798,14 @@ class _CourtManagementScreenState extends State<CourtManagementScreen> {
     );
 
     final response = await provider.addCourt(courtData);
-    
+
     if (mounted) Navigator.pop(context); // Close loading dialog
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(response['message']),
-        backgroundColor: response['status'] == 'success' ? Colors.green : Colors.red,
+        backgroundColor:
+            response['status'] == 'success' ? Colors.green : Colors.red,
       ),
     );
 
@@ -711,13 +825,14 @@ class _CourtManagementScreenState extends State<CourtManagementScreen> {
       court.id,
       !court.isUnderMaintenance,
     );
-    
+
     if (mounted) Navigator.pop(context); // Close loading dialog
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(response['message']),
-        backgroundColor: response['status'] == 'success' ? Colors.green : Colors.red,
+        backgroundColor:
+            response['status'] == 'success' ? Colors.green : Colors.red,
       ),
     );
   }
@@ -730,13 +845,14 @@ class _CourtManagementScreenState extends State<CourtManagementScreen> {
     );
 
     final response = await provider.toggleActive(court.id, !court.isActive);
-    
+
     if (mounted) Navigator.pop(context); // Close loading dialog
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(response['message']),
-        backgroundColor: response['status'] == 'success' ? Colors.green : Colors.red,
+        backgroundColor:
+            response['status'] == 'success' ? Colors.green : Colors.red,
       ),
     );
   }
@@ -766,11 +882,12 @@ class _CourtManagementScreenState extends State<CourtManagementScreen> {
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(ctx);
-              
+
               showDialog(
                 context: context,
                 barrierDismissible: false,
-                builder: (ctx) => const Center(child: CircularProgressIndicator()),
+                builder: (ctx) =>
+                    const Center(child: CircularProgressIndicator()),
               );
 
               final peakPrice = _peakPriceController.text.isNotEmpty
@@ -778,13 +895,15 @@ class _CourtManagementScreenState extends State<CourtManagementScreen> {
                   : null;
 
               final response = await provider.setPeakPrice(court.id, peakPrice);
-              
+
               if (mounted) Navigator.pop(context); // Close loading dialog
 
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(response['message']),
-                  backgroundColor: response['status'] == 'success' ? Colors.green : Colors.red,
+                  backgroundColor: response['status'] == 'success'
+                      ? Colors.green
+                      : Colors.red,
                 ),
               );
             },
@@ -800,124 +919,177 @@ class _CourtManagementScreenState extends State<CourtManagementScreen> {
   }
 
   void _showEditCourtDialog(String courtNumber, Court court) {
-    _courtNumberController.text = court.courtNumber;
-    _basePriceController.text = court.basePrice.toString();
-    _peakPriceController.text = court.peakPrice?.toString() ?? '';
-    _selectedCourtType = court.courtType;
-    _selectedAmenities = List.from(court.amenities);
+    // Create local copies for the dialog
+    TextEditingController localCourtNumberController =
+        TextEditingController(text: court.courtNumber);
+    TextEditingController localBasePriceController =
+        TextEditingController(text: court.basePrice.toString());
+    TextEditingController localPeakPriceController =
+        TextEditingController(text: court.peakPrice?.toString() ?? '');
+    String localSelectedCourtType = court.courtType;
+    List<String> localSelectedAmenities = List.from(court.amenities);
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Edit Court'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: _courtNumberController,
-                decoration: const InputDecoration(
-                  labelText: 'Court Number',
-                  border: OutlineInputBorder(),
-                ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Edit Court'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Court Number
+                  TextField(
+                    controller: localCourtNumberController,
+                    decoration: const InputDecoration(
+                      labelText: 'Court Number',
+                      hintText: 'e.g., 1, 2, A, B',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Court Type
+                  DropdownButtonFormField(
+                    value: localSelectedCourtType,
+                    items: _courtTypes.map((type) {
+                      return DropdownMenuItem(
+                        value: type,
+                        child: Text(type.toUpperCase()),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setDialogState(() {
+                        localSelectedCourtType = value.toString();
+                      });
+                    },
+                    decoration: const InputDecoration(
+                      labelText: 'Court Type',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Base Price
+                  TextField(
+                    controller: localBasePriceController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Base Price (per hour)',
+                      prefixText: 'रू ',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Peak Price (Optional)
+                  TextField(
+                    controller: localPeakPriceController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Peak Price (per hour) - Optional',
+                      prefixText: 'रू ',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Amenities Section
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Amenities',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _availableAmenities.map((amenity) {
+                          final isSelected =
+                              localSelectedAmenities.contains(amenity);
+                          return FilterChip(
+                            label: Text(amenity),
+                            selected: isSelected,
+                            onSelected: (selected) {
+                              setDialogState(() {
+                                if (selected) {
+                                  localSelectedAmenities.add(amenity);
+                                } else {
+                                  localSelectedAmenities.remove(amenity);
+                                }
+                              });
+                            },
+                            backgroundColor: Colors.grey.shade100,
+                            selectedColor: Colors.green.shade100,
+                            checkmarkColor: Colors.green,
+                            labelStyle: TextStyle(
+                              color: isSelected
+                                  ? Colors.green
+                                  : Colors.grey.shade700,
+                              fontWeight: isSelected
+                                  ? FontWeight.w500
+                                  : FontWeight.normal,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                              side: BorderSide(
+                                color: isSelected
+                                    ? Colors.green
+                                    : Colors.grey.shade300,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField(
-                value: _selectedCourtType,
-                items: _courtTypes.map((type) {
-                  return DropdownMenuItem(
-                    value: type,
-                    child: Text(type.toUpperCase()),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  _selectedCourtType = value.toString();
-                },
-                decoration: const InputDecoration(
-                  labelText: 'Court Type',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _basePriceController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Base Price (per hour)',
-                  prefixText: 'रू ',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _peakPriceController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Peak Price (per hour)',
-                  prefixText: 'रू ',
-                  hintText: 'Optional',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField(
-                items: _availableAmenities.map((amenity) {
-                  return DropdownMenuItem(
-                    value: amenity,
-                    child: Text(amenity),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  if (value != null && !_selectedAmenities.contains(value)) {
-                    setState(() {
-                      _selectedAmenities.add(value.toString());
-                    });
-                  }
-                },
-                decoration: const InputDecoration(
-                  labelText: 'Add Amenities',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              if (_selectedAmenities.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 4,
-                  children: _selectedAmenities.map((amenity) {
-                    return Chip(
-                      label: Text(amenity),
-                      onDeleted: () {
-                        setState(() {
-                          _selectedAmenities.remove(amenity);
-                        });
-                      },
-                    );
-                  }).toList(),
-                ),
-              ],
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('CANCEL'),
-          ),
-          ElevatedButton(
-            onPressed: () => _updateCourt(court.id),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
             ),
-            child: const Text('UPDATE'),
-          ),
-        ],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('CANCEL'),
+              ),
+              ElevatedButton(
+                onPressed: () => _updateCourt(
+                  court.id,
+                  localCourtNumberController.text,
+                  localBasePriceController.text,
+                  localPeakPriceController.text,
+                  localSelectedCourtType,
+                  localSelectedAmenities,
+                  ctx,
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('UPDATE'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  void _updateCourt(int courtId) async {
-    if (_courtNumberController.text.isEmpty || _basePriceController.text.isEmpty) {
+  void _updateCourt(
+    int courtId,
+    String courtNumber,
+    String basePrice,
+    String peakPrice,
+    String courtType,
+    List<String> amenities,
+    BuildContext dialogContext,
+  ) async {
+    if (courtNumber.isEmpty || basePrice.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please fill all required fields'),
@@ -927,20 +1099,17 @@ class _CourtManagementScreenState extends State<CourtManagementScreen> {
       return;
     }
 
-    Navigator.pop(context); // Close dialog
+    Navigator.pop(dialogContext); // Close dialog
 
     final provider = Provider.of<CourtProvider>(context, listen: false);
-    
+
     final courtData = {
-      'courtNumber': _courtNumberController.text,
-      'courtType': _selectedCourtType,
-      'basePrice': int.parse(_basePriceController.text),
-      'peakPrice': _peakPriceController.text.isNotEmpty 
-          ? int.parse(_peakPriceController.text) 
-          : null,
-      'amenities': _selectedAmenities,
+      'courtNumber': courtNumber,
+      'courtType': courtType,
+      'basePrice': int.parse(basePrice),
+      'peakPrice': peakPrice.isNotEmpty ? int.parse(peakPrice) : null,
+      'amenities': amenities,
     };
-    
 
     showDialog(
       context: context,
@@ -949,13 +1118,14 @@ class _CourtManagementScreenState extends State<CourtManagementScreen> {
     );
 
     final response = await provider.updateCourt(courtId, courtData);
-    
+
     if (mounted) Navigator.pop(context); // Close loading dialog
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(response['message']),
-        backgroundColor: response['status'] == 'success' ? Colors.green : Colors.red,
+        backgroundColor:
+            response['status'] == 'success' ? Colors.green : Colors.red,
       ),
     );
 
@@ -969,7 +1139,8 @@ class _CourtManagementScreenState extends State<CourtManagementScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete Court'),
-        content: Text('Are you sure you want to delete Court ${court.courtNumber}?'),
+        content:
+            Text('Are you sure you want to delete Court ${court.courtNumber}?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -996,13 +1167,14 @@ class _CourtManagementScreenState extends State<CourtManagementScreen> {
     );
 
     final response = await provider.deleteCourt(courtId);
-    
+
     if (mounted) Navigator.pop(context); // Close loading dialog
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(response['message']),
-        backgroundColor: response['status'] == 'success' ? Colors.green : Colors.red,
+        backgroundColor:
+            response['status'] == 'success' ? Colors.green : Colors.red,
       ),
     );
 

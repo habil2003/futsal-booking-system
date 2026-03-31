@@ -213,6 +213,20 @@ export const getFutsalSlots = async (req, res) => {
       });
     }
 
+    // First check if futsal exists and is approved
+    const futsal = await prisma.futsal.findUnique({
+      where: { id: parseInt(futsalId) },
+      select: { isApproved: true }
+    });
+
+    if (!futsal || !futsal.isApproved) {
+      return res.json({
+        status: 'success',
+        results: 0,
+        slots: []
+      });
+    }
+
     // Parse date
     const selectedDate = new Date(date);
     selectedDate.setHours(0, 0, 0, 0);
@@ -223,7 +237,8 @@ export const getFutsalSlots = async (req, res) => {
     const slots = await prisma.timeSlot.findMany({
       where: {
         court: {
-          futsalId: parseInt(futsalId)
+          futsalId: parseInt(futsalId),
+          isActive: true  // Only active courts
         },
         date: {
           gte: selectedDate,
@@ -235,7 +250,8 @@ export const getFutsalSlots = async (req, res) => {
           select: {
             id: true,
             courtNumber: true,
-            courtType: true
+            courtType: true,
+            isActive: true
           }
         }
       },
@@ -274,7 +290,6 @@ export const getFutsalSlots = async (req, res) => {
   }
 };
 
-
 /**
  * Lock a slot for 5 minutes (before payment)
  * @route   POST /api/slots/:slotId/lock
@@ -284,13 +299,42 @@ export const lockSlot = async (req, res) => {
     const { slotId } = req.params;
     
     const slot = await prisma.timeSlot.findUnique({
-      where: { id: parseInt(slotId) }
+      where: { id: parseInt(slotId) },
+      include: {
+        court: {
+          include: {
+            futsal: {
+              select: {
+                id: true,
+                isApproved: true,
+                ownerId: true
+              }
+            }
+          }
+        }
+      }
     });
 
     if (!slot) {
       return res.status(404).json({ 
         status: 'error', 
         message: 'Slot not found' 
+      });
+    }
+
+    // Check if futsal is approved/active
+    if (!slot.court.futsal.isApproved) {
+      return res.status(400).json({ 
+        status: 'error', 
+        message: 'This futsal is currently inactive. Bookings are disabled.' 
+      });
+    }
+
+    // Check if court is active
+    if (!slot.court.isActive) {
+      return res.status(400).json({ 
+        status: 'error', 
+        message: 'This court is currently inactive.' 
       });
     }
 

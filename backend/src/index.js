@@ -43,6 +43,7 @@ import reviewRoutes from './routes/review.routes.js';
 import adminRoutes from "./routes/admin.routes.js";
 import blockRoutes from "./routes/block.routes.js";
 import uploadRoutes from './routes/upload.routes.js';
+import favoriteRoutes from './routes/favorite.routes.js';
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -56,6 +57,7 @@ app.use('/api/reviews', reviewRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/owner/blocks", blockRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/favorites', favoriteRoutes);
 
 
 // Basic test route

@@ -11,6 +11,7 @@ import 'bookings_screen.dart';
 import '../owner/tournament_list_screen.dart';
 import 'owner_reviews_screen.dart';
 import 'analytics_screen.dart';
+import 'blocked_players_screen.dart';
 
 class OwnerDashboard extends StatefulWidget {
   const OwnerDashboard({super.key});
@@ -20,10 +21,11 @@ class OwnerDashboard extends StatefulWidget {
 }
 
 class _OwnerDashboardState extends State<OwnerDashboard> {
+  Futsal? _selectedFutsal;
+
   @override
   void initState() {
     super.initState();
-    // Load data when screen opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadAllData();
     });
@@ -32,25 +34,31 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
   Future<void> _loadAllData() async {
     debugPrint('📍 Dashboard: Loading all data');
     final futsalProvider = Provider.of<FutsalProvider>(context, listen: false);
-    final dashboardProvider =
-        Provider.of<DashboardProvider>(context, listen: false);
+    final dashboardProvider = Provider.of<DashboardProvider>(context, listen: false);
 
     await futsalProvider.fetchMyFutsals();
 
-    // If user has futsals, load their stats
     if (futsalProvider.myFutsals.isNotEmpty) {
-      // For now, load stats for first futsal
-      // Later we can add futsal selector
-      await dashboardProvider.loadStatistics(futsalProvider.myFutsals.first.id);
+      // If no selected futsal, select first
+      if (_selectedFutsal == null) {
+        setState(() {
+          _selectedFutsal = futsalProvider.myFutsals.first;
+        });
+      } else {
+        // Find the selected futsal in the updated list
+        final updated = futsalProvider.myFutsals.firstWhere(
+          (f) => f.id == _selectedFutsal!.id,
+          orElse: () => futsalProvider.myFutsals.first,
+        );
+        setState(() {
+          _selectedFutsal = updated;
+        });
+      }
+      await dashboardProvider.loadStatistics(_selectedFutsal!.id);
     }
   }
 
-  // ============================================
-  // LOGOUT WITH CONFIRMATION
-  // ============================================
   Future<void> _showLogoutConfirmation() async {
-    debugPrint('📍 Logout: Dialog triggered');
-
     final bool? shouldLogout = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -79,39 +87,26 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     );
 
     if (shouldLogout == true && mounted) {
-      debugPrint('📍 Logout: Starting logout process');
-
       final auth = Provider.of<AuthProvider>(context, listen: false);
 
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (ctx) {
-          return const Center(
-            child: CircularProgressIndicator(),
-          );
-        },
+        builder: (ctx) => const Center(
+          child: CircularProgressIndicator(),
+        ),
       );
 
       await auth.logout();
-      debugPrint('📍 Logout: auth.logout() completed');
 
       if (mounted) {
         Navigator.pop(context);
-        debugPrint('📍 Logout: Loading dialog closed');
         Navigator.pushReplacementNamed(context, '/login');
-        debugPrint('📍 Logout: Navigation to login completed');
       }
     }
   }
 
-  // ============================================
-  // Navigate to Add/Edit screen
-  // ============================================
   Future<void> _navigateToAddFutsal([Futsal? futsalToEdit]) async {
-    debugPrint(
-        '📍 Navigating to ${futsalToEdit == null ? 'Add' : 'Edit'} Futsal');
-
     final shouldRefresh = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -122,16 +117,21 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     );
 
     if (shouldRefresh == true) {
-      debugPrint(
-          '🔄 Refreshing after ${futsalToEdit == null ? 'add' : 'edit'}');
       _loadAllData();
     }
   }
 
-  // ============================================
-  // Navigate to Court Management
-  // ============================================
   void _navigateToCourtManagement(Futsal futsal) {
+    if (futsal.status != 'ACTIVE') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Courts can only be managed for active futsals'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -143,10 +143,17 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     );
   }
 
-  // ============================================
-  // Navigate to Bookings
-  // ============================================
   void _navigateToBookings(Futsal futsal) {
+    if (futsal.status != 'ACTIVE') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bookings are only available for active futsals'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -158,9 +165,62 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     );
   }
 
-  // ============================================
-  // Handle delete
-  // ============================================
+  void _navigateToReviews(Futsal futsal) {
+    if (futsal.status != 'ACTIVE') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Reviews are only available for active futsals'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => OwnerReviewsScreen(
+          futsalId: futsal.id,
+          futsalName: futsal.name,
+        ),
+      ),
+    );
+  }
+
+  void _navigateToAnalytics(Futsal futsal) {
+    if (futsal.status != 'ACTIVE') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Analytics available for active futsals only'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AnalyticsScreen(
+          futsalId: futsal.id,
+          futsalName: futsal.name,
+        ),
+      ),
+    );
+  }
+
+  void _navigateToBlockedPlayers(Futsal futsal) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BlockedPlayersScreen(
+          futsalId: futsal.id,
+          futsalName: futsal.name,
+        ),
+      ),
+    );
+  }
+
   Future<void> _deleteFutsal(Futsal futsal) async {
     final futsalProvider = Provider.of<FutsalProvider>(context, listen: false);
 
@@ -176,23 +236,30 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
 
     if (mounted) Navigator.pop(context);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(response['message']),
-        backgroundColor:
-            response['status'] == 'success' ? Colors.green : Colors.red,
-        duration: const Duration(seconds: 3),
-      ),
-    );
-
     if (response['status'] == 'success') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(response['message']),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 3),
+        ),
+      );
       _loadAllData();
+    } else {
+      String errorMessage = response['message'];
+      if (errorMessage.contains('bookings') || errorMessage.contains('favorites')) {
+        errorMessage = 'Cannot delete this futsal.\n\nIt has existing bookings or favorites.';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+        ),
+      );
     }
   }
 
-  // ============================================
-  // Show delete confirmation dialog
-  // ============================================
   void _showDeleteDialog(Futsal futsal) {
     showDialog(
       context: context,
@@ -220,16 +287,23 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     );
   }
 
-  void _navigateToReviews(Futsal futsal) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => OwnerReviewsScreen(
-          futsalId: futsal.id,
-          futsalName: futsal.name,
-        ),
+  Future<void> _toggleActive(Futsal futsal) async {
+    final futsalProvider = Provider.of<FutsalProvider>(context, listen: false);
+    
+    final response = await futsalProvider.updateFutsal(futsal.id, {
+      'toggleActive': true,
+    });
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(response['message']),
+        backgroundColor: response['status'] == 'success' ? Colors.green : Colors.red,
       ),
     );
+    
+    if (response['status'] == 'success') {
+      _loadAllData();
+    }
   }
 
   @override
@@ -240,8 +314,6 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
 
     return WillPopScope(
       onWillPop: () async {
-        debugPrint('📍 Back button pressed - showing logout dialog');
-
         final shouldLogout = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
@@ -260,8 +332,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
               ),
               TextButton(
                 onPressed: () async {
-                  final auth =
-                      Provider.of<AuthProvider>(context, listen: false);
+                  final auth = Provider.of<AuthProvider>(context, listen: false);
                   await auth.logout();
                   if (mounted) {
                     Navigator.pop(ctx, true);
@@ -276,27 +347,42 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
             ],
           ),
         );
-
         return false;
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('My Futsals'),
+          title: Row(
+            children: [
+              const Text('My Futsals'),
+              if (futsalProvider.myFutsals.length > 1 && _selectedFutsal != null)
+                Container(
+                  margin: const EdgeInsets.only(left: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    _selectedFutsal!.name.length > 15 
+                        ? '${_selectedFutsal!.name.substring(0, 12)}...' 
+                        : _selectedFutsal!.name,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+            ],
+          ),
           backgroundColor: Colors.green,
           foregroundColor: Colors.white,
           elevation: 0,
           automaticallyImplyLeading: false,
           leading: Container(),
-
-          // Use Row for better control of spacing
-          flexibleSpace: Container(), // This helps with spacing
+          flexibleSpace: Container(),
           actions: [
-            // Owner Mode Indicator - Make it more visible
             Container(
               margin: const EdgeInsets.only(right: 4),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.amber.shade700, // Changed to amber for visibility
+                color: Colors.amber.shade700,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: Colors.white, width: 1),
               ),
@@ -305,19 +391,10 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                 children: [
                   Icon(Icons.business, size: 16, color: Colors.white),
                   SizedBox(width: 4),
-                  Text(
-                    'OWNER',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  ),
+                  Text('OWNER', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
                 ],
               ),
             ),
-
-            // PLAYER MODE BUTTON - Made more prominent
             Container(
               margin: const EdgeInsets.only(right: 8),
               decoration: BoxDecoration(
@@ -325,21 +402,21 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: IconButton(
-                icon: const Icon(Icons.sports_soccer,
-                    color: Colors.white, size: 24),
+                icon: const Icon(Icons.sports_soccer, color: Colors.white, size: 24),
                 onPressed: () {
                   Navigator.pushReplacementNamed(context, '/player/home');
                 },
                 tooltip: 'Switch to Player Mode',
               ),
             ),
-
-            // Futsal selector dropdown (if multiple futsals)
             if (futsalProvider.myFutsals.length > 1)
               PopupMenuButton<Futsal>(
                 icon: const Icon(Icons.swap_vert, color: Colors.white),
                 tooltip: 'Switch Futsal',
                 onSelected: (futsal) {
+                  setState(() {
+                    _selectedFutsal = futsal;
+                  });
                   dashboardProvider.loadStatistics(futsal.id);
                 },
                 itemBuilder: (ctx) => futsalProvider.myFutsals.map((futsal) {
@@ -349,15 +426,11 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                   );
                 }).toList(),
               ),
-
-            // Refresh button
             IconButton(
               icon: const Icon(Icons.refresh, color: Colors.white),
               onPressed: _loadAllData,
               tooltip: 'Refresh all data',
             ),
-
-            // Logout button
             IconButton(
               icon: const Icon(Icons.logout, color: Colors.white),
               onPressed: _showLogoutConfirmation,
@@ -380,8 +453,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     );
   }
 
-  Widget _buildBody(
-      FutsalProvider futsalProvider, DashboardProvider dashboardProvider) {
+  Widget _buildBody(FutsalProvider futsalProvider, DashboardProvider dashboardProvider) {
     if (futsalProvider.isLoading && futsalProvider.myFutsals.isEmpty) {
       return const Center(
         child: Column(
@@ -441,39 +513,27 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
       );
     }
 
+    if (_selectedFutsal == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // Stats Cards Section
         _buildStatsSection(dashboardProvider),
-
         const SizedBox(height: 16),
-
-        // Quick Actions Section
-       _buildQuickActions(futsalProvider.myFutsals.first, futsalProvider),
-
+        _buildQuickActions(_selectedFutsal!, futsalProvider),
         const SizedBox(height: 16),
-
-        // Today's Schedule Preview
         _buildTodaySchedule(dashboardProvider, futsalProvider),
-
         const SizedBox(height: 16),
-
-        // My Futsals List Title
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 8),
           child: Text(
             'My Futsals',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
         ),
-
         const SizedBox(height: 8),
-
-        // Futsal List
         ...futsalProvider.myFutsals
             .map((futsal) => _buildFutsalCard(futsal))
             .toList(),
@@ -482,6 +542,8 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
   }
 
   Widget _buildQuickActions(Futsal currentFutsal, FutsalProvider futsalProvider) {
+    final isActive = currentFutsal.status == 'ACTIVE';
+    
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -498,70 +560,122 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Quick Actions',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Quick Actions',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              if (futsalProvider.myFutsals.length > 1)
+                Text(
+                  'Current: ${currentFutsal.name}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildActionButton(
-                icon: Icons.sports_soccer,
-                label: 'Courts',
-                onTap: () => _navigateToCourtManagement(currentFutsal),
-                color: Colors.blue,
-              ),
-              _buildActionButton(
-                icon: Icons.calendar_month,
-                label: 'Bookings',
-                onTap: () => _navigateToBookings(currentFutsal),
-                color: Colors.green,
-              ),
-              _buildActionButton(
-                icon: Icons.emoji_events,
-                label: 'Tournaments',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const TournamentListScreen(),
-                    ),
-                  );
-                },
-                color: Colors.purple,
-              ),
-              _buildActionButton(
-                icon: Icons.bar_chart,
-                label: 'Analytics',
-                onTap: () {
-                  if (futsalProvider.myFutsals.isNotEmpty) {
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildActionButton(
+                  icon: Icons.sports_soccer,
+                  label: 'Courts',
+                  onTap: () => _navigateToCourtManagement(currentFutsal),
+                  color: Colors.blue,
+                  isEnabled: isActive,
+                ),
+                const SizedBox(width: 12),
+                _buildActionButton(
+                  icon: Icons.calendar_month,
+                  label: 'Bookings',
+                  onTap: () => _navigateToBookings(currentFutsal),
+                  color: Colors.green,
+                  isEnabled: isActive,
+                ),
+                const SizedBox(width: 12),
+                _buildActionButton(
+                  icon: Icons.emoji_events,
+                  label: 'Tournaments',
+                  onTap: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => AnalyticsScreen(
-                          futsalId: futsalProvider.myFutsals.first.id,
-                          futsalName: futsalProvider.myFutsals.first.name,
-                        ),
+                        builder: (context) => const TournamentListScreen(),
                       ),
                     );
-                  }
-                },
-                color: Colors.orange,
-              ),
-              // Find the Row with 4 action buttons, add Reviews as 5th:
-              _buildActionButton(
-                icon: Icons.star,
-                label: 'Reviews',
-                onTap: () => _navigateToReviews(currentFutsal),
-                color: Colors.amber,
-              ),
-            ],
+                  },
+                  color: Colors.purple,
+                  isEnabled: true,
+                ),
+                const SizedBox(width: 12),
+                _buildActionButton(
+                  icon: Icons.bar_chart,
+                  label: 'Analytics',
+                  onTap: () => _navigateToAnalytics(currentFutsal),
+                  color: Colors.orange,
+                  isEnabled: isActive,
+                ),
+                const SizedBox(width: 12),
+                _buildActionButton(
+                  icon: Icons.star,
+                  label: 'Reviews',
+                  onTap: () => _navigateToReviews(currentFutsal),
+                  color: Colors.amber,
+                  isEnabled: isActive,
+                ),
+                const SizedBox(width: 12),
+                _buildActionButton(
+                  icon: Icons.block,
+                  label: 'Blocked',
+                  onTap: () => _navigateToBlockedPlayers(currentFutsal),
+                  color: Colors.red,
+                  isEnabled: true,
+                ),
+              ],
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    required Color color,
+    required bool isEnabled,
+  }) {
+    return GestureDetector(
+      onTap: isEnabled ? onTap : null,
+      child: Opacity(
+        opacity: isEnabled ? 1.0 : 0.5,
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade700,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -617,11 +731,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
         children: [
           const Text(
             'Overview',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: Colors.grey,
-            ),
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.grey),
           ),
           const SizedBox(height: 16),
           Row(
@@ -696,57 +806,18 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
           const SizedBox(height: 8),
           Text(
             value,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color),
           ),
           Text(
             label,
-            style: TextStyle(
-              fontSize: 11,
-              color: Colors.grey.shade600,
-            ),
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    required Color color,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color, size: 24),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey.shade700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTodaySchedule(
-      DashboardProvider provider, FutsalProvider futsalProvider) {
+  Widget _buildTodaySchedule(DashboardProvider provider, FutsalProvider futsalProvider) {
     if (provider.todayBookingsList.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(16),
@@ -760,10 +831,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
             children: [
               Icon(Icons.event_busy, color: Colors.grey, size: 32),
               SizedBox(height: 8),
-              Text(
-                'No bookings today',
-                style: TextStyle(color: Colors.grey),
-              ),
+              Text('No bookings today', style: TextStyle(color: Colors.grey)),
             ],
           ),
         ),
@@ -791,30 +859,12 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
             children: [
               const Text(
                 'Today\'s Schedule',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               TextButton(
                 onPressed: () {
-                  if (provider.todayBookingsList.isNotEmpty &&
-                      futsalProvider.myFutsals.isNotEmpty) {
-                    final bookingFutsalId =
-                        provider.todayBookingsList.first.futsalId;
-
-                    Futsal? targetFutsal;
-                    try {
-                      targetFutsal = futsalProvider.myFutsals.firstWhere(
-                        (f) => f.id == bookingFutsalId,
-                      );
-                    } catch (e) {
-                      targetFutsal = futsalProvider.myFutsals.first;
-                    }
-
-                    _navigateToBookings(targetFutsal);
-                  } else if (futsalProvider.myFutsals.isNotEmpty) {
-                    _navigateToBookings(futsalProvider.myFutsals.first);
+                  if (_selectedFutsal != null) {
+                    _navigateToBookings(_selectedFutsal!);
                   }
                 },
                 child: const Text('View All'),
@@ -831,10 +881,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
               child: Center(
                 child: Text(
                   '+${provider.todayBookingsList.length - 3} more bookings',
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                 ),
               ),
             ),
@@ -859,11 +906,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
               color: Colors.green.shade100,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(
-              Icons.person,
-              color: Colors.green,
-              size: 16,
-            ),
+            child: const Icon(Icons.person, color: Colors.green, size: 16),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -872,16 +915,11 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
               children: [
                 Text(
                   booking.customerName ?? 'Customer',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.w500),
                 ),
                 Text(
                   'Court ${booking.courtNumber} • ${booking.startTime}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
               ],
             ),
@@ -889,18 +927,14 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: booking.paymentStatus == 'paid'
-                  ? Colors.green.shade100
-                  : Colors.orange.shade100,
+              color: booking.paymentStatus == 'paid' ? Colors.green.shade100 : Colors.orange.shade100,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
               booking.paymentStatus ?? 'Pending',
               style: TextStyle(
                 fontSize: 10,
-                color: booking.paymentStatus == 'paid'
-                    ? Colors.green.shade700
-                    : Colors.orange.shade700,
+                color: booking.paymentStatus == 'paid' ? Colors.green.shade700 : Colors.orange.shade700,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -911,6 +945,10 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
   }
 
   Widget _buildFutsalCard(Futsal futsal) {
+    final isPending = futsal.status == 'PENDING';
+    final isDeactivated = futsal.status == 'DEACTIVATED';
+    final hasCourts = futsal.courts != null && futsal.courts!.isNotEmpty;
+    
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       elevation: 2,
@@ -919,7 +957,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
       ),
       child: Column(
         children: [
-          if (!futsal.isApproved)
+          if (isPending)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
@@ -933,11 +971,26 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                   SizedBox(width: 4),
                   Text(
                     'Pending Approval',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          if (isDeactivated)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+              decoration: const BoxDecoration(
+                color: Colors.red,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.block, color: Colors.white, size: 16),
+                  SizedBox(width: 4),
+                  Text(
+                    'Deactivated',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
                   ),
                 ],
               ),
@@ -954,11 +1007,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                     color: Colors.green.shade100,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(
-                    Icons.sports_soccer,
-                    color: Colors.green,
-                    size: 30,
-                  ),
+                  child: const Icon(Icons.sports_soccer, color: Colors.green, size: 30),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -967,36 +1016,25 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                     children: [
                       Text(
                         futsal.name,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 4),
                       Row(
                         children: [
-                          const Icon(Icons.location_on,
-                              size: 14, color: Colors.grey),
+                          const Icon(Icons.location_on, size: 14, color: Colors.grey),
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
                               futsal.address,
-                              style: const TextStyle(
-                                color: Colors.grey,
-                                fontSize: 12,
-                              ),
+                              style: const TextStyle(color: Colors.grey, fontSize: 12),
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'रू ${futsal.basePrice}/hour',
-                        style: const TextStyle(
-                          color: Colors.green,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
+                        'Price varies by court',
+                        style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.normal, fontSize: 12),
                       ),
                     ],
                   ),
@@ -1013,38 +1051,41 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                       _navigateToBookings(futsal);
                     } else if (value == 'view_reviews') {
                       _navigateToReviews(futsal);
+                    } else if (value == 'toggle_active') {
+                      _toggleActive(futsal);
                     }
                   },
                   itemBuilder: (ctx) => [
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'manage_courts',
+                      enabled: futsal.status == 'ACTIVE',
                       child: Row(
                         children: [
-                          Icon(Icons.sports_soccer,
-                              size: 18, color: Colors.blue),
+                          Icon(Icons.sports_soccer, size: 18, color: futsal.status == 'ACTIVE' ? Colors.blue : Colors.grey),
                           SizedBox(width: 8),
-                          Text('Manage Courts'),
+                          Text('Manage Courts', style: TextStyle(color: futsal.status == 'ACTIVE' ? Colors.black : Colors.grey)),
                         ],
                       ),
                     ),
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'view_bookings',
+                      enabled: futsal.status == 'ACTIVE',
                       child: Row(
                         children: [
-                          Icon(Icons.calendar_month,
-                              size: 18, color: Colors.green),
+                          Icon(Icons.calendar_month, size: 18, color: futsal.status == 'ACTIVE' ? Colors.green : Colors.grey),
                           SizedBox(width: 8),
-                          Text('View Bookings'),
+                          Text('View Bookings', style: TextStyle(color: futsal.status == 'ACTIVE' ? Colors.black : Colors.grey)),
                         ],
                       ),
                     ),
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'view_reviews',
+                      enabled: futsal.status == 'ACTIVE',
                       child: Row(
                         children: [
-                          Icon(Icons.star, size: 18, color: Colors.amber),
+                          Icon(Icons.star, size: 18, color: futsal.status == 'ACTIVE' ? Colors.amber : Colors.grey),
                           SizedBox(width: 8),
-                          Text('View Reviews'),
+                          Text('View Reviews', style: TextStyle(color: futsal.status == 'ACTIVE' ? Colors.black : Colors.grey)),
                         ],
                       ),
                     ),
@@ -1058,13 +1099,34 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                         ],
                       ),
                     ),
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'delete',
+                      enabled: futsal.status == 'PENDING' && !hasCourts,
                       child: Row(
                         children: [
-                          Icon(Icons.delete, size: 18, color: Colors.red),
+                          Icon(Icons.delete, size: 18, color: futsal.status == 'PENDING' && !hasCourts ? Colors.red : Colors.grey),
                           SizedBox(width: 8),
-                          Text('Delete', style: TextStyle(color: Colors.red)),
+                          Text(
+                            'Delete',
+                            style: TextStyle(
+                              color: futsal.status == 'PENDING' && !hasCourts ? Colors.red : Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'toggle_active',
+                      enabled: futsal.status == 'ACTIVE' || futsal.status == 'DEACTIVATED',
+                      child: Row(
+                        children: [
+                          Icon(
+                            futsal.status == 'ACTIVE' ? Icons.visibility_off : Icons.visibility,
+                            size: 18,
+                            color: futsal.status == 'ACTIVE' ? Colors.orange : Colors.green,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(futsal.status == 'ACTIVE' ? 'Deactivate' : 'Activate'),
                         ],
                       ),
                     ),

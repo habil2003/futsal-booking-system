@@ -1,12 +1,14 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/futsal_provider.dart';
 import '../../models/futsal.dart';
 import '../../models/user.dart';
 import 'futsal_details_screen.dart';
 import 'booking_history_screen.dart';
+import '../../providers/favorite_provider.dart';
 
 class PlayerHomeScreen extends StatefulWidget {
   const PlayerHomeScreen({super.key});
@@ -23,24 +25,20 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
   String _searchQuery = '';
   String _selectedFilter = 'All';
   int _currentBanner = 0;
-
-  // New filter variables
   bool _showFilters = false;
+
+  // Location state
+  Position? _userPosition;
+  bool _isGettingLocation = false;
   double _distanceRadius = 5.0; // km
-  RangeValues _priceRange = const RangeValues(0, 5000);
-  double _minPrice = 0;
-  double _maxPrice = 5000;
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
-  final List<String> _filters = [
-    'All',
-    'Indoor',
-    'Outdoor',
-    'Popular',
-    'Nearby'
-  ];
+  // Available filters based on actual data
+  List<String> _filters = ['All', 'Popular'];
+
+  // Banners (for now hardcoded - can be from API later)
   final List<Map<String, String>> _banners = [
     {
       'title': 'Weekend Special',
@@ -107,22 +105,104 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
 
   Future<void> _loadFutsals() async {
     final futsalProvider = Provider.of<FutsalProvider>(context, listen: false);
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+
     await futsalProvider.fetchFutsals();
 
-    // Calculate max price for filter
-    if (futsalProvider.futsals.isNotEmpty) {
-      _maxPrice = futsalProvider.futsals
-          .map((f) => f.basePrice)
-          .reduce((a, b) => a > b ? a : b)
-          .toDouble();
-      _minPrice = futsalProvider.futsals
-          .map((f) => f.basePrice)
-          .reduce((a, b) => a < b ? a : b)
-          .toDouble();
-      setState(() {
-        _priceRange = RangeValues(_minPrice, _maxPrice);
-      });
+    // Update filters based on actual data
+    _updateFilters();
+
+    // Reload favorites if user is logged in
+    if (auth.isAuthenticated) {
+      final favProvider = Provider.of<FavoriteProvider>(context, listen: false);
+      await favProvider.loadFavorites();
+      debugPrint('✅ Favorites loaded: ${favProvider.favorites.length} items');
     }
+  }
+
+  void _updateFilters() {
+    final futsalProvider = Provider.of<FutsalProvider>(context, listen: false);
+    final Set<String> filterSet = {'All', 'Popular'};
+
+    for (var futsal in futsalProvider.futsals) {
+      // Add court types from actual courts
+      final courtTypes = futsal.getCourtTypes();
+      filterSet
+          .addAll(courtTypes.map((t) => t == 'indoor' ? 'Indoor' : 'Outdoor'));
+    }
+
+    setState(() {
+      _filters = filterSet.toList();
+    });
+  }
+
+  // Get user location
+  Future<void> _getUserLocation() async {
+    setState(() => _isGettingLocation = true);
+
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Location permission denied. Enable in settings.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.medium,
+        timeLimit: const Duration(seconds: 20),
+      );
+
+      setState(() {
+        _userPosition = position;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Location set! Showing futsals within $_distanceRadius km'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not get location: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isGettingLocation = false);
+    }
+  }
+
+  // Calculate distance between two points
+  double _calculateDistance(
+      double lat1, double lng1, double lat2, double lng2) {
+    const R = 6371.0;
+    final dLat = (lat2 - lat1) * math.pi / 180;
+    final dLng = (lng2 - lng1) * math.pi / 180;
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1 * math.pi / 180) *
+            math.cos(lat2 * math.pi / 180) *
+            math.sin(dLng / 2) *
+            math.sin(dLng / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return R * c;
   }
 
   List<Futsal> get _filteredFutsals {
@@ -137,12 +217,43 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
       }).toList();
     }
 
-    // Apply price range filter
-    futsals = futsals.where((f) {
-      return f.basePrice >= _priceRange.start && f.basePrice <= _priceRange.end;
-    }).toList();
+    // Apply type filter (Indoor/Outdoor) - skip for 'All' and 'Popular'
+    if (_selectedFilter != 'All' && _selectedFilter != 'Popular') {
+      final filterLower = _selectedFilter.toLowerCase();
+      futsals = futsals.where((f) {
+        final courtTypes = f.getCourtTypes();
+        return courtTypes.contains(filterLower);
+      }).toList();
+    }
 
-    // Sort by rating if Popular selected
+    // Apply distance filter if location is available
+    if (_userPosition != null) {
+      // Calculate distance for each futsal
+      for (var futsal in futsals) {
+        if (futsal.latitude != null && futsal.longitude != null) {
+          futsal.distance = _calculateDistance(
+            _userPosition!.latitude,
+            _userPosition!.longitude,
+            futsal.latitude!,
+            futsal.longitude!,
+          );
+        }
+      }
+
+      // Filter by distance radius
+      futsals = futsals.where((f) {
+        return f.distance == null || f.distance! <= _distanceRadius;
+      }).toList();
+
+      // Sort by distance
+      futsals.sort((a, b) {
+        final aDist = a.distance ?? double.infinity;
+        final bDist = b.distance ?? double.infinity;
+        return aDist.compareTo(bDist);
+      });
+    }
+
+    // Apply Popular filter (sort by rating)
     if (_selectedFilter == 'Popular') {
       futsals.sort((a, b) {
         return (b.averageRating ?? 0).compareTo(a.averageRating ?? 0);
@@ -159,356 +270,373 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
-      body: CustomScrollView(
-        slivers: [
-          // Custom App Bar
-          SliverAppBar(
-            expandedHeight: 160, // ← reduced from 200
-            floating: false,
-            pinned: true,
-            backgroundColor: Colors.green,
-            automaticallyImplyLeading: false,
-            flexibleSpace: FlexibleSpaceBar(
-              background: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Colors.green, Colors.green.shade700],
+      body: RefreshIndicator(
+        onRefresh: () async {
+          final futsalProvider = Provider.of<FutsalProvider>(context, listen: false);
+          final auth = Provider.of<AuthProvider>(context, listen: false);
+          
+          await futsalProvider.fetchFutsals();
+          _updateFilters();
+          
+          if (auth.isAuthenticated) {
+            await Provider.of<FavoriteProvider>(context, listen: false).loadFavorites();
+          }
+        },
+        child: CustomScrollView(
+          slivers: [
+            // Custom App Bar
+            SliverAppBar(
+              expandedHeight: 160,
+              floating: false,
+              pinned: true,
+              backgroundColor: Colors.green,
+              automaticallyImplyLeading: false,
+              flexibleSpace: FlexibleSpaceBar(
+                background: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Colors.green, Colors.green.shade700],
+                    ),
+                  ),
+                  child: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 20, top: 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Hello, ${auth.user?.fullName?.split(' ')[0] ?? 'Player'}! 👋',
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Ready to play today?',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.white.withOpacity(0.9),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-                child: SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.only(left: 20, top: 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Hello, ${auth.user?.fullName?.split(' ')[0] ?? 'Player'}! 👋',
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
+              ),
+              actions: [
+                // Player Mode Indicator
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.person, size: 16, color: Colors.white),
+                      SizedBox(width: 4),
+                      Text('Player', style: TextStyle(color: Colors.white)),
+                    ],
+                  ),
+                ),
+
+                // Switch to Owner Mode
+                if (auth.isOwner)
+                  Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.business, color: Colors.white),
+                      onPressed: () {
+                        Navigator.pushReplacementNamed(
+                            context, '/owner/dashboard');
+                      },
+                      tooltip: 'Switch to Owner Mode',
+                    ),
+                  ),
+
+                // Filter Toggle
+                IconButton(
+                  icon: Icon(
+                    _showFilters ? Icons.filter_list : Icons.filter_list_outlined,
+                    color: Colors.white,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _showFilters = !_showFilters;
+                    });
+                  },
+                ),
+
+                // Notification Icon
+                Stack(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.notifications_outlined,
+                          color: Colors.white),
+                      onPressed: () {},
+                    ),
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Ready to play today?',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.white.withOpacity(0.9),
-                          ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                // Profile Icon
+                GestureDetector(
+                  onTap: () => _showProfileDialog(context, auth.user!),
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 16),
+                    child: CircleAvatar(
+                      backgroundColor: Colors.white.withOpacity(0.2),
+                      child: Text(
+                        auth.user?.fullName?[0].toUpperCase() ?? 'U',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            // Search Bar
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(15),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.1),
+                          blurRadius: 10,
+                          offset: const Offset(0, 5),
                         ),
                       ],
                     ),
-                  ),
-                ),
-              ),
-            ),
-            actions: [
-              // 👤 PLAYER MODE INDICATOR
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.person, size: 16, color: Colors.white),
-                    SizedBox(width: 4),
-                    Text('Player', style: TextStyle(color: Colors.white)),
-                  ],
-                ),
-              ),
-
-              // 🏢 SWITCH TO OWNER MODE BUTTON (Only for owners)
-              if (auth.isOwner)
-                Container(
-                  margin: const EdgeInsets.only(right: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.business, color: Colors.white),
-                    onPressed: () {
-                      Navigator.pushReplacementNamed(
-                          context, '/owner/dashboard');
-                    },
-                    tooltip: 'Switch to Owner Mode',
-                  ),
-                ),
-
-              // Filter Toggle Button
-              IconButton(
-                icon: Icon(
-                    _showFilters
-                        ? Icons.filter_list
-                        : Icons.filter_list_outlined,
-                    color: Colors.white),
-                onPressed: () {
-                  setState(() {
-                    _showFilters = !_showFilters;
-                  });
-                },
-              ),
-
-              // Notification Icon
-              Stack(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.notifications_outlined,
-                        color: Colors.white),
-                    onPressed: () {},
-                  ),
-                  Positioned(
-                    right: 8,
-                    top: 8,
-                    child: Container(
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              // Profile Icon
-              GestureDetector(
-                onTap: () => _showProfileDialog(context, auth.user!),
-                child: Container(
-                  margin: const EdgeInsets.only(right: 16),
-                  child: CircleAvatar(
-                    backgroundColor: Colors.white.withOpacity(0.2),
-                    child: Text(
-                      auth.user?.fullName?[0].toUpperCase() ?? 'U',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          // Search Bar
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: FadeTransition(
-                opacity: _fadeAnimation,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(15),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.grey.withOpacity(0.1),
-                        blurRadius: 10,
-                        offset: const Offset(0, 5),
-                      ),
-                    ],
-                  ),
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: 'Search by name or location...',
-                      prefixIcon: const Icon(Icons.search, color: Colors.green),
-                      suffixIcon: _searchQuery.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear, color: Colors.grey),
-                              onPressed: () {
-                                _searchController.clear();
-                                setState(() {
-                                  _searchQuery = '';
-                                });
-                              },
-                            )
-                          : null,
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 15,
-                      ),
-                    ),
-                    onChanged: (value) {
-                      setState(() {
-                        _searchQuery = value;
-                      });
-                    },
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          // Filter Panel (Collapsible)
-          SliverToBoxAdapter(
-            child: _buildFilterPanel(),
-          ),
-
-          // Banner Section
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: 150,
-              child: PageView.builder(
-                controller: _bannerController,
-                itemCount: _banners.length,
-                onPageChanged: (index) {
-                  setState(() {
-                    _currentBanner = index;
-                  });
-                },
-                itemBuilder: (context, index) {
-                  final banner = _banners[index];
-                  return _buildBannerCard(banner);
-                },
-              ),
-            ),
-          ),
-
-          // Filter Chips
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: 50,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: _filters.length,
-                itemBuilder: (context, index) {
-                  final filter = _filters[index];
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: FilterChip(
-                      label: Text(filter),
-                      selected: _selectedFilter == filter,
-                      onSelected: (selected) {
-                        setState(() {
-                          _selectedFilter = filter;
-                        });
-                      },
-                      backgroundColor: Colors.white,
-                      selectedColor: Colors.green.shade100,
-                      checkmarkColor: Colors.green,
-                      labelStyle: TextStyle(
-                        color: _selectedFilter == filter
-                            ? Colors.green
-                            : Colors.grey.shade700,
-                        fontWeight: _selectedFilter == filter
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                        side: BorderSide(
-                          color: _selectedFilter == filter
-                              ? Colors.green
-                              : Colors.grey.shade300,
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: 'Search by name or location...',
+                        prefixIcon: const Icon(Icons.search, color: Colors.green),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, color: Colors.grey),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() {
+                                    _searchQuery = '';
+                                  });
+                                },
+                              )
+                            : null,
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 15,
                         ),
                       ),
+                      onChanged: (value) {
+                        setState(() {
+                          _searchQuery = value;
+                        });
+                      },
                     ),
-                  );
-                },
+                  ),
+                ),
               ),
             ),
-          ),
 
-          // Futsals List
-          _buildFutsalsList(futsalProvider),
-        ],
+            // Filter Panel
+            SliverToBoxAdapter(
+              child: _buildFilterPanel(),
+            ),
+
+            // Banner Section
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: 150,
+                child: PageView.builder(
+                  controller: _bannerController,
+                  itemCount: _banners.length,
+                  onPageChanged: (index) {
+                    setState(() {
+                      _currentBanner = index;
+                    });
+                  },
+                  itemBuilder: (context, index) {
+                    final banner = _banners[index];
+                    return _buildBannerCard(banner);
+                  },
+                ),
+              ),
+            ),
+
+            // Filter Chips
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: 50,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: _filters.length,
+                  itemBuilder: (context, index) {
+                    final filter = _filters[index];
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: FilterChip(
+                        label: Text(filter),
+                        selected: _selectedFilter == filter,
+                        onSelected: (selected) {
+                          setState(() {
+                            if (selected) {
+                              _selectedFilter = filter;
+                            } else {
+                              _selectedFilter = 'All';
+                            }
+                          });
+                        },
+                        backgroundColor: Colors.white,
+                        selectedColor: Colors.green.shade100,
+                        checkmarkColor: Colors.green,
+                        labelStyle: TextStyle(
+                          color: _selectedFilter == filter
+                              ? Colors.green
+                              : Colors.grey.shade700,
+                          fontWeight: _selectedFilter == filter
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          side: BorderSide(
+                            color: _selectedFilter == filter
+                                ? Colors.green
+                                : Colors.grey.shade300,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+
+            // Futsals List
+            _buildFutsalsList(futsalProvider),
+          ],
+        ),
       ),
     );
   }
 
-Widget _buildFilterPanel() {
-  if (!_showFilters) return const SizedBox.shrink();
+  Widget _buildFilterPanel() {
+    if (!_showFilters) return const SizedBox.shrink();
 
-  return Container(
-    margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(15),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.grey.withOpacity(0.1),
-          blurRadius: 10,
-          offset: const Offset(0, 5),
-        ),
-      ],
-    ),
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Distance filter
-        Row(
-          children: [
-            const Icon(Icons.place_outlined, size: 20, color: Colors.green),
-            const SizedBox(width: 8),
-            Text('Within $_distanceRadius km'),
-            const Spacer(),
-            TextButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Location updated'),
-                    backgroundColor: Colors.green,
-                    behavior: SnackBarBehavior.floating,
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Location button
+          Row(
+            children: [
+              const Icon(Icons.place_outlined, size: 20, color: Colors.green),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _userPosition != null
+                      ? 'Showing futsals within $_distanceRadius km'
+                      : 'Enable location to find futsals near you',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: _userPosition != null
+                        ? Colors.green.shade700
+                        : Colors.grey.shade600,
                   ),
-                );
+                ),
+              ),
+              if (_isGettingLocation)
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                TextButton(
+                  onPressed: _getUserLocation,
+                  child: Text(
+                    _userPosition != null ? 'Update' : 'Use My Location',
+                    style: const TextStyle(color: Colors.green),
+                  ),
+                ),
+            ],
+          ),
+
+          // Distance slider (only show if location is set)
+          if (_userPosition != null) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                const Icon(Icons.place_outlined, size: 16, color: Colors.green),
+                const SizedBox(width: 8),
+                Text('Within $_distanceRadius km'),
+              ],
+            ),
+            Slider(
+              value: _distanceRadius,
+              min: 1,
+              max: 20,
+              divisions: 19,
+              activeColor: Colors.green,
+              onChanged: (value) {
+                setState(() {
+                  _distanceRadius = value;
+                });
               },
-              child: const Text('Use My Location'),
             ),
           ],
-        ),
-        Slider(
-          value: _distanceRadius,
-          min: 1,
-          max: 20,
-          divisions: 19,
-          activeColor: Colors.green,
-          onChanged: (value) {
-            setState(() {
-              _distanceRadius = value;
-            });
-          },
-        ),
-        const SizedBox(height: 8),
-        // Price range filter
-        Row(
-          children: [
-            const Icon(Icons.attach_money, size: 20, color: Colors.green),
-            const SizedBox(width: 8),
-            Text(
-              'रू ${_priceRange.start.round()} - रू ${_priceRange.end.round()}',
-              style: const TextStyle(fontWeight: FontWeight.w500),
-            ),
-          ],
-        ),
-        RangeSlider(
-          values: _priceRange,
-          min: _minPrice,
-          max: _maxPrice,
-          divisions: 20,
-          activeColor: Colors.green,
-          onChanged: (values) {
-            setState(() {
-              _priceRange = values;
-            });
-          },
-        ),
-      ],
-    ),
-  );
-}
+        ],
+      ),
+    );
+  }
 
   Widget _buildBannerCard(Map<String, String> banner) {
     return Container(
@@ -650,8 +778,7 @@ Widget _buildFilterPanel() {
                     _searchController.clear();
                     setState(() {
                       _searchQuery = '';
-                      _priceRange = RangeValues(_minPrice, _maxPrice);
-                      _distanceRadius = 5.0;
+                      _selectedFilter = 'All';
                     });
                   },
                   style: ElevatedButton.styleFrom(
@@ -685,6 +812,10 @@ Widget _buildFilterPanel() {
   }
 
   Widget _buildFutsalCard(Futsal futsal) {
+    final amenities = futsal.getAllAmenities();
+    final minPrice = futsal.getMinPrice();
+    final courtTypes = futsal.getCourtTypes();
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -723,42 +854,68 @@ Widget _buildFilterPanel() {
                         )
                       : _buildPlaceholderImage(),
                 ),
+
                 // Favorite Button
                 Positioned(
                   top: 10,
                   right: 10,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 5,
-                        ),
-                      ],
-                    ),
-                    child: IconButton(
-                      icon: Icon(
-                        Icons.favorite_border,
-                        color: Colors.grey.shade600,
-                        size: 20,
-                      ),
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('${futsal.name} added to favorites'),
-                            backgroundColor: Colors.green,
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+                  child: Consumer<FavoriteProvider>(
+                    builder: (context, favProvider, child) {
+                      final isFav = favProvider.isFavorite(futsal.id);
+                      debugPrint('⭐ Futsal ${futsal.id} (${futsal.name}) - isFavorite: $isFav');
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 5,
                             ),
+                          ],
+                        ),
+                        child: IconButton(
+                          icon: Icon(
+                            isFav ? Icons.favorite : Icons.favorite_border,
+                            color: isFav ? Colors.red : Colors.grey.shade600,
+                            size: 20,
                           ),
-                        );
-                      },
-                    ),
+                          onPressed: () async {
+                            final auth = Provider.of<AuthProvider>(context,
+                                listen: false);
+                            if (!auth.isAuthenticated) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content:
+                                      Text('Please log in to save favorites'),
+                                  backgroundColor: Colors.orange,
+                                ),
+                              );
+                              return;
+                            }
+
+                            final success =
+                                await favProvider.toggleFavorite(futsal.id);
+                            if (success) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    isFav
+                                        ? 'Removed from favorites'
+                                        : 'Added to favorites',
+                                  ),
+                                  backgroundColor: Colors.green,
+                                  duration: const Duration(seconds: 1),
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                      );
+                    },
                   ),
                 ),
+
                 // Rating Badge
                 if (futsal.averageRating != null)
                   Positioned(
@@ -820,11 +977,41 @@ Widget _buildFilterPanel() {
                           ),
                         ),
                       ),
+                      // Court type badges
+                      if (courtTypes.isNotEmpty)
+                        ...courtTypes
+                            .map((type) => Container(
+                                  margin: const EdgeInsets.only(left: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: type == 'indoor'
+                                        ? Colors.blue.shade50
+                                        : Colors.green.shade50,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: type == 'indoor'
+                                          ? Colors.blue.shade200
+                                          : Colors.green.shade200,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    type == 'indoor' ? 'Indoor' : 'Outdoor',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: type == 'indoor'
+                                          ? Colors.blue.shade700
+                                          : Colors.green.shade700,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ))
+                            .toList(),
                     ],
                   ),
                   const SizedBox(height: 8),
 
-                  // Location
+                  // Location with distance
                   Row(
                     children: [
                       Icon(
@@ -876,20 +1063,27 @@ Widget _buildFilterPanel() {
                   ),
                   const SizedBox(height: 8),
 
-                  // Amenities Preview
-                  // Replace the entire amenity Row with this
-                  Row(
-                    children: [
-                      _buildAmenityChip(Icons.sports_soccer, 'Futsal'),
-                      const SizedBox(width: 8),
-                      _buildAmenityChip(
-                        Icons.star_outline,
-                        futsal.averageRating != null
-                            ? '${futsal.averageRating!.toStringAsFixed(1)} rated'
-                            : 'New venue',
+                  // Amenities (now from real data)
+                  if (amenities.isNotEmpty)
+                    SizedBox(
+                      height: 32,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: amenities.take(3).length,
+                        itemBuilder: (context, index) {
+                          final amenity = amenities[index];
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: _buildAmenityChip(
+                              _getAmenityIcon(amenity),
+                              amenity.length > 15
+                                  ? '${amenity.substring(0, 12)}...'
+                                  : amenity,
+                            ),
+                          );
+                        },
                       ),
-                    ],
-                  ),
+                    ),
                   const SizedBox(height: 12),
 
                   // Price and Book Button
@@ -900,41 +1094,51 @@ Widget _buildFilterPanel() {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Starting from',
+                            minPrice != null ? 'Starting from' : 'Price varies',
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.grey.shade500,
                             ),
                           ),
-                          RichText(
-                            text: TextSpan(
-                              children: [
-                                TextSpan(
-                                  text: 'रू ',
-                                  style: TextStyle(
-                                    color: Colors.green.shade700,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
+                          if (minPrice != null)
+                            RichText(
+                              text: TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text: 'रू ',
+                                    style: TextStyle(
+                                      color: Colors.green.shade700,
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
-                                ),
-                                TextSpan(
-                                  text: '${futsal.basePrice}',
-                                  style: const TextStyle(
-                                    color: Colors.green,
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
+                                  TextSpan(
+                                    text: minPrice.toStringAsFixed(0),
+                                    style: const TextStyle(
+                                      color: Colors.green,
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
-                                ),
-                                const TextSpan(
-                                  text: '/hr',
-                                  style: TextStyle(
-                                    color: Colors.grey,
-                                    fontSize: 12,
+                                  const TextSpan(
+                                    text: '/hr',
+                                    style: TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 12,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
+                            )
+                          else
+                            const Text(
+                              'Check availability',
+                              style: TextStyle(
+                                color: Colors.green,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
-                          ),
                         ],
                       ),
                       ElevatedButton(
@@ -966,9 +1170,45 @@ Widget _buildFilterPanel() {
     );
   }
 
-  // Navigate to details screen with Slots tab preselected
+  IconData _getAmenityIcon(String amenity) {
+    final lower = amenity.toLowerCase();
+    if (lower.contains('parking')) return Icons.local_parking;
+    if (lower.contains('water')) return Icons.local_drink;
+    if (lower.contains('light')) return Icons.light_mode;
+    if (lower.contains('chair') || lower.contains('seating'))
+      return Icons.chair;
+    if (lower.contains('shower') || lower.contains('changing'))
+      return Icons.shower;
+    if (lower.contains('wifi')) return Icons.wifi;
+    if (lower.contains('ac')) return Icons.ac_unit;
+    return Icons.fitness_center;
+  }
+
+  Widget _buildAmenityChip(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: Colors.grey.shade700),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              color: Colors.grey.shade700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _navigateToDetails(Futsal futsal) {
-    // Check if user is logged in
     final auth = Provider.of<AuthProvider>(context, listen: false);
     if (!auth.isAuthenticated) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -977,8 +1217,6 @@ Widget _buildFilterPanel() {
           backgroundColor: Colors.orange,
         ),
       );
-      // Optionally navigate to login
-      // Navigator.pushNamed(context, '/login');
       return;
     }
 
@@ -987,7 +1225,7 @@ Widget _buildFilterPanel() {
       MaterialPageRoute(
         builder: (context) => FutsalDetailsScreen(
           futsal: futsal,
-          initialTabIndex: 1, // Open directly to Slots tab (index 1)
+          initialTabIndex: 1,
         ),
       ),
     );
@@ -1012,30 +1250,6 @@ Widget _buildFilterPanel() {
     );
   }
 
-  Widget _buildAmenityChip(IconData icon, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 12, color: Colors.grey.shade700),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 10,
-              color: Colors.grey.shade700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Profile Dialog
   void _showProfileDialog(BuildContext context, User user) {
     showModalBottomSheet(
       context: context,
@@ -1088,7 +1302,7 @@ Widget _buildFilterPanel() {
               title: const Text('My Bookings'),
               trailing: const Icon(Icons.arrow_forward_ios, size: 16),
               onTap: () {
-                Navigator.pop(ctx); // Close profile
+                Navigator.pop(ctx);
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -1174,7 +1388,4 @@ Widget _buildFilterPanel() {
       ),
     );
   }
-
-  // REMOVED: _showFutsalDetails, _showBookingDialog, _confirmBooking methods
-  // These are replaced by navigation to FutsalDetailsScreen
 }

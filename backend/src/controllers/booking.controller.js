@@ -31,21 +31,21 @@ export const createBooking = async (req, res) => {
       }
 
       const futsalId = startSlot.court.futsalId;
-const isBlocked = await tx.block.findFirst({
-  where: {
-    playerId: req.user.id,
-    futsalId: futsalId
-  }
-});
+      const isBlocked = await tx.block.findFirst({
+        where: {
+          playerId: req.user.id,
+          futsalId: futsalId,
+        },
+      });
 
-if (isBlocked) {
-  // Release the lock so slot becomes available again
-  await tx.timeSlot.update({
-    where: { id: parseInt(slotId) },
-    data: { status: 'AVAILABLE', lockedUntil: null }
-  });
-  throw new Error("You are blocked from booking at this futsal");
-}
+      if (isBlocked) {
+        // Release the lock so slot becomes available again
+        await tx.timeSlot.update({
+          where: { id: parseInt(slotId) },
+          data: { status: "AVAILABLE", lockedUntil: null },
+        });
+        throw new Error("You are blocked from booking at this futsal");
+      }
 
       // 2. Find consecutive slots if duration > 1
       let allSlots = [startSlot];
@@ -203,6 +203,148 @@ export const getBookingById = async (req, res) => {
 };
 
 /**
+ * Callback endpoint for Khalti to redirect to after payment
+ * @route GET /api/bookings/payments/callback
+ */
+export const paymentCallback = async (req, res) => {
+  try {
+    const { pidx, status, booking_id, purchase_order_id } = req.query;
+
+    console.log("🔄 Payment callback received:", {
+      pidx,
+      status,
+      booking_id,
+      purchase_order_id,
+    });
+
+    if (!pidx) {
+      console.error("❌ No pidx in callback");
+      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+      return res.redirect(
+        `${frontendUrl}/payment-status?status=error&message=No payment ID received`,
+      );
+    }
+
+    // Use correct lookup URL
+    const khaltiLookupUrl =
+      process.env.NODE_ENV === "production"
+        ? "https://khalti.com/api/v2/epayment/lookup/"
+        : "https://dev.khalti.com/api/v2/epayment/lookup/";
+
+    // Verify the payment with Khalti
+    console.log("🔄 Looking up payment status with Khalti API...");
+    const resp = await axios.post(
+      khaltiLookupUrl,
+      { pidx },
+      {
+        headers: {
+          Authorization: `Key ${process.env.KHALTI_SECRET_KEY}`,
+          "Content-Type": "application/json",
+        },
+      },
+    );
+
+    console.log("📡 Khalti lookup response:", {
+      status: resp.data.status,
+      total_amount: resp.data.total_amount,
+      transaction_id: resp.data.transaction_id,
+    });
+
+    const paymentStatus = resp.data.status?.toLowerCase();
+    const isSuccess =
+      paymentStatus === "completed" || paymentStatus === "success";
+
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+
+    if (isSuccess) {
+      // Find the payment record
+      const payment = await prisma.payment.findFirst({
+        where: { transactionId: pidx },
+        include: { booking: true },
+      });
+
+      if (payment && payment.status !== "COMPLETED") {
+        console.log("✅ Payment successful, updating records...");
+
+        // Find all bookings in the same group
+        const allGroupBookings = payment.booking.groupId
+          ? await prisma.booking.findMany({
+              where: { groupId: payment.booking.groupId },
+            })
+          : [payment.booking];
+
+        await prisma.$transaction([
+          prisma.payment.update({
+            where: { id: payment.id },
+            data: {
+              status: "COMPLETED",
+              transactionId: resp.data.transaction_id || payment.transactionId,
+            },
+          }),
+          prisma.booking.updateMany({
+            where: {
+              groupId: payment.booking.groupId ?? undefined,
+            },
+            data: { status: "CONFIRMED" },
+          }),
+          prisma.timeSlot.updateMany({
+            where: { id: { in: allGroupBookings.map((b) => b.slotId) } },
+            data: { status: "BOOKED", lockedUntil: null },
+          }),
+        ]);
+
+        console.log("✅ All records updated successfully");
+      }
+
+      return res.redirect(
+        `${frontendUrl}/payment-status?status=success&booking_id=${booking_id}`,
+      );
+    } else {
+      // Payment failed or pending
+      console.log("❌ Payment not completed, status:", paymentStatus);
+
+      // Update payment as failed if it exists
+      const payment = await prisma.payment.findFirst({
+        where: { transactionId: pidx },
+        include: { booking: true },
+      });
+
+      if (payment && payment.status === "PENDING") {
+        await prisma.$transaction([
+          prisma.payment.update({
+            where: { id: payment.id },
+            data: { status: "FAILED" },
+          }),
+          prisma.booking.update({
+            where: { id: payment.bookingId },
+            data: { status: "CANCELLED" },
+          }),
+          prisma.timeSlot.update({
+            where: { id: payment.booking.slotId },
+            data: { status: "AVAILABLE", lockedUntil: null },
+          }),
+        ]);
+      }
+
+      return res.redirect(
+        `${frontendUrl}/payment-status?status=failed&booking_id=${booking_id}`,
+      );
+    }
+  } catch (error) {
+    console.error("❌ Callback error:", {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+    });
+
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+    return res.redirect(
+      `${frontendUrl}/payment-status?status=error&message=${encodeURIComponent(error.message)}`,
+    );
+  }
+};
+
+/**
  * Initiate Khalti Payment
  * @route POST /api/bookings/:id/payment/initiate
  */
@@ -218,42 +360,74 @@ export const initiatePayment = async (req, res) => {
       },
     });
 
-    if (!booking)
+    if (!booking) {
       return res
         .status(404)
         .json({ status: "error", message: "Booking not found" });
+    }
 
-    if (booking.status !== "PENDING")
+    if (booking.status !== "PENDING") {
       return res
         .status(400)
         .json({ status: "error", message: "Booking not payable" });
+    }
 
-    // 🚫 Prevent multiple payment records
-    if (booking.payment)
+    // Prevent multiple payment records
+    if (booking.payment) {
       return res
         .status(400)
         .json({ status: "error", message: "Payment already initiated" });
+    }
 
     const amountInPaisa = Math.round(booking.totalPrice * 100);
 
+    // Use correct sandbox URL
+    const khaltiApiUrl =
+      process.env.NODE_ENV === "production"
+        ? "https://khalti.com/api/v2/epayment/initiate/"
+        : "https://dev.khalti.com/api/v2/epayment/initiate/";
+
+    const backendUrl =
+      process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 5000}`;
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+
+    // According to documentation: return_url is the landing page after transaction
+    const returnUrl = `${backendUrl}/api/bookings/payments/callback?booking_id=${booking.id}`;
+
     const payload = {
-      return_url: `${process.env.FRONTEND_URL}/payment-verify`,
+      return_url: returnUrl,
       purchase_order_id: `BOOKING_${booking.id}`,
-      purchase_order_name: `${booking.slot.court.futsal.name}`,
+      purchase_order_name: `${booking.slot.court.futsal.name} - Booking (${booking.slot.startTime})`,
       amount: amountInPaisa,
-      website_url: process.env.FRONTEND_URL,
+      website_url: frontendUrl,
+      // Optional but recommended: Add customer info
+      customer_info: {
+        name: req.user.name || req.user.email,
+        email: req.user.email,
+        phone: req.user.phone || "9800000000", // Use actual phone if available
+      },
     };
 
-    const resp = await axios.post(
-      "https://a.khalti.com/api/v2/epayment/initiate/",
-      payload,
-      {
-        headers: {
-          Authorization: `Key ${process.env.KHALTI_SECRET_KEY}`,
-        },
-      },
-    );
+    console.log("📤 Initiating Khalti payment:", {
+      url: khaltiApiUrl,
+      payload: { ...payload, amount: amountInPaisa },
+    });
 
+    const resp = await axios.post(khaltiApiUrl, payload, {
+      headers: {
+        Authorization: `Key ${process.env.KHALTI_SECRET_KEY}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    console.log("📥 Khalti initiation response:", {
+      pidx: resp.data.pidx,
+      payment_url: resp.data.payment_url,
+      expires_in: resp.data.expires_in,
+    });
+
+    // Create payment record with PENDING status
+    // REMOVED expiresAt field since it doesn't exist in your schema
     const payment = await prisma.payment.create({
       data: {
         bookingId: booking.id,
@@ -264,18 +438,40 @@ export const initiatePayment = async (req, res) => {
       },
     });
 
+    console.log("💾 Payment record created:", payment.id);
+
+    // Return the payment URL - frontend should redirect to this
     res.json({
       status: "success",
       paymentUrl: resp.data.payment_url,
       pidx: resp.data.pidx,
+      expiresIn: resp.data.expires_in,
     });
   } catch (error) {
+    console.error("Payment initiation error:", {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data,
+      config: error.config,
+    });
+
+    // Handle validation errors from Khalti
+    if (error.response?.data?.error_key === "validation_error") {
+      return res.status(400).json({
+        status: "error",
+        message: "Payment validation failed",
+        errors: error.response.data,
+      });
+    }
+
     res.status(500).json({
       status: "error",
       message: "Payment initiation failed",
+      error: error.message,
     });
   }
 };
+
 /**
  * Verify Khalti Payment (Webhook / User Callback)
  * @route POST /api/payments/verify
@@ -283,20 +479,60 @@ export const initiatePayment = async (req, res) => {
 export const verifyPayment = async (req, res) => {
   try {
     const { pidx } = req.body;
+    console.log("📝 Verification request received with pidx:", pidx);
 
+    if (!pidx) {
+      console.log("❌ No pidx provided");
+      return res.status(400).json({
+        status: "error",
+        message: "Payment ID (pidx) is required",
+      });
+    }
+
+    // Find payment by transactionId (pidx)
     const payment = await prisma.payment.findFirst({
       where: { transactionId: pidx },
-      include: { booking: { include: { slot: true } } },
+      include: {
+        booking: {
+          include: {
+            slot: true,
+            payment: true,
+          },
+        },
+      },
     });
 
-    if (!payment)
-      return res
-        .status(404)
-        .json({ status: "error", message: "Payment not found" });
+    console.log(
+      "🔍 Found payment:",
+      payment
+        ? {
+            id: payment.id,
+            status: payment.status,
+            transactionId: payment.transactionId,
+            bookingId: payment.bookingId,
+            groupId: payment.booking?.groupId,
+          }
+        : "NOT FOUND",
+    );
 
-    if (payment.status === "COMPLETED")
-      return res.json({ status: "success", message: "Already verified" });
+    if (!payment) {
+      console.log("❌ Payment not found for pidx:", pidx);
+      return res.status(404).json({
+        status: "error",
+        message: "Payment not found",
+      });
+    }
 
+    if (payment.status === "COMPLETED") {
+      console.log("✅ Payment already verified");
+      return res.json({
+        status: "success",
+        message: "Already verified",
+      });
+    }
+
+    // Lookup payment status with Khalti
+    console.log("🔄 Looking up payment status with Khalti API...");
     const resp = await axios.post(
       "https://a.khalti.com/api/v2/epayment/lookup/",
       { pidx },
@@ -307,16 +543,25 @@ export const verifyPayment = async (req, res) => {
       },
     );
 
+    console.log("📡 Khalti lookup response:", {
+      status: resp.data.status,
+      data: resp.data,
+    });
+
     const status = resp.data.status?.toLowerCase();
     const isSuccess = status === "completed" || status === "success";
 
     if (isSuccess) {
+      console.log("✅ Payment successful, updating records...");
+
       // Find all bookings in the same group
       const allGroupBookings = payment.booking.groupId
         ? await prisma.booking.findMany({
             where: { groupId: payment.booking.groupId },
           })
         : [payment.booking];
+
+      console.log(`📦 Found ${allGroupBookings.length} bookings in group`);
 
       await prisma.$transaction([
         prisma.payment.update({
@@ -332,14 +577,16 @@ export const verifyPayment = async (req, res) => {
         }),
         prisma.timeSlot.updateMany({
           where: { id: { in: allGroupBookings.map((b) => b.slotId) } },
-          data: { status: "BOOKED", lockedUntil: null }, // ✅ permanently BOOKED
+          data: { status: "BOOKED", lockedUntil: null },
         }),
       ]);
 
+      console.log("✅ Transaction completed successfully");
       return res.json({ status: "success" });
     }
 
     // Payment failed
+    console.log("❌ Payment failed, status:", status);
     await prisma.$transaction([
       prisma.payment.update({
         where: { id: payment.id },
@@ -357,9 +604,15 @@ export const verifyPayment = async (req, res) => {
 
     res.json({ status: "failed" });
   } catch (error) {
+    console.error("❌ Verification error:", {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+    });
     res.status(500).json({
       status: "error",
       message: "Verification failed",
+      error: error.message,
     });
   }
 };
@@ -492,12 +745,10 @@ export const checkInBooking = async (req, res) => {
       return res.status(403).json({ status: "error", message: "Unauthorized" });
 
     if (booking.status === "CANCELLED")
-      return res
-        .status(400)
-        .json({
-          status: "error",
-          message: "Cannot check in a cancelled booking",
-        });
+      return res.status(400).json({
+        status: "error",
+        message: "Cannot check in a cancelled booking",
+      });
 
     const updated = await prisma.booking.update({
       where: { id: parseInt(bookingId) },
@@ -542,12 +793,10 @@ export const completeBooking = async (req, res) => {
       return res.status(403).json({ status: "error", message: "Unauthorized" });
 
     if (booking.status !== "CONFIRMED")
-      return res
-        .status(400)
-        .json({
-          status: "error",
-          message: "Booking must be confirmed before completing",
-        });
+      return res.status(400).json({
+        status: "error",
+        message: "Booking must be confirmed before completing",
+      });
 
     const updated = await prisma.booking.update({
       where: { id: parseInt(bookingId) },
