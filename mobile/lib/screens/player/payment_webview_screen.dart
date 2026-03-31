@@ -28,8 +28,7 @@ class _KhaltiPaymentScreenState extends State<KhaltiPaymentScreen> {
       ..setNavigationDelegate(
         NavigationDelegate(
           onNavigationRequest: (request) async {
-            // 🔥 Detect Khalti redirect
-            if (request.url.contains('payment-verify')) {
+            if (request.url.contains('callback')) {
               await _verifyPayment();
               return NavigationDecision.prevent;
             }

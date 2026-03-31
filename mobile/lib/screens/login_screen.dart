@@ -134,39 +134,39 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-Future<void> _handleForgotPassword() async {
-  if (_forgotEmailController.text.isEmpty) {
-    _showSnackBar('Please enter your email', false);
-    return;
-  }
+  Future<void> _handleForgotPassword() async {
+    if (_forgotEmailController.text.isEmpty) {
+      _showSnackBar('Please enter your email', false);
+      return;
+    }
 
-  setState(() => _submitting = true);
+    setState(() => _submitting = true);
 
-  try {
-    // ✅ Save email before clearing
-    final email = _forgotEmailController.text.trim();
-    
-    final response = await ApiService.forgotPassword(email);
+    try {
+      // ✅ Save email before clearing
+      final email = _forgotEmailController.text.trim();
+      
+      final response = await ApiService.forgotPassword(email);
 
-    setState(() => _submitting = false);
+      setState(() => _submitting = false);
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    _toggleForgotPassword(); // clears controller — but email is already saved
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => OtpScreen(
-          email: email, // ✅ uses saved variable
-          type: OtpScreenType.passwordReset,
+      _toggleForgotPassword(); // clears controller — but email is already saved
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => OtpScreen(
+            email: email, // ✅ uses saved variable
+            type: OtpScreenType.passwordReset,
+          ),
         ),
-      ),
-    );
-  } catch (e) {
-    setState(() => _submitting = false);
-    _showSnackBar('Error: $e', false);
+      );
+    } catch (e) {
+      setState(() => _submitting = false);
+      _showSnackBar('Error: $e', false);
+    }
   }
-}
 
   void _showSnackBar(String message, bool isSuccess) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -197,52 +197,70 @@ Future<void> _handleForgotPassword() async {
   Widget build(BuildContext context) {
     final auth = Provider.of<AuthProvider>(context);
 
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.green.shade50,
-              Colors.white,
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Logo and App Name
-                  _buildLogo(),
-
-                  const SizedBox(height: 20),
-
-                  // Forgot Password View
-                  if (_showForgotPassword)
-                    FadeTransition(
-                      opacity: _fadeAnimation,
-                      child: _buildForgotPasswordView(),
-                    )
-                  else
-                    // Main Login/Register Form
-                    _buildAuthForm(auth),
-
-                  // Terms and Privacy
-                  const SizedBox(height: 30),
-                  _buildTermsAndPrivacy(),
+    // 🔑 RESPONSIVE WRAPPER - This is the only addition
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bool isLargeScreen = constraints.maxWidth > 600;
+        
+        return Scaffold(
+          body: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.green.shade50,
+                  Colors.white,
                 ],
               ),
             ),
+            child: SafeArea(
+              child: isLargeScreen
+                  ? Center(
+                      child: Container(
+                        width: 500,
+                        child: _buildMainContent(auth),
+                      ),
+                    )
+                  : _buildMainContent(auth),
+            ),
           ),
-        ),
+        );
+      },
+    );
+  }
+
+  // 🔑 New method to hold main content (extracted from original build)
+  Widget _buildMainContent(AuthProvider auth) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Logo and App Name
+          _buildLogo(),
+
+          const SizedBox(height: 20),
+
+          // Forgot Password View
+          if (_showForgotPassword)
+            FadeTransition(
+              opacity: _fadeAnimation,
+              child: _buildForgotPasswordView(),
+            )
+          else
+            // Main Login/Register Form
+            _buildAuthForm(auth),
+
+          // Terms and Privacy
+          const SizedBox(height: 30),
+          _buildTermsAndPrivacy(),
+        ],
       ),
     );
   }
 
+  // 🔑 All your original methods below (they were missing)
   Widget _buildLogo() {
     return Column(
       children: [

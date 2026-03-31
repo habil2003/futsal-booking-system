@@ -7,7 +7,8 @@ import {
   updatePaymentStatus,
   initiatePayment,
   verifyPayment,
-  userCancelBooking, 
+  userCancelBooking,
+  paymentCallback, // Add this import
 } from '../controllers/booking.controller.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 
@@ -39,11 +40,18 @@ router.get('/my-bookings', authenticate, getUserBookings);
 router.post('/:id/payment/initiate', authenticate, initiatePayment);
 
 /**
- * @route   POST /api/payments/verify
- * @desc    Verify Khalti payment
- * @access  Private
+ * @route   GET /api/bookings/payments/callback
+ * @desc    Khalti payment callback URL (no auth required - Khalti redirects here)
+ * @access  Public
  */
-router.post('/payments/verify', authenticate, verifyPayment);
+router.get('/payments/callback', paymentCallback);
+
+/**
+ * @route   POST /api/bookings/payments/verify
+ * @desc    Verify Khalti payment
+ * @access  Public (can be called from callback or frontend)
+ */
+router.post('/payments/verify', verifyPayment);
 
 /**
  * @route   GET /api/bookings/:id/payment
@@ -68,7 +76,7 @@ router.patch('/:id/payment', authenticate, authorize('OWNER', 'ADMIN'), updatePa
  * @desc    User cancels their own booking (keeps record)
  * @access  Private
  */
-router.put('/:bookingId/cancel', authenticate, userCancelBooking);  // Changed to userCancelBooking
+router.put('/:bookingId/cancel', authenticate, userCancelBooking);
 
 /**
  * @route   GET /api/bookings/:id
