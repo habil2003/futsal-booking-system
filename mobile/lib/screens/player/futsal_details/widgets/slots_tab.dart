@@ -15,7 +15,7 @@ import '../../../../services/api_service.dart';
 import '../../../../utils/futsal_constants.dart';
 import '../../../../widgets/futsal/booking_confirmation_dialog.dart';
 import '../../../../widgets/futsal/slots_grid_widget.dart';
-import '../../payment_webview_screen.dart';  // Fixed import path
+import '../../payment_webview_screen.dart'; // Fixed import path
 import 'slot_helpers.dart';
 import 'booking_bar.dart';
 
@@ -147,17 +147,74 @@ class _SlotsTabState extends State<SlotsTab> with WidgetsBindingObserver {
     }
   }
 
-  void _proceedToBooking() async {
-    if (_selectedSlot == null || _isProcessing) return;
-
+  Future<bool> _checkIfBlocked() async {
+  try {
     final auth = Provider.of<AuthProvider>(context, listen: false);
-    if (!auth.isAuthenticated) {
-      _showSnackBar('Please log in to make a booking', isError: true);
-      return;
+    if (!auth.isAuthenticated) return false;
+    
+    final response = await ApiService.get('owner/blocks/check/${auth.user!.id}?futsalId=${widget.futsal.id}');
+    if (response['isBlocked'] == true) {
+      _showBlockedDialog(response['reason']);
+      return true;
     }
-
-    _showConfirmationDialog();
+    return false;
+  } catch (e) {
+    debugPrint('Check block error: $e');
+    return false;
   }
+}
+
+void _showBlockedDialog(String? reason) {
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('You are Blocked'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.block, size: 48, color: Colors.red),
+          const SizedBox(height: 12),
+          const Text(
+            'You have been blocked from booking at this futsal.',
+            textAlign: TextAlign.center,
+          ),
+          if (reason != null && reason.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Reason: $reason',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
+          ],
+          const SizedBox(height: 8),
+          const Text('Please contact the futsal owner for more information.'),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('OK'),
+        ),
+      ],
+    ),
+  );
+}
+
+void _proceedToBooking() async {
+  if (_selectedSlot == null || _isProcessing) return;
+
+  final auth = Provider.of<AuthProvider>(context, listen: false);
+  if (!auth.isAuthenticated) {
+    _showSnackBar('Please log in to make a booking', isError: true);
+    return;
+  }
+
+  // ✅ Add block check before proceeding
+  final isBlocked = await _checkIfBlocked();
+  if (isBlocked) return;
+
+  _showConfirmationDialog();
+}
 
   void _showConfirmationDialog() {
     if (_selectedSlot == null || _isProcessing) return;
@@ -465,7 +522,8 @@ class _SlotsTabState extends State<SlotsTab> with WidgetsBindingObserver {
         _buildDateSelector(),
         Expanded(
           child: _isLoadingSlots
-              ? const Center(child: CircularProgressIndicator(color: Colors.green))
+              ? const Center(
+                  child: CircularProgressIndicator(color: Colors.green))
               : _slotsError != null
                   ? _buildErrorView()
                   : _slots.isEmpty
