@@ -847,14 +847,14 @@ static Future<List<dynamic>> getTournamentStandings(int tournamentId) async {
   }
 }
 
-  // ============================================
+   // ============================================
   // BLOCK METHODS
   // ============================================
 
-  // GET /api/owner/blocks - Get all blocked players for owner
-  static Future<Map<String, dynamic>> getBlockedPlayers() async {
+  // GET /api/owner/blocks?futsalId=:futsalId - Get all blocked players for a specific futsal
+  static Future<Map<String, dynamic>> getBlockedPlayers({required int futsalId}) async {
     try {
-      final response = await get('owner/blocks');
+      final response = await get('owner/blocks?futsalId=$futsalId');
       return response;
     } catch (e) {
       debugPrint('❌ Get blocked players error: $e');
@@ -881,13 +881,56 @@ static Future<List<dynamic>> getTournamentStandings(int tournamentId) async {
     }
   }
 
-  // DELETE /api/owner/blocks/:blockId - Unblock a player
-  static Future<Map<String, dynamic>> unblockPlayer(int blockId) async {
+  // DELETE /api/owner/blocks/:playerId?futsalId=:futsalId - Unblock a player
+  static Future<Map<String, dynamic>> unblockPlayer({
+    required int playerId,
+    required int futsalId,
+  }) async {
     try {
-      final response = await delete('owner/blocks/$blockId');
+      final response = await delete('owner/blocks/$playerId?futsalId=$futsalId');
       return response;
     } catch (e) {
       debugPrint('❌ Unblock player error: $e');
+      return {'status': 'error', 'message': e.toString()};
+    }
+  }
+
+  // GET /api/owner/blocks/check/:playerId?futsalId=:futsalId - Check if player is blocked
+  static Future<Map<String, dynamic>> checkIsBlocked({
+    required int playerId,
+    required int futsalId,
+  }) async {
+    try {
+      final response = await get('owner/blocks/check/$playerId?futsalId=$futsalId');
+      return response;
+    } catch (e) {
+      debugPrint('❌ Check is blocked error: $e');
+      return {'status': 'error', 'isBlocked': false};
+    }
+  }
+
+static Future<Map<String, dynamic>> updateAdminProfile(Map<String, dynamic> data) async {
+  return await put('admin/profile', data);
+}
+
+  // ============================================
+  // SYSTEM SETTINGS METHODS
+  // ============================================
+
+  static Future<Map<String, dynamic>> getSystemSettings() async {
+    try {
+      return await get('admin/settings');
+    } catch (e) {
+      debugPrint('❌ Get system settings error: $e');
+      return {'status': 'error', 'message': e.toString()};
+    }
+  }
+
+  static Future<Map<String, dynamic>> updateSystemSettings(Map<String, dynamic> data) async {
+    try {
+      return await put('admin/settings', data);
+    } catch (e) {
+      debugPrint('❌ Update system settings error: $e');
       return {'status': 'error', 'message': e.toString()};
     }
   }

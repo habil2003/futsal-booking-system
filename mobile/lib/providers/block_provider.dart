@@ -20,21 +20,44 @@ class BlockProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Backend expects futsalId as query parameter
-      final response = await ApiService.get('owner/blocks?futsalId=$futsalId');
-      
+      final response = await ApiService.getBlockedPlayers(futsalId: futsalId);
+
       if (response['blocks'] != null) {
         _blocks = (response['blocks'] as List)
             .map((json) => Block.fromJson(json))
             .toList();
       }
-      
+
       _isLoading = false;
       notifyListeners();
     } catch (e) {
       _isLoading = false;
       _error = e.toString();
       notifyListeners();
+    }
+  }
+
+  // ✅ ADD THIS - Check if a player is blocked at a specific futsal
+  Future<Map<String, dynamic>> checkIsBlocked({
+    required int playerId,
+    required int futsalId,
+  }) async {
+    try {
+      final response = await ApiService.checkIsBlocked(
+          playerId: playerId, futsalId: futsalId);
+
+      return {
+        'status': 'success',
+        'isBlocked': response['isBlocked'] ?? false,
+        'reason': response['reason'],
+      };
+    } catch (e) {
+      debugPrint('Error checking block status: $e');
+      return {
+        'status': 'error',
+        'isBlocked': false,
+        'message': e.toString(),
+      };
     }
   }
 
@@ -52,7 +75,6 @@ class BlockProvider extends ChangeNotifier {
       });
 
       if (response['status'] == 'success') {
-        // Refresh the list after blocking
         await loadBlockedPlayers(futsalId);
         return {
           'status': 'success',
@@ -72,11 +94,12 @@ class BlockProvider extends ChangeNotifier {
   // Unblock a player
   Future<Map<String, dynamic>> unblockPlayer(int playerId, int futsalId) async {
     try {
-      // Backend expects playerId in URL and futsalId as query param
-      final response = await ApiService.delete('owner/blocks/$playerId?futsalId=$futsalId');
+      final response = await ApiService.unblockPlayer(
+          playerId: playerId, futsalId: futsalId);
 
       if (response['status'] == 'success') {
-        _blocks.removeWhere((b) => b.playerId == playerId && b.futsalId == futsalId);
+        _blocks.removeWhere(
+            (b) => b.playerId == playerId && b.futsalId == futsalId);
         notifyListeners();
         return {
           'status': 'success',
@@ -93,9 +116,22 @@ class BlockProvider extends ChangeNotifier {
     }
   }
 
-  // Check if a player is blocked for a specific futsal
+  // ✅ ADD THIS - Reload blocked players
+  Future<void> reloadBlockedPlayers() async {
+    if (_currentFutsalId != null) {
+      await loadBlockedPlayers(_currentFutsalId!);
+    }
+  }
+
+  // Check if a player is blocked for a specific futsal (from local list)
   bool isPlayerBlocked(int playerId, int futsalId) {
     return _blocks.any((b) => b.playerId == playerId && b.futsalId == futsalId);
+  }
+
+  // ✅ ADD THIS - Clear error
+  void clearError() {
+    _error = null;
+    notifyListeners();
   }
 
   // Clear data

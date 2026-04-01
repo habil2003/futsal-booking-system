@@ -445,3 +445,76 @@ export const getAdminAnalytics = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Get Admin Profile
+ */
+export const getAdminProfile = async (req, res, next) => {
+  try {
+    const adminId = req.user.id;
+
+    const admin = await prisma.user.findUnique({
+      where: { id: adminId },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phoneNumber: true,
+        role: true,
+        createdAt: true,
+        // Remove profileImage
+      },
+    });
+
+    if (!admin) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Admin not found',
+      });
+    }
+
+    res.json({
+      status: 'success',
+      data: admin,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Update Admin Profile
+ */
+export const updateAdminProfile = async (req, res, next) => {
+  try {
+    const adminId = req.user.id;
+    const { fullName, phoneNumber } = req.body;
+
+    // Update only provided fields
+    const updateData = {};
+    if (fullName !== undefined) updateData.fullName = fullName;
+    if (phoneNumber !== undefined) updateData.phoneNumber = phoneNumber;
+
+    const updatedAdmin = await prisma.user.update({
+      where: { id: adminId },
+      data: updateData,
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phoneNumber: true,
+        role: true,
+        createdAt: true,
+      },
+    });
+
+    res.json({
+      status: 'success',
+      message: 'Profile updated successfully',
+      data: updatedAdmin,
+    });
+  } catch (error) {
+    console.error('❌ Update Profile Error:', error);
+    next(error);
+  }
+};
