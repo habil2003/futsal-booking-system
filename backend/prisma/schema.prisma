@@ -232,6 +232,17 @@ model Favorite {
   @@unique([userId, futsalId])
 }
 
+model SystemSettings {
+  id                       Int      @id @default(autoincrement())
+  autoApproveOwners        Boolean  @default(false)
+  autoApproveFutsals       Boolean  @default(false)
+  maintenanceMode          Boolean  @default(false)
+  bookingCancellationHours Int      @default(2)
+  slotLockMinutes          Int      @default(5)
+  slotGenerationDays       Int      @default(30)
+  updatedAt                DateTime @updatedAt
+}
+
 enum Role {
   PLAYER
   OWNER
