@@ -2,12 +2,12 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
+import '../../utils/responsive.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/futsal_provider.dart';
 import '../../models/futsal.dart';
 import '../../models/user.dart';
 import 'futsal_details_screen.dart';
-import 'booking_history_screen.dart';
 import '../../providers/favorite_provider.dart';
 import 'home/widgets/filter_chips.dart';
 import 'home/widgets/banner_card.dart';
@@ -81,14 +81,10 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
       curve: Curves.easeInOut,
     );
     _animationController.forward();
-
   }
-
-  bool _disposed = false;
 
   @override
   void dispose() {
-    _disposed = true;
     _searchController.dispose();
     _bannerController.dispose();
     _animationController.dispose();
@@ -278,14 +274,16 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
               },
             ),
 
-            // Search Bar
+            // Search Bar - Responsive padding
             SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: FadeTransition(
-                  opacity: _fadeAnimation,
+              child: FadeTransition(
+                opacity: _fadeAnimation,
+                child: Padding(
+                  padding: Responsive.getScreenPadding(context).copyWith(
+                    top: 16,
+                    bottom: 8,
+                  ),
                   child: CustomSearchBar(
-                    // ← Changed from SearchBar to CustomSearchBar
                     controller: _searchController,
                     hintText: 'Search by name or location...',
                     onChanged: (value) {
@@ -307,105 +305,171 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
             // Filter Panel
             SliverToBoxAdapter(
               child: _showFilters
-                  ? FilterPanel(
-                      userPosition: _userPosition,
-                      isGettingLocation: _isGettingLocation,
-                      distanceRadius: _distanceRadius,
-                      onGetLocation: _getUserLocation,
-                      onDistanceChanged: (value) {
-                        setState(() {
-                          _distanceRadius = value;
-                        });
-                      },
+                  ? Padding(
+                      padding: Responsive.getScreenPadding(context),
+                      child: FilterPanel(
+                        userPosition: _userPosition,
+                        isGettingLocation: _isGettingLocation,
+                        distanceRadius: _distanceRadius,
+                        onGetLocation: _getUserLocation,
+                        onDistanceChanged: (value) {
+                          setState(() {
+                            _distanceRadius = value;
+                          });
+                        },
+                      ),
                     )
                   : const SizedBox.shrink(),
             ),
 
-            // Banner Section
+            // Banner Section - Responsive height
             SliverToBoxAdapter(
-              child: BannerCarousel(
-                banners: _banners,
-                pageController: _bannerController,
-                onPageChanged: (index) {
-                  // Optional: handle page change if needed
-                },
+              child: SizedBox(
+                height: Responsive.getBannerHeight(context),
+                child: BannerCarousel(
+                  banners: _banners,
+                  pageController: _bannerController,
+                  onPageChanged: (index) {
+                    // Optional: handle page change if needed
+                  },
+                ),
               ),
             ),
 
-            // Filter Chips
+            // Filter Chips - Responsive padding
             SliverToBoxAdapter(
-              child: FilterChips(
-                filters: _filters,
-                selectedFilter: _selectedFilter,
-                onFilterSelected: (filter) {
-                  setState(() {
-                    _selectedFilter = filter;
-                  });
-                },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: FilterChips(
+                  filters: _filters,
+                  selectedFilter: _selectedFilter,
+                  onFilterSelected: (filter) {
+                    setState(() {
+                      _selectedFilter = filter;
+                    });
+                  },
+                ),
               ),
             ),
 
-            // Futsals List
-            _buildFutsalsList(futsalProvider),
+            // Responsive Futsals List - Fills screen horizontally
+            _buildResponsiveFutsalsList(futsalProvider),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildFutsalsList(FutsalProvider provider) {
-    if (provider.isLoading && provider.futsals.isEmpty) {
-      return SliverFillRemaining(
-        child: LoadingState.futsals(),
-      );
-    }
+  Widget _buildResponsiveFutsalsList(FutsalProvider provider) {
+  if (provider.isLoading && provider.futsals.isEmpty) {
+    return SliverFillRemaining(
+      child: LoadingState.futsals(),
+    );
+  }
 
-    if (provider.error != null) {
-      return SliverFillRemaining(
-        child: EmptyState.error(
-          provider.error!,
-          onRetry: _loadFutsals,
-        ),
-      );
-    }
-
-    final filteredList = _filteredFutsals;
-
-    if (filteredList.isEmpty) {
-      return SliverFillRemaining(
-        child: _searchQuery.isEmpty
-            ? EmptyState.noFutsals()
-            : EmptyState.noSearchResults(
-                onClearFilters: () {
-                  _searchController.clear();
-                  setState(() {
-                    _searchQuery = '';
-                    _selectedFilter = 'All';
-                  });
-                },
-              ),
-      );
-    }
-
-    return SliverPadding(
-      padding: const EdgeInsets.all(16),
-      sliver: SliverList(
-        delegate: SliverChildBuilderDelegate(
-          (context, index) {
-            final futsal = filteredList[index];
-            return FadeTransition(
-              opacity: _fadeAnimation,
-              child: FutsalCard(
-                futsal: futsal,
-                onTap: () => _navigateToDetails(futsal),
-              ),
-            );
-          },
-          childCount: filteredList.length,
-        ),
+  if (provider.error != null) {
+    return SliverFillRemaining(
+      child: EmptyState.error(
+        provider.error!,
+        onRetry: _loadFutsals,
       ),
     );
   }
+
+  final filteredList = _filteredFutsals;
+
+  if (filteredList.isEmpty) {
+    return SliverFillRemaining(
+      child: _searchQuery.isEmpty
+          ? EmptyState.noFutsals()
+          : EmptyState.noSearchResults(
+              onClearFilters: () {
+                _searchController.clear();
+                setState(() {
+                  _searchQuery = '';
+                  _selectedFilter = 'All';
+                });
+              },
+            ),
+    );
+  }
+
+  // Get responsive padding based on screen size
+  final isDesktop = Responsive.isDesktop(context);
+  final isTablet = Responsive.isTablet(context);
+  
+  double horizontalPadding;
+  double cardSpacing;
+  int crossAxisCount;
+  
+  if (isDesktop) {
+    horizontalPadding = 32;
+    cardSpacing = 20;
+    crossAxisCount = 3; // 3 columns on desktop
+  } else if (isTablet) {
+    horizontalPadding = 24;
+    cardSpacing = 16;
+    crossAxisCount = 2; // 2 columns on tablet
+  } else {
+    horizontalPadding = 16;
+    cardSpacing = 12;
+    crossAxisCount = 1; // 1 column on mobile
+  }
+  
+  // Use a single list approach for ALL devices
+  // This ensures NO white space because each card determines its own height
+  return SliverPadding(
+    padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 8),
+    sliver: SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (context, index) {
+          // Calculate row index for multi-column layout
+          final rowIndex = index ~/ crossAxisCount;
+          final itemsInRow = <Futsal>[];
+          
+          // Collect items for this row
+          for (int i = 0; i < crossAxisCount; i++) {
+            final itemIndex = rowIndex * crossAxisCount + i;
+            if (itemIndex < filteredList.length) {
+              itemsInRow.add(filteredList[itemIndex]);
+            }
+          }
+          
+          // Only build the row for the first item in each row
+          if (index % crossAxisCount == 0) {
+            return Padding(
+              padding: EdgeInsets.only(bottom: cardSpacing),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (int i = 0; i < itemsInRow.length; i++)
+                    Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          right: i < itemsInRow.length - 1 ? cardSpacing : 0,
+                        ),
+                        child: FutsalCard(
+                          futsal: itemsInRow[i],
+                          onTap: () => _navigateToDetails(itemsInRow[i]),
+                        ),
+                      ),
+                    ),
+                  // Add empty placeholders if needed
+                  for (int i = itemsInRow.length; i < crossAxisCount; i++)
+                    Expanded(child: Container()),
+                ],
+              ),
+            );
+          }
+          
+          // Return null for non-first items in the row
+          return null;
+        },
+        childCount: filteredList.length,
+      ),
+    ),
+  );
+}
 
   void _navigateToDetails(Futsal futsal) {
     final auth = Provider.of<AuthProvider>(context, listen: false);

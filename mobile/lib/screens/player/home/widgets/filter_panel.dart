@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import '../../../../utils/responsive.dart';
 
 class FilterPanel extends StatelessWidget {
   final Position? userPosition;
@@ -19,9 +20,10 @@ class FilterPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = Responsive.isDesktop(context);
+    
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(isDesktop ? 24 : 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(15),
@@ -47,7 +49,7 @@ class FilterPanel extends StatelessWidget {
                       ? 'Showing futsals within $distanceRadius km'
                       : 'Enable location to find futsals near you',
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: Responsive.bodyText(context),
                     color: userPosition != null
                         ? Colors.green.shade700
                         : Colors.grey.shade600,
@@ -65,7 +67,10 @@ class FilterPanel extends StatelessWidget {
                   onPressed: onGetLocation,
                   child: Text(
                     userPosition != null ? 'Update' : 'Use My Location',
-                    style: const TextStyle(color: Colors.green),
+                    style: TextStyle(
+                      color: Colors.green,
+                      fontSize: Responsive.bodyText(context),
+                    ),
                   ),
                 ),
             ],
@@ -78,7 +83,10 @@ class FilterPanel extends StatelessWidget {
               children: [
                 const Icon(Icons.place_outlined, size: 16, color: Colors.green),
                 const SizedBox(width: 8),
-                Text('Within $distanceRadius km'),
+                Text(
+                  'Within $distanceRadius km',
+                  style: TextStyle(fontSize: Responsive.bodyText(context)),
+                ),
               ],
             ),
             Slider(

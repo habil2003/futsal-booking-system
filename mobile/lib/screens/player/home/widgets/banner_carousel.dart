@@ -47,26 +47,23 @@ class _BannerCarouselState extends State<BannerCarousel> {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 150,
-      child: PageView.builder(
-        controller: widget.pageController,
-        itemCount: widget.banners.length,
-        onPageChanged: (index) {
-          setState(() {
-            _currentBanner = index;
-          });
-          widget.onPageChanged(index);
-        },
-        itemBuilder: (context, index) {
-          final banner = widget.banners[index];
-          return BannerCard(
-            banner: banner,
-            index: index,
-            currentIndex: _currentBanner,
-          );
-        },
-      ),
+    return PageView.builder(
+      controller: widget.pageController,
+      itemCount: widget.banners.length,
+      onPageChanged: (index) {
+        setState(() {
+          _currentBanner = index;
+        });
+        widget.onPageChanged(index);
+      },
+      itemBuilder: (context, index) {
+        final banner = widget.banners[index];
+        return BannerCard(
+          banner: banner,
+          index: index,
+          currentIndex: _currentBanner,
+        );
+      },
     );
   }
 }

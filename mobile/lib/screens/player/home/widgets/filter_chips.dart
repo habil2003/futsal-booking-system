@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../utils/responsive.dart';
 
 class FilterChips extends StatelessWidget {
   final List<String> filters;
@@ -14,16 +15,21 @@ class FilterChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = Responsive.isDesktop(context);
+    final chipPadding = isDesktop ? 12.0 : 8.0;
+    
     return SizedBox(
-      height: 50,
+      height: Responsive.getFilterChipsHeight(context),
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: EdgeInsets.symmetric(
+          horizontal: Responsive.isDesktop(context) ? 32 : 16,
+        ),
         itemCount: filters.length,
         itemBuilder: (context, index) {
           final filter = filters[index];
           return Padding(
-            padding: const EdgeInsets.only(right: 8),
+            padding: EdgeInsets.only(right: chipPadding),
             child: FilterChip(
               label: Text(filter),
               selected: selectedFilter == filter,
@@ -44,6 +50,7 @@ class FilterChips extends StatelessWidget {
                 fontWeight: selectedFilter == filter
                     ? FontWeight.bold
                     : FontWeight.normal,
+                fontSize: Responsive.bodyText(context),
               ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
