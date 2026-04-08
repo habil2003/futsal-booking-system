@@ -65,7 +65,7 @@ class SlotsGridWidget extends StatelessWidget {
           children: [
             _buildCourtHeader(entry.key, entry.value.length),
             const SizedBox(height: 8),
-            _buildCourtSlotsGrid(entry.value),
+            _buildCourtSlotsGrid(context, entry.value),
             const SizedBox(height: 16),
           ],
         );
@@ -103,123 +103,144 @@ class SlotsGridWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildCourtSlotsGrid(List<Map<String, dynamic>> slots) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: FutsalConstants.slotGridCrossAxisCount,
-        childAspectRatio: FutsalConstants.slotAspectRatio,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-      ),
-      itemCount: slots.length,
-      itemBuilder: (context, index) => _buildSlotCard(slots[index]),
-    );
+Widget _buildCourtSlotsGrid(BuildContext context, List<Map<String, dynamic>> slots) {
+  final screenWidth = MediaQuery.of(context).size.width;
+  final crossAxisCount = screenWidth > 800 ? 4 : FutsalConstants.slotGridCrossAxisCount;
+  
+  return GridView.builder(
+    shrinkWrap: true,
+    physics: const NeverScrollableScrollPhysics(),
+    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+      crossAxisCount: crossAxisCount,
+      childAspectRatio: FutsalConstants.slotAspectRatio,
+      crossAxisSpacing: 8,
+      mainAxisSpacing: 8,
+    ),
+    itemCount: slots.length,
+    itemBuilder: (context, index) => _buildSlotCard(context, slots[index]),
+  );
+}
+
+  Widget _buildSlotCard(BuildContext context, Map<String, dynamic> slot) {
+  final slotId = slot['id'] as int? ?? 0;
+  final isAvailable = isSlotAvailable(slot);
+  final isBooked = isSlotBooked(slot);
+  final isSystemLocked = isSlotLockedBySystem(slot);
+  final isTemporarilyLocked = isSlotTemporarilyLocked(slotId);
+  final isPeak = isSlotPeak(slot);
+  final isSelected = selectedSlot != null && selectedSlot!['id'] == slotId;
+  final canSelect = isAvailable && !isTemporarilyLocked && !isSystemLocked;
+
+  // Get screen width to determine font sizes
+  final screenWidth = MediaQuery.of(context).size.width;
+  final isLargeScreen = screenWidth > 800;
+  
+  // Responsive font sizes (bigger on large screens)
+  final timeFontSize = isLargeScreen ? 18.0 : 14.0;
+  final courtFontSize = isLargeScreen ? 12.0 : 10.0;
+  final priceFontSize = isLargeScreen ? 14.0 : 11.0;
+  final statusFontSize = isLargeScreen ? 10.0 : 8.0;
+  final peakFontSize = isLargeScreen ? 14.0 : 10.0;
+  final cardPadding = isLargeScreen ? 12.0 : 8.0;
+
+  Color backgroundColor;
+  Color textColor;
+  Color borderColor;
+  String? statusText;
+
+  if (isSelected) {
+    backgroundColor = Colors.green;
+    textColor = Colors.white;
+    borderColor = Colors.green;
+  } else if (isBooked) {
+    backgroundColor = Colors.grey.shade300;
+    textColor = Colors.grey.shade700;
+    borderColor = Colors.grey.shade400;
+    statusText = 'BOOKED';
+  } else if (isSystemLocked || isTemporarilyLocked) {
+    backgroundColor = Colors.orange.shade50;
+    textColor = Colors.orange.shade700;
+    borderColor = Colors.orange.shade300;
+    statusText = 'LOCKED';
+  } else if (isAvailable && isPeak) {
+    backgroundColor = Colors.red.shade50;
+    textColor = Colors.red.shade700;
+    borderColor = Colors.red.shade300;
+  } else if (isAvailable) {
+    backgroundColor = Colors.white;
+    textColor = Colors.green.shade700;
+    borderColor = Colors.green.shade300;
+  } else {
+    backgroundColor = Colors.grey.shade100;
+    textColor = Colors.grey;
+    borderColor = Colors.grey.shade300;
   }
 
-  Widget _buildSlotCard(Map<String, dynamic> slot) {
-    final slotId = slot['id'] as int? ?? 0;
-    final isAvailable = isSlotAvailable(slot);
-    final isBooked = isSlotBooked(slot);
-    final isSystemLocked = isSlotLockedBySystem(slot);
-    final isTemporarilyLocked = isSlotTemporarilyLocked(slotId);
-    final isPeak = isSlotPeak(slot);
-    final isSelected = selectedSlot != null && selectedSlot!['id'] == slotId;
-    final canSelect = isAvailable && !isTemporarilyLocked && !isSystemLocked;
-
-    Color backgroundColor;
-    Color textColor;
-    Color borderColor;
-    String? statusText;
-
-    if (isSelected) {
-      backgroundColor = Colors.green;
-      textColor = Colors.white;
-      borderColor = Colors.green;
-    } else if (isBooked) {
-      backgroundColor = Colors.grey.shade300;
-      textColor = Colors.grey.shade700;
-      borderColor = Colors.grey.shade400;
-      statusText = 'BOOKED';
-    } else if (isSystemLocked || isTemporarilyLocked) {
-      backgroundColor = Colors.orange.shade50;
-      textColor = Colors.orange.shade700;
-      borderColor = Colors.orange.shade300;
-      statusText = 'LOCKED';
-    } else if (isAvailable && isPeak) {
-      backgroundColor = Colors.red.shade50;
-      textColor = Colors.red.shade700;
-      borderColor = Colors.red.shade300;
-    } else if (isAvailable) {
-      backgroundColor = Colors.white;
-      textColor = Colors.green.shade700;
-      borderColor = Colors.green.shade300;
-    } else {
-      backgroundColor = Colors.grey.shade100;
-      textColor = Colors.grey;
-      borderColor = Colors.grey.shade300;
-    }
-
-    return GestureDetector(
-      onTap: canSelect && !isProcessing ? () => onSlotSelected(slot) : null,
-      child: Container(
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: borderColor,
-            width: isSelected ? 2 : 1,
+  return GestureDetector(
+    onTap: canSelect && !isProcessing ? () => onSlotSelected(slot) : null,
+    child: Container(
+      padding: EdgeInsets.all(cardPadding),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: borderColor,
+          width: isSelected ? 2 : 1,
+        ),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (isPeak && isAvailable && !isSelected)
+            Text('🔥', style: TextStyle(fontSize: peakFontSize)),
+          Text(
+            slot['startTime'] ?? '00:00',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: timeFontSize,
+              color: textColor,
+            ),
           ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (isPeak && isAvailable && !isSelected)
-              const Text('🔥', style: TextStyle(fontSize: 10)),
-            Text(
-              slot['startTime'] ?? '00:00',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: textColor,
-              ),
+          SizedBox(height: isLargeScreen ? 8 : 4),
+          Text(
+            getCourtNumber(slot),
+            style: TextStyle(
+              fontSize: courtFontSize,
+              color: textColor.withOpacity(0.8),
             ),
-            const SizedBox(height: 4),
-            Text(
-              getCourtNumber(slot),
-              style: TextStyle(
-                fontSize: 10,
-                color: textColor.withOpacity(0.8),
-              ),
+          ),
+          SizedBox(height: isLargeScreen ? 8 : 4),
+          Text(
+            'रू ${slot['price'] ?? 0}',
+            style: TextStyle(
+              fontSize: priceFontSize,
+              fontWeight: FontWeight.w600,
+              color: textColor,
             ),
-            const SizedBox(height: 4),
-            Text(
-              'रू ${slot['price'] ?? 0}',
-              style: TextStyle(
-                fontSize: 11,
-                color: textColor,
+          ),
+          if (statusText != null)
+            Container(
+              margin: const EdgeInsets.only(top: 6),
+              padding: EdgeInsets.symmetric(
+                horizontal: statusText == 'BOOKED' ? 6 : 4,
+                vertical: statusText == 'BOOKED' ? 3 : 2,
               ),
-            ),
-            if (statusText != null)
-              Container(
-                margin: const EdgeInsets.only(top: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                decoration: BoxDecoration(
-                  color: isBooked ? Colors.grey.shade400 : Colors.orange.shade200,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  statusText,
-                  style: TextStyle(
-                    fontSize: 8,
-                    color: isBooked ? Colors.white : Colors.orange.shade900,
-                    fontWeight: FontWeight.bold,
-                  ),
+              decoration: BoxDecoration(
+                color: isBooked ? Colors.grey.shade400 : Colors.orange.shade200,
+                borderRadius: BorderRadius.circular(statusText == 'BOOKED' ? 12 : 4),
+              ),
+              child: Text(
+                statusText,
+                style: TextStyle(
+                  fontSize: statusFontSize,
+                  color: isBooked ? Colors.white : Colors.orange.shade900,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-          ],
-        ),
+            ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../models/user.dart';
 import '../../../../widgets/profile/profile_dialog.dart';
+import '../../../../utils/responsive.dart';
 
 class HomeAppBar extends StatelessWidget {
   final User user;
@@ -20,8 +21,11 @@ class HomeAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = Responsive.isDesktop(context);
+    final isTablet = Responsive.isTablet(context);
+    
     return SliverAppBar(
-      expandedHeight: 160,
+      expandedHeight: Responsive.getAppBarExpandedHeight(context),
       floating: false,
       pinned: true,
       backgroundColor: Colors.green,
@@ -37,15 +41,19 @@ class HomeAppBar extends StatelessWidget {
           ),
           child: SafeArea(
             child: Padding(
-              padding: const EdgeInsets.only(left: 20, top: 12),
+              padding: EdgeInsets.only(
+                left: Responsive.isDesktop(context) ? 32 : 20,
+                top: 12,
+                right: Responsive.isDesktop(context) ? 32 : 0,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
                     'Hello, ${user.fullName.split(' ')[0]}! 👋',
-                    style: const TextStyle(
-                      fontSize: 22,
+                    style: TextStyle(
+                      fontSize: Responsive.headline1(context),
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
@@ -54,7 +62,7 @@ class HomeAppBar extends StatelessWidget {
                   Text(
                     'Ready to play today?',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: Responsive.bodyText(context),
                       color: Colors.white.withOpacity(0.9),
                     ),
                   ),
@@ -73,11 +81,17 @@ class HomeAppBar extends StatelessWidget {
             color: Colors.white.withOpacity(0.2),
             borderRadius: BorderRadius.circular(16),
           ),
-          child: const Row(
+          child: Row(
             children: [
-              Icon(Icons.person, size: 16, color: Colors.white),
-              SizedBox(width: 4),
-              Text('Player', style: TextStyle(color: Colors.white)),
+              const Icon(Icons.person, size: 16, color: Colors.white),
+              const SizedBox(width: 4),
+              Text(
+                'Player',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: Responsive.caption(context),
+                ),
+              ),
             ],
           ),
         ),
@@ -132,14 +146,16 @@ class HomeAppBar extends StatelessWidget {
         GestureDetector(
           onTap: () => ProfileDialog.show(context, user),
           child: Container(
-            margin: const EdgeInsets.only(right: 16),
+            margin: EdgeInsets.only(right: isDesktop ? 24 : 16),
             child: CircleAvatar(
               backgroundColor: Colors.white.withOpacity(0.2),
+              radius: isDesktop ? 20 : 16,
               child: Text(
                 user.fullName[0].toUpperCase(),
-                style: const TextStyle(
+                style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
+                  fontSize: isDesktop ? 16 : 14,
                 ),
               ),
             ),
