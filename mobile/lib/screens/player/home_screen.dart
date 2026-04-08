@@ -352,18 +352,27 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
               ),
             ),
 
-            // Responsive Futsals List - Fills screen horizontally
-            _buildResponsiveFutsalsList(futsalProvider),
+            // Responsive Futsals Grid - Using GridView for proper layout
+            _buildResponsiveFutsalsGrid(futsalProvider),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildResponsiveFutsalsList(FutsalProvider provider) {
+  Widget _buildResponsiveFutsalsGrid(FutsalProvider provider) {
   if (provider.isLoading && provider.futsals.isEmpty) {
-    return SliverFillRemaining(
-      child: LoadingState.futsals(),
+    return const SliverFillRemaining(
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Loading futsals...'),
+          ],
+        ),
+      ),
     );
   }
 
@@ -394,78 +403,74 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     );
   }
 
-  // Get responsive padding based on screen size
+  // Get responsive grid settings
   final isDesktop = Responsive.isDesktop(context);
   final isTablet = Responsive.isTablet(context);
   
-  double horizontalPadding;
-  double cardSpacing;
   int crossAxisCount;
+  double crossAxisSpacing;
+  double mainAxisSpacing;
+  double horizontalPadding;
   
   if (isDesktop) {
+    crossAxisCount = 3;
+    crossAxisSpacing = 20;
+    mainAxisSpacing = 20;
     horizontalPadding = 32;
-    cardSpacing = 20;
-    crossAxisCount = 3; // 3 columns on desktop
   } else if (isTablet) {
+    crossAxisCount = 2;
+    crossAxisSpacing = 16;
+    mainAxisSpacing = 16;
     horizontalPadding = 24;
-    cardSpacing = 16;
-    crossAxisCount = 2; // 2 columns on tablet
   } else {
+    crossAxisCount = 1;
+    crossAxisSpacing = 0;
+    mainAxisSpacing = 12;
     horizontalPadding = 16;
-    cardSpacing = 12;
-    crossAxisCount = 1; // 1 column on mobile
   }
-  
-  // Use a single list approach for ALL devices
-  // This ensures NO white space because each card determines its own height
+
+  // Use SliverList with Row for dynamic heights (no forced aspect ratio)
   return SliverPadding(
     padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 8),
     sliver: SliverList(
       delegate: SliverChildBuilderDelegate(
-        (context, index) {
-          // Calculate row index for multi-column layout
-          final rowIndex = index ~/ crossAxisCount;
-          final itemsInRow = <Futsal>[];
+        (context, rowIndex) {
+          // Calculate items for this row
+          final startIndex = rowIndex * crossAxisCount;
+          final endIndex = startIndex + crossAxisCount;
           
-          // Collect items for this row
-          for (int i = 0; i < crossAxisCount; i++) {
-            final itemIndex = rowIndex * crossAxisCount + i;
-            if (itemIndex < filteredList.length) {
-              itemsInRow.add(filteredList[itemIndex]);
-            }
-          }
+          if (startIndex >= filteredList.length) return null;
           
-          // Only build the row for the first item in each row
-          if (index % crossAxisCount == 0) {
-            return Padding(
-              padding: EdgeInsets.only(bottom: cardSpacing),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  for (int i = 0; i < itemsInRow.length; i++)
-                    Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                          right: i < itemsInRow.length - 1 ? cardSpacing : 0,
-                        ),
-                        child: FutsalCard(
-                          futsal: itemsInRow[i],
-                          onTap: () => _navigateToDetails(itemsInRow[i]),
-                        ),
+          final rowItems = filteredList.sublist(
+            startIndex,
+            endIndex > filteredList.length ? filteredList.length : endIndex,
+          );
+          
+          return Padding(
+            padding: EdgeInsets.only(bottom: mainAxisSpacing),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (int i = 0; i < rowItems.length; i++)
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        right: i < rowItems.length - 1 ? crossAxisSpacing : 0,
+                      ),
+                      child: FutsalCard(
+                        futsal: rowItems[i],
+                        onTap: () => _navigateToDetails(rowItems[i]),
                       ),
                     ),
-                  // Add empty placeholders if needed
-                  for (int i = itemsInRow.length; i < crossAxisCount; i++)
-                    Expanded(child: Container()),
-                ],
-              ),
-            );
-          }
-          
-          // Return null for non-first items in the row
-          return null;
+                  ),
+                // Add empty placeholders to maintain row structure
+                for (int i = rowItems.length; i < crossAxisCount; i++)
+                  Expanded(child: SizedBox.shrink()),
+              ],
+            ),
+          );
         },
-        childCount: filteredList.length,
+        childCount: (filteredList.length / crossAxisCount).ceil(),
       ),
     ),
   );
