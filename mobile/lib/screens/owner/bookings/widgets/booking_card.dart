@@ -5,7 +5,6 @@ class BookingCard extends StatelessWidget {
   final Booking booking;
   final VoidCallback onCheckIn;
   final VoidCallback onMarkPaid;
-  final VoidCallback onComplete;
   final VoidCallback onCancel;
   final VoidCallback onBlock;
   final VoidCallback onUnblock;
@@ -16,7 +15,6 @@ class BookingCard extends StatelessWidget {
     required this.booking,
     required this.onCheckIn,
     required this.onMarkPaid,
-    required this.onComplete,
     required this.onCancel,
     required this.onBlock,
     required this.onUnblock,
@@ -285,21 +283,15 @@ class BookingCard extends StatelessWidget {
                         ],
                       ),
 
-                    // Checked in
+                    // Checked in - Show only "Mark as Paid" button (Complete removed)
                     if (booking.isCheckedIn && !booking.isCompleted && !booking.isCancelled)
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (!booking.isPaid)
-                            IconButton(
-                              icon: const Icon(Icons.payments, color: Colors.orange, size: 20),
-                              onPressed: onMarkPaid,
-                              tooltip: 'Mark as Paid',
-                            ),
                           IconButton(
-                            icon: const Icon(Icons.check_circle, color: Colors.green, size: 20),
-                            onPressed: onComplete,
-                            tooltip: 'Complete',
+                            icon: const Icon(Icons.payments, color: Colors.orange, size: 20),
+                            onPressed: onMarkPaid,
+                            tooltip: 'Mark as Paid',
                           ),
                         ],
                       ),

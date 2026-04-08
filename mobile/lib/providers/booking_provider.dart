@@ -36,65 +36,64 @@ class BookingProvider with ChangeNotifier {
   // ============================================
 
   // Load current user's bookings (for player)
-Future<void> loadUserBookings() async {
-  isLoading = true;
-  error = null;
-  notifyListeners();
+  Future<void> loadUserBookings() async {
+    isLoading = true;
+    error = null;
+    notifyListeners();
 
-  try {
-    final response = await ApiService.getMyBookings();
-    debugPrint('📅 BOOKINGS COUNT: ${(response['bookings'] ?? []).length}');
+    try {
+      final response = await ApiService.getMyBookings();
+      debugPrint('📅 BOOKINGS COUNT: ${(response['bookings'] ?? []).length}');
 
-    final bookingsJson = response['bookings'] ?? [];
+      final bookingsJson = response['bookings'] ?? [];
 
-    // ✅ Safe parse — catches individual failures
-    final List<Booking> allBookings = [];
-    for (var json in bookingsJson) {
-      try {
-        allBookings.add(Booking.fromJson(json));
-      } catch (e) {
-        debugPrint('❌ BOOKING PARSE ERROR: $e');
-        debugPrint('❌ FAILED JSON: $json');
+      final List<Booking> allBookings = [];
+      for (var json in bookingsJson) {
+        try {
+          allBookings.add(Booking.fromJson(json));
+        } catch (e) {
+          debugPrint('❌ BOOKING PARSE ERROR: $e');
+          debugPrint('❌ FAILED JSON: $json');
+        }
       }
+
+      debugPrint('📅 PARSED BOOKINGS: ${allBookings.length}');
+
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+
+      _upcomingBookings = allBookings.where((b) {
+        final bookingDate = DateTime(b.date.year, b.date.month, b.date.day);
+        return (b.bookingStatus.toLowerCase() == 'pending' ||
+                b.bookingStatus.toLowerCase() == 'confirmed') &&
+            !bookingDate.isBefore(today);
+      }).toList();
+
+      _pastBookings = allBookings.where((b) {
+        final bookingDate = DateTime(b.date.year, b.date.month, b.date.day);
+        return b.bookingStatus.toLowerCase() == 'completed' ||
+            ((b.bookingStatus.toLowerCase() == 'confirmed' ||
+              b.bookingStatus.toLowerCase() == 'pending') &&
+                bookingDate.isBefore(today));
+      }).toList();
+
+      _cancelledBookings = allBookings
+          .where((b) => b.bookingStatus.toLowerCase() == 'cancelled')
+          .toList();
+
+      debugPrint('📅 UPCOMING: ${_upcomingBookings.length}');
+      debugPrint('📅 PAST: ${_pastBookings.length}');
+      debugPrint('📅 CANCELLED: ${_cancelledBookings.length}');
+
+      isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('❌ LOAD BOOKINGS ERROR: $e');
+      error = e.toString();
+      isLoading = false;
+      notifyListeners();
     }
-
-    debugPrint('📅 PARSED BOOKINGS: ${allBookings.length}');
-
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-
-    _upcomingBookings = allBookings.where((b) {
-      final bookingDate = DateTime(b.date.year, b.date.month, b.date.day);
-      return (b.bookingStatus.toLowerCase() == 'pending' ||
-              b.bookingStatus.toLowerCase() == 'confirmed') &&
-          !bookingDate.isBefore(today);
-    }).toList();
-
-    _pastBookings = allBookings.where((b) {
-      final bookingDate = DateTime(b.date.year, b.date.month, b.date.day);
-      return b.bookingStatus.toLowerCase() == 'completed' ||
-          ((b.bookingStatus.toLowerCase() == 'confirmed' ||
-            b.bookingStatus.toLowerCase() == 'pending') &&
-              bookingDate.isBefore(today));
-    }).toList();
-
-    _cancelledBookings = allBookings
-        .where((b) => b.bookingStatus.toLowerCase() == 'cancelled')
-        .toList();
-
-    debugPrint('📅 UPCOMING: ${_upcomingBookings.length}');
-    debugPrint('📅 PAST: ${_pastBookings.length}');
-    debugPrint('📅 CANCELLED: ${_cancelledBookings.length}');
-
-    isLoading = false;
-    notifyListeners();
-  } catch (e) {
-    debugPrint('❌ LOAD BOOKINGS ERROR: $e');
-    error = e.toString();
-    isLoading = false;
-    notifyListeners();
   }
-}
 
   // Create a new booking (for player)
   Future<Map<String, dynamic>> createBooking(Map<String, dynamic> bookingData) async {
@@ -270,74 +269,64 @@ Future<void> loadUserBookings() async {
   }
 
   // Owner cancels booking (complete deletion)
-Future<Map<String, dynamic>> ownerCancelBooking(int bookingId) async {
-  try {
-    final response = await ApiService.ownerCancelBooking(bookingId); // ✅ owner endpoint
-    if (response['status'] == 'success') {
-      if (_currentFutsalId != null) {
-        await loadTodayBookings(_currentFutsalId!);
-        await loadOwnerUpcomingBookings(_currentFutsalId!);
+  Future<Map<String, dynamic>> ownerCancelBooking(int bookingId) async {
+    try {
+      final response = await ApiService.ownerCancelBooking(bookingId);
+      if (response['status'] == 'success') {
+        if (_currentFutsalId != null) {
+          await loadTodayBookings(_currentFutsalId!);
+          await loadOwnerUpcomingBookings(_currentFutsalId!);
+        }
+        return {'status': 'success', 'message': 'Booking cancelled'};
       }
-      return {'status': 'success', 'message': 'Booking cancelled'};
+      return {'status': 'error', 'message': response['message'] ?? 'Failed'};
+    } catch (e) {
+      return {'status': 'error', 'message': e.toString()};
     }
-    return {'status': 'error', 'message': response['message'] ?? 'Failed'};
-  } catch (e) {
-    return {'status': 'error', 'message': e.toString()};
   }
-}
 
   // ============================================
   // OWNER BOOKING ACTIONS
   // ============================================
 
   // Check in a customer
-Future<Map<String, dynamic>> checkInCustomer(int bookingId, int futsalId) async {
-  try {
-    final response = await ApiService.checkInBooking(bookingId);
-    if (response['status'] == 'success') {
-      _updateBookingStatus(bookingId, (b) => b.copyWith(
-        bookingStatus: 'CONFIRMED',   // ✅ valid status
-        checkInTime: DateTime.now(),
-      ));
-      await loadTodayBookings(futsalId);
+  Future<Map<String, dynamic>> checkInCustomer(int bookingId, int futsalId) async {
+    try {
+      final response = await ApiService.checkInBooking(bookingId);
+      if (response['status'] == 'success') {
+        _updateBookingStatus(bookingId, (b) => b.copyWith(
+          bookingStatus: 'CONFIRMED',
+          checkInTime: DateTime.now(),
+        ));
+        await loadTodayBookings(futsalId);
+        return response;
+      }
       return response;
+    } catch (e) {
+      return {'status': 'error', 'message': e.toString()};
     }
-    return response;
-  } catch (e) {
-    return {'status': 'error', 'message': e.toString()};
   }
-}
 
-Future<Map<String, dynamic>> completeBooking(int bookingId, int futsalId) async {
-  try {
-    final response = await ApiService.completeBooking(bookingId);
-    if (response['status'] == 'success') {
-      _updateBookingStatus(bookingId, (b) => b.copyWith(
-        bookingStatus: 'COMPLETED',
-        checkOutTime: DateTime.now(),
-      ));
-      await loadTodayBookings(futsalId);
-      return response;
-    }
-    return response;
-  } catch (e) {
-    return {'status': 'error', 'message': e.toString()};
-  }
-}
+  // ❌ REMOVED: completeBooking method (no longer needed)
+  // "Mark as Paid" is now the final step
 
-Future<Map<String, dynamic>> updatePaymentStatus(int bookingId, String status, int futsalId) async {
-  try {
-    final response = await ApiService.confirmCodPayment(bookingId); // ✅ new endpoint
-    if (response['status'] == 'success') {
-      _updateBookingStatus(bookingId, (b) => b.copyWith(paymentStatus: 'PAID'));
-      await loadTodayBookings(futsalId);
+  // Update payment status (Mark as Paid) - FINAL STEP
+  Future<Map<String, dynamic>> updatePaymentStatus(int bookingId, String status, int futsalId) async {
+    try {
+      final response = await ApiService.confirmCodPayment(bookingId);
+      if (response['status'] == 'success') {
+        _updateBookingStatus(bookingId, (b) => b.copyWith(
+          paymentStatus: 'PAID',
+          bookingStatus: 'COMPLETED', // Automatically mark as completed when paid
+        ));
+        await loadTodayBookings(futsalId);
+        return response;
+      }
       return response;
+    } catch (e) {
+      return {'status': 'error', 'message': e.toString()};
     }
-    return response;
-  } catch (e) {
-    return {'status': 'error', 'message': e.toString()};
   }
-}
 
   // ============================================
   // HELPER METHODS
@@ -380,14 +369,14 @@ Future<Map<String, dynamic>> updatePaymentStatus(int bookingId, String status, i
   }
 
   List<Booking> getBookingsForDate(DateTime date) {
-  final normalizedDate = DateTime(date.year, date.month, date.day);
-  return _calendarBookings[normalizedDate] ?? [];
-}
+    final normalizedDate = DateTime(date.year, date.month, date.day);
+    return _calendarBookings[normalizedDate] ?? [];
+  }
 
-void selectDate(DateTime date) {
-  _selectedDateBookings = getBookingsForDate(date);
-  notifyListeners();
-}
+  void selectDate(DateTime date) {
+    _selectedDateBookings = getBookingsForDate(date);
+    notifyListeners();
+  }
 
   void clearData() {
     _todayBookings = [];
