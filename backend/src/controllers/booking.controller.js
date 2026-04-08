@@ -769,58 +769,6 @@ export const checkInBooking = async (req, res) => {
   }
 };
 
-/**
- * Owner completes a booking after play
- * @route PUT /api/bookings/:bookingId/complete
- */
-export const completeBooking = async (req, res) => {
-  try {
-    const { bookingId } = req.params;
-
-    const booking = await prisma.booking.findUnique({
-      where: { id: parseInt(bookingId) },
-      include: {
-        slot: { include: { court: { include: { futsal: true } } } },
-      },
-    });
-
-    if (!booking)
-      return res
-        .status(404)
-        .json({ status: "error", message: "Booking not found" });
-
-    if (booking.slot.court.futsal.ownerId !== req.user.id)
-      return res.status(403).json({ status: "error", message: "Unauthorized" });
-
-    if (booking.status !== "CONFIRMED")
-      return res.status(400).json({
-        status: "error",
-        message: "Booking must be confirmed before completing",
-      });
-
-    const updated = await prisma.booking.update({
-      where: { id: parseInt(bookingId) },
-      data: {
-        status: "COMPLETED",
-        checkOutTime: new Date(),
-      },
-    });
-
-    res.json({
-      status: "success",
-      message: "Booking completed",
-      booking: updated,
-    });
-  } catch (error) {
-    console.error("Complete booking error:", error);
-    res.status(500).json({ status: "error", message: "Server error" });
-  }
-};
-
-/**
- * Owner marks COD payment as received
- * @route PUT /api/bookings/:bookingId/payment/cod-confirm
- */
 export const confirmCodPayment = async (req, res) => {
   try {
     const { bookingId } = req.params;
@@ -841,25 +789,48 @@ export const confirmCodPayment = async (req, res) => {
     if (booking.slot.court.futsal.ownerId !== req.user.id)
       return res.status(403).json({ status: "error", message: "Unauthorized" });
 
-    // Create payment record if not exists, else update
-    if (booking.payment) {
-      await prisma.payment.update({
-        where: { bookingId: booking.id },
-        data: { status: "COMPLETED" },
-      });
-    } else {
-      await prisma.payment.create({
-        data: {
-          bookingId: booking.id,
-          amount: booking.totalPrice,
-          method: "COD",
-          status: "COMPLETED",
-          transactionId: `COD_${booking.id}_${Date.now()}`,
-        },
+    // Check if already completed
+    if (booking.status === "COMPLETED") {
+      return res.status(400).json({ 
+        status: "error", 
+        message: "Booking already completed" 
       });
     }
 
-    res.json({ status: "success", message: "COD payment confirmed" });
+    // Update payment and booking in a transaction
+    await prisma.$transaction(async (tx) => {
+      // Create or update payment record
+      if (booking.payment) {
+        await tx.payment.update({
+          where: { bookingId: booking.id },
+          data: { status: "COMPLETED" },
+        });
+      } else {
+        await tx.payment.create({
+          data: {
+            bookingId: booking.id,
+            amount: booking.totalPrice,
+            method: "COD",
+            status: "COMPLETED",
+            transactionId: `COD_${booking.id}_${Date.now()}`,
+          },
+        });
+      }
+
+      // ALSO mark booking as COMPLETED (no separate complete step needed)
+      await tx.booking.update({
+        where: { id: parseInt(bookingId) },
+        data: { 
+          status: "COMPLETED",
+          checkOutTime: new Date(),
+        },
+      });
+    });
+
+    res.json({ 
+      status: "success", 
+      message: "Payment confirmed and booking completed" 
+    });
   } catch (error) {
     console.error("COD confirm error:", error);
     res.status(500).json({ status: "error", message: "Server error" });

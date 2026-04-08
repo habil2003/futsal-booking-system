@@ -384,7 +384,6 @@ class _BookingsScreenState extends State<BookingsScreen>
       isBlocked: _blockedPlayers[booking.userId] ?? false,
       onCheckIn: () => _checkInCustomer(booking, provider),
       onMarkPaid: () => _markAsPaid(booking, provider),
-      onComplete: () => _completeBooking(booking, provider),
       onCancel: () => _cancelBooking(booking, provider),
       onBlock: () => _blockPlayer(booking),
       onUnblock: () => _unblockPlayer(booking),
@@ -422,23 +421,6 @@ class _BookingsScreenState extends State<BookingsScreen>
     _showLoading();
     final response =
         await provider.updatePaymentStatus(booking.id, 'PAID', widget.futsalId);
-    _hideLoadingAndShowResult(response);
-  }
-
-  Future<void> _completeBooking(
-      Booking booking, BookingProvider provider) async {
-    final confirmed = await BookingActionDialog.show(
-      context: context,
-      title: 'Complete Booking',
-      message:
-          'Mark booking for ${booking.customerName ?? 'customer'} as completed?',
-      confirmText: 'COMPLETE',
-    );
-    if (confirmed != true) return;
-
-    _showLoading();
-    final response =
-        await provider.completeBooking(booking.id, widget.futsalId);
     _hideLoadingAndShowResult(response);
   }
 
