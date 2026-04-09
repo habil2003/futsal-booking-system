@@ -10,12 +10,12 @@ import '../../../../providers/auth_provider.dart';
 import '../../../../providers/booking_provider.dart';
 import '../../../../providers/futsal_provider.dart';
 import '../../../../utils/date_formatter.dart';
-import '../../../../services/payment_service.dart';
 import '../../../../services/api_service.dart';
 import '../../../../utils/futsal_constants.dart';
+import '../../../../utils/responsive.dart';
 import '../../../../widgets/futsal/booking_confirmation_dialog.dart';
 import '../../../../widgets/futsal/slots_grid_widget.dart';
-import '../../payment_webview_screen.dart'; // Fixed import path
+import '../../payment_webview_screen.dart';
 import 'slot_helpers.dart';
 import 'booking_bar.dart';
 
@@ -148,73 +148,72 @@ class _SlotsTabState extends State<SlotsTab> with WidgetsBindingObserver {
   }
 
   Future<bool> _checkIfBlocked() async {
-  try {
-    final auth = Provider.of<AuthProvider>(context, listen: false);
-    if (!auth.isAuthenticated) return false;
-    
-    final response = await ApiService.get('owner/blocks/check/${auth.user!.id}?futsalId=${widget.futsal.id}');
-    if (response['isBlocked'] == true) {
-      _showBlockedDialog(response['reason']);
-      return true;
+    try {
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      if (!auth.isAuthenticated) return false;
+      
+      final response = await ApiService.get('owner/blocks/check/${auth.user!.id}?futsalId=${widget.futsal.id}');
+      if (response['isBlocked'] == true) {
+        _showBlockedDialog(response['reason']);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('Check block error: $e');
+      return false;
     }
-    return false;
-  } catch (e) {
-    debugPrint('Check block error: $e');
-    return false;
   }
-}
 
-void _showBlockedDialog(String? reason) {
-  showDialog(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('You are Blocked'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.block, size: 48, color: Colors.red),
-          const SizedBox(height: 12),
-          const Text(
-            'You have been blocked from booking at this futsal.',
-            textAlign: TextAlign.center,
-          ),
-          if (reason != null && reason.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Reason: $reason',
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
+  void _showBlockedDialog(String? reason) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('You are Blocked'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.block, size: 48, color: Colors.red),
+            const SizedBox(height: 12),
+            const Text(
+              'You have been blocked from booking at this futsal.',
               textAlign: TextAlign.center,
             ),
+            if (reason != null && reason.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Reason: $reason',
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                textAlign: TextAlign.center,
+              ),
+            ],
+            const SizedBox(height: 8),
+            const Text('Please contact the futsal owner for more information.'),
           ],
-          const SizedBox(height: 8),
-          const Text('Please contact the futsal owner for more information.'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('OK'),
+          ),
         ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx),
-          child: const Text('OK'),
-        ),
-      ],
-    ),
-  );
-}
-
-void _proceedToBooking() async {
-  if (_selectedSlot == null || _isProcessing) return;
-
-  final auth = Provider.of<AuthProvider>(context, listen: false);
-  if (!auth.isAuthenticated) {
-    _showSnackBar('Please log in to make a booking', isError: true);
-    return;
+    );
   }
 
-  // ✅ Add block check before proceeding
-  final isBlocked = await _checkIfBlocked();
-  if (isBlocked) return;
+  void _proceedToBooking() async {
+    if (_selectedSlot == null || _isProcessing) return;
 
-  _showConfirmationDialog();
-}
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    if (!auth.isAuthenticated) {
+      _showSnackBar('Please log in to make a booking', isError: true);
+      return;
+    }
+
+    final isBlocked = await _checkIfBlocked();
+    if (isBlocked) return;
+
+    _showConfirmationDialog();
+  }
 
   void _showConfirmationDialog() {
     if (_selectedSlot == null || _isProcessing) return;
@@ -356,6 +355,8 @@ void _proceedToBooking() async {
     try {
       final bookingProvider =
           Provider.of<BookingProvider>(context, listen: false);
+      
+      // Create booking first
       final response = await bookingProvider.createBooking({
         'slotId': _tempLockedSlot!['id'],
         'paymentMethod': paymentMethod,
@@ -369,8 +370,18 @@ void _proceedToBooking() async {
       Navigator.pop(context);
 
       if (response['status'] == 'success') {
-        await _handleBookingSuccess();
-        _showSnackBar('Booking confirmed! Please pay at venue.');
+        final bookingId = response['bookingId'];
+        
+        // For COD, we're done
+        if (paymentMethod == 'COD') {
+          await _handleBookingSuccess();
+          _showSnackBar('Booking confirmed! Please pay at venue.');
+        } else {
+          // For Khalti, we already called _initiateKhaltiPayment separately
+          // This method shouldn't be called for Khalti
+          await _handleBookingSuccess();
+          _showSnackBar('Booking created. Proceeding to payment...');
+        }
       } else {
         await _handleBookingFailure(response['message'] ?? 'Booking failed');
       }
@@ -386,65 +397,81 @@ void _proceedToBooking() async {
   }
 
   Future<void> _initiateKhaltiPayment() async {
-    if (_tempLockedSlot == null || _isProcessing) return;
+  if (_tempLockedSlot == null || _isProcessing) return;
 
-    setState(() => _isProcessing = true);
-    _showLoadingDialog();
+  setState(() => _isProcessing = true);
+  _showLoadingDialog();
 
-    try {
-      final response = await PaymentService.initiateKhaltiPayment(
-        _tempLockedSlot!['id'],
-        _tempSelectedDuration ?? 1,
-      ).timeout(
-        FutsalConstants.apiTimeout,
-        onTimeout: () => throw TimeoutException('Payment service timeout'),
+  try {
+    final bookingProvider = Provider.of<BookingProvider>(context, listen: false);
+    
+    // Step 1: Create booking first
+    final createResponse = await bookingProvider.createBooking({
+      'slotId': _tempLockedSlot!['id'],
+      'paymentMethod': 'KHALTI',
+      'duration': _tempSelectedDuration ?? 1,
+    }).timeout(FutsalConstants.apiTimeout);
+
+    if (!mounted) return;
+
+    if (createResponse['status'] != 'success') {
+      Navigator.pop(context);
+      await _handleBookingFailure(createResponse['message'] ?? 'Booking failed');
+      return;
+    }
+
+    final bookingId = createResponse['bookingId'];
+    _tempBookingId = bookingId;
+
+    // Step 2: Initiate Khalti payment
+    final paymentResponse = await bookingProvider.initiateKhaltiPayment(bookingId).timeout(FutsalConstants.apiTimeout);
+
+    if (!mounted) return;
+    Navigator.pop(context);
+
+    final paymentUrl = paymentResponse['paymentUrl'];
+    final pidx = paymentResponse['pidx'] ?? paymentResponse['payment']?['transactionId'];
+
+    print('🔵 PAYMENT URL: $paymentUrl');
+    print('🔵 PIDX: $pidx');
+
+    if (paymentUrl != null && pidx != null) {
+      if (kIsWeb) {
+        // For web: redirect to payment page
+        html.window.location.href = paymentUrl;
+        return;
+      }
+      // For mobile: open webview
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => KhaltiPaymentScreen(
+            paymentUrl: paymentUrl,
+            pidx: pidx,
+            bookingId: bookingId,
+          ),
+        ),
       );
 
-      if (!mounted) return;
-      Navigator.pop(context);
-
-      final paymentUrl = response['paymentUrl'];
-      final pidx = response['pidx'];
-      _tempBookingId = response['bookingId'];
-
-      if (response['status'] == 'success' &&
-          paymentUrl != null &&
-          pidx != null) {
-        if (kIsWeb) {
-          html.window.location.href = paymentUrl;
-          return;
-        }
-
-        final result = await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => KhaltiPaymentScreen(
-              paymentUrl: paymentUrl,
-              pidx: pidx,
-            ),
-          ),
-        );
-
-        if (result == true) {
-          await _handleBookingSuccess();
-          _showSnackBar('Booking confirmed!');
-        } else {
-          await _cancelBookingOnPaymentFailure();
-        }
+      if (result == true) {
+        await _handleBookingSuccess();
+        _showSnackBar('Booking confirmed!');
       } else {
-        await _handleBookingFailure(
-            response['message'] ?? 'Payment initiation failed');
+        await _cancelBookingOnPaymentFailure();
       }
-    } catch (e) {
-      if (!mounted) return;
-      Navigator.pop(context);
-      await _handleBookingFailure('Error: ${e.toString()}');
-    } finally {
-      if (mounted) {
-        setState(() => _isProcessing = false);
-      }
+    } else {
+      await _handleBookingFailure(paymentResponse['message'] ?? 'Payment initiation failed');
+    }
+  } catch (e) {
+    if (!mounted) return;
+    Navigator.pop(context);
+    await _handleBookingFailure('Error: ${e.toString()}');
+  } finally {
+    if (mounted) {
+      setState(() => _isProcessing = false);
     }
   }
+}
 
   Future<void> _handleBookingSuccess() async {
     await _safeUnlockSlot();
@@ -455,7 +482,8 @@ void _proceedToBooking() async {
   Future<void> _cancelBookingOnPaymentFailure() async {
     if (_tempBookingId != null) {
       try {
-        await ApiService.cancelUserBooking(_tempBookingId!);
+        final bookingProvider = Provider.of<BookingProvider>(context, listen: false);
+        await bookingProvider.userCancelBooking(_tempBookingId!);
       } catch (e) {
         debugPrint('Failed to cancel booking: $e');
       }
@@ -540,8 +568,10 @@ void _proceedToBooking() async {
   }
 
   Widget _buildDateSelector() {
+    final isMobile = Responsive.isMobile(context);
+    
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(isMobile ? 12 : 16),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -558,8 +588,13 @@ void _proceedToBooking() async {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              DateFormatter.formatDateFull(_selectedDate),
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              isMobile 
+                  ? DateFormatter.formatDateShort(_selectedDate)
+                  : DateFormatter.formatDateFull(_selectedDate),
+              style: TextStyle(
+                fontSize: isMobile ? 14 : 16,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
           TextButton(
@@ -567,7 +602,7 @@ void _proceedToBooking() async {
             style: TextButton.styleFrom(
               foregroundColor: Colors.green,
             ),
-            child: const Text('Change Date'),
+            child: Text(isMobile ? 'Change' : 'Change Date'),
           ),
         ],
       ),
@@ -652,16 +687,18 @@ void _proceedToBooking() async {
   }
 
   Widget _buildLegend() {
+    final isMobile = Responsive.isMobile(context);
+    
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      child: Row(
+      padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: Wrap(
+        spacing: isMobile ? 8 : 16,
+        runSpacing: 8,
+        alignment: WrapAlignment.center,
         children: [
           _buildLegendDot(Colors.green.shade300, 'Available'),
-          const SizedBox(width: 12),
           _buildLegendDot(Colors.red.shade300, '🔥 Peak'),
-          const SizedBox(width: 12),
           _buildLegendDot(Colors.grey.shade400, 'Booked'),
-          const SizedBox(width: 12),
           _buildLegendDot(Colors.orange.shade300, 'Locked'),
         ],
       ),
@@ -669,11 +706,14 @@ void _proceedToBooking() async {
   }
 
   Widget _buildLegendDot(Color color, String label) {
+    final isMobile = Responsive.isMobile(context);
+    
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 10,
-          height: 10,
+          width: isMobile ? 8 : 10,
+          height: isMobile ? 8 : 10,
           decoration: BoxDecoration(
             color: color,
             shape: BoxShape.circle,
@@ -682,7 +722,10 @@ void _proceedToBooking() async {
         const SizedBox(width: 4),
         Text(
           label,
-          style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+          style: TextStyle(
+            fontSize: isMobile ? 10 : 12,
+            color: Colors.grey.shade600,
+          ),
         ),
       ],
     );

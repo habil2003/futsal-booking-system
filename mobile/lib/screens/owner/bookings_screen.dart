@@ -410,19 +410,23 @@ class _BookingsScreenState extends State<BookingsScreen>
   }
 
   Future<void> _markAsPaid(Booking booking, BookingProvider provider) async {
-    final confirmed = await BookingActionDialog.show(
-      context: context,
-      title: 'Mark as Paid',
-      message: 'Confirm cash payment of रू ${booking.totalAmount} received?',
-      confirmText: 'CONFIRM PAID',
-    );
-    if (confirmed != true) return;
+  final confirmed = await BookingActionDialog.show(
+    context: context,
+    title: 'Mark as Paid',
+    message: 'Confirm cash payment of रू ${booking.totalAmount} received?',
+    confirmText: 'CONFIRM PAID',
+  );
+  if (confirmed != true) return;
 
-    _showLoading();
-    final response =
-        await provider.updatePaymentStatus(booking.id, 'PAID', widget.futsalId);
-    _hideLoadingAndShowResult(response);
+  _showLoading();
+  final response = await provider.initiateCodPayment(booking.id, widget.futsalId);
+  _hideLoadingAndShowResult(response);
+  
+  // ✅ Force refresh after action
+  if (response['status'] == 'success') {
+    await _loadBookings();
   }
+}
 
   Future<void> _cancelBooking(Booking booking, BookingProvider provider) async {
     final confirmed = await BookingActionDialog.show(

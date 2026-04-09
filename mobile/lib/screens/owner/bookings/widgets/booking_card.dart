@@ -39,6 +39,28 @@ class BookingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCOD = booking.paymentMethod == 'COD';
+    final isKhalti = booking.paymentMethod == 'KHALTI';
+    final isPaid = booking.isPaid;
+    final isCheckedIn = booking.isCheckedIn;
+    final isCompleted = booking.isCompleted;
+    final isCancelled = booking.isCancelled;
+
+    // Determine what badge to show
+    final showUnpaidBadge = (isCOD && !isPaid && !isCompleted && !isCancelled);
+    final showNotCheckedInBadge =
+        (!isCheckedIn && !isCancelled && !isCompleted && booking.isToday);
+
+    // For failed Khalti, show COD badge (so owner knows to collect payment)
+    final displayPaymentMethod =
+        (isKhalti && !isPaid) ? 'COD' : (isCOD ? 'COD' : 'KHALTI');
+    final paymentBadgeColor = (displayPaymentMethod == 'COD')
+        ? Colors.orange.shade100
+        : Colors.purple.shade100;
+    final paymentTextColor = (displayPaymentMethod == 'COD')
+        ? Colors.orange.shade700
+        : Colors.purple.shade700;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
@@ -53,7 +75,8 @@ class BookingCard extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
               color: _getStatusColor().withOpacity(0.1),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(12)),
             ),
             child: Row(
               children: [
@@ -72,49 +95,68 @@ class BookingCard extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                if (!booking.isCheckedIn && !booking.isCancelled && booking.isToday)
-                  Row(
-                    children: [
-                      if (!booking.isPaid)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.shade100,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            'UNPAID',
-                            style: TextStyle(
-                              fontSize: 8,
-                              color: Colors.orange.shade700,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      const SizedBox(width: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade100,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          'NOT CHECKED IN',
-                          style: TextStyle(
-                            fontSize: 8,
-                            color: Colors.blue.shade700,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
+                // Payment method badge
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: paymentBadgeColor,
+                    borderRadius: BorderRadius.circular(4),
                   ),
+                  child: Text(
+                    displayPaymentMethod,
+                    style: TextStyle(
+                      fontSize: 8,
+                      color: paymentTextColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                // Unpaid badge (only for unpaid COD or failed Khalti)
+                if (showUnpaidBadge)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade100,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      'UNPAID',
+                      style: TextStyle(
+                        fontSize: 8,
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                // Not checked in badge
+                if (showNotCheckedInBadge)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade100,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      'NOT CHECKED IN',
+                      style: TextStyle(
+                        fontSize: 8,
+                        color: Colors.blue,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                // Three dots menu
                 SizedBox(
                   height: 28,
                   width: 28,
                   child: PopupMenuButton<String>(
                     padding: EdgeInsets.zero,
-                    icon: const Icon(Icons.more_vert, size: 16, color: Colors.grey),
+                    icon: const Icon(Icons.more_vert,
+                        size: 16, color: Colors.grey),
                     onSelected: (value) {
                       if (value == 'block') onBlock();
                       if (value == 'unblock') onUnblock();
@@ -136,7 +178,8 @@ class BookingCard extends StatelessWidget {
                           value: 'unblock',
                           child: Row(
                             children: [
-                              Icon(Icons.check_circle, color: Colors.green, size: 18),
+                              Icon(Icons.check_circle,
+                                  color: Colors.green, size: 18),
                               SizedBox(width: 8),
                               Text('Unblock Player'),
                             ],
@@ -173,7 +216,8 @@ class BookingCard extends StatelessWidget {
                           color: Colors.green,
                         ),
                       ),
-                      const Text('to', style: TextStyle(fontSize: 8, color: Colors.grey)),
+                      const Text('to',
+                          style: TextStyle(fontSize: 8, color: Colors.grey)),
                       Text(
                         booking.endTime,
                         style: const TextStyle(
@@ -204,11 +248,13 @@ class BookingCard extends StatelessWidget {
                         const SizedBox(height: 2),
                         Row(
                           children: [
-                            const Icon(Icons.phone, size: 12, color: Colors.grey),
+                            const Icon(Icons.phone,
+                                size: 12, color: Colors.grey),
                             const SizedBox(width: 4),
                             Text(
                               booking.customerPhone!,
-                              style: const TextStyle(fontSize: 12, color: Colors.grey),
+                              style: const TextStyle(
+                                  fontSize: 12, color: Colors.grey),
                             ),
                           ],
                         ),
@@ -217,7 +263,8 @@ class BookingCard extends StatelessWidget {
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
                               color: Colors.blue.shade100,
                               borderRadius: BorderRadius.circular(4),
@@ -232,7 +279,8 @@ class BookingCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
                               color: Colors.orange.shade100,
                               borderRadius: BorderRadius.circular(4),
@@ -260,40 +308,123 @@ class BookingCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: booking.isPaid ? Colors.green : Colors.orange,
+                        color: isPaid ? Colors.green : Colors.orange,
                       ),
                     ),
                     const SizedBox(height: 4),
 
-                    // Not checked in yet
-                    if (!booking.isCheckedIn && !booking.isCancelled && !booking.isCompleted)
+                    // ============================================
+// ACTION BUTTONS BASED ON PAYMENT METHOD
+// ============================================
+
+// CASE 1: COD - Not checked in yet
+                    if (isCOD && !isCheckedIn && !isCompleted && !isCancelled)
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.login, color: Colors.green, size: 20),
+                            icon: const Icon(Icons.login,
+                                color: Colors.green, size: 20),
+                            onPressed: onCheckIn,
+                            tooltip: 'Check In',
+                          ),
+                          if (!isPaid)
+                            IconButton(
+                              icon: const Icon(Icons.cancel,
+                                  color: Colors.red, size: 20),
+                              onPressed: onCancel,
+                              tooltip: 'Cancel',
+                            ),
+                        ],
+                      ),
+
+// CASE 2: COD - Checked in, not paid yet
+                    if (isCOD &&
+                        isCheckedIn &&
+                        !isCompleted &&
+                        !isCancelled &&
+                        !isPaid)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.payments,
+                                color: Colors.orange, size: 20),
+                            onPressed: onMarkPaid,
+                            tooltip: 'Mark as Paid',
+                          ),
+                        ],
+                      ),
+
+// CASE 3: KHALTI - Payment FAILED (isPaid = false) - Not checked in yet
+                    if (isKhalti &&
+                        !isPaid &&
+                        !isCheckedIn &&
+                        !isCompleted &&
+                        !isCancelled)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.login,
+                                color: Colors.green, size: 20),
                             onPressed: onCheckIn,
                             tooltip: 'Check In',
                           ),
                           IconButton(
-                            icon: const Icon(Icons.cancel, color: Colors.red, size: 20),
+                            icon: const Icon(Icons.cancel,
+                                color: Colors.red, size: 20),
                             onPressed: onCancel,
                             tooltip: 'Cancel',
                           ),
                         ],
                       ),
 
-                    // Checked in - Show only "Mark as Paid" button (Complete removed)
-                    if (booking.isCheckedIn && !booking.isCompleted && !booking.isCancelled)
+// CASE 4: KHALTI - Payment FAILED (isPaid = false) - Already checked in
+                    if (isKhalti &&
+                        !isPaid &&
+                        isCheckedIn &&
+                        !isCompleted &&
+                        !isCancelled)
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.payments, color: Colors.orange, size: 20),
+                            icon: const Icon(Icons.payments,
+                                color: Colors.orange, size: 20),
                             onPressed: onMarkPaid,
                             tooltip: 'Mark as Paid',
                           ),
                         ],
+                      ),
+
+// CASE 5: KHALTI - Successfully paid (isPaid = true) - Not checked in yet
+                    if (isKhalti &&
+                        !isCheckedIn &&
+                        !isCompleted &&
+                        !isCancelled &&
+                        isPaid)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.login,
+                                color: Colors.green, size: 20),
+                            onPressed: onCheckIn,
+                            tooltip: 'Check In',
+                          ),
+                        ],
+                      ),
+
+// CASE 6: KHALTI - Already checked in and paid
+                    if (isKhalti &&
+                        isCheckedIn &&
+                        !isCompleted &&
+                        !isCancelled &&
+                        isPaid)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [],
                       ),
                   ],
                 ),
