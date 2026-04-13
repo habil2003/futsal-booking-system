@@ -262,9 +262,14 @@ int totalPages = 0;
 Map<String, dynamic> _adminAnalytics = {};
 Map<String, dynamic> get adminAnalytics => _adminAnalytics;
 
-Future<void> loadAdminAnalytics() async {
+// Find this method and update it:
+Future<void> loadAdminAnalytics({int? futsalId}) async {
   try {
-    final response = await ApiService.getAdminAnalytics();
+    String url = 'admin/analytics';
+    if (futsalId != null) {
+      url += '?futsalId=$futsalId';
+    }
+    final response = await ApiService.get(url);
     _adminAnalytics = response;
     notifyListeners();
   } catch (e) {

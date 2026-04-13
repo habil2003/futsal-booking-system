@@ -1,5 +1,8 @@
 import { prisma } from '../index.js';
 import cron from 'node-cron';
+import { generateSlotsForCourt } from '../utils/slotHelpers.js';
+import { getSlotGenerationDays } from "../utils/settings.js";
+
 
 /**
  * Release expired slot locks
@@ -100,17 +103,20 @@ export const generateMissingSlots = async () => {
   try {
     console.log('🔄 Checking for courts needing slot generation...');
 
-    // Get all active courts
+    // Get all active courts with their futsal (including operatingHours)
     const courts = await prisma.court.findMany({
       where: { isActive: true, isUnderMaintenance: false },
-      include: { futsal: true }
+      include: { 
+        futsal: true 
+      }
     });
 
     const today = new Date();
-    today.setHours(12, 0, 0, 0); // noon UTC to avoid timezone shift
-
+    today.setHours(0, 0, 0, 0);
+    
     const targetDate = new Date(today);
-    targetDate.setDate(targetDate.getDate() + 30); // 30 days ahead
+    const generationDays = await getSlotGenerationDays();
+    targetDate.setDate(targetDate.getDate() + generationDays);
 
     let totalGenerated = 0;
 
@@ -122,57 +128,23 @@ export const generateMissingSlots = async () => {
       });
 
       // Determine start date for generation
-      const startDate = latestSlot
+      let startDate = latestSlot
         ? new Date(latestSlot.date)
         : new Date(today);
-
+      
       // Move to next day after latest slot
       if (latestSlot) {
         startDate.setDate(startDate.getDate() + 1);
-        startDate.setHours(12, 0, 0, 0);
       }
+      
+      startDate.setHours(0, 0, 0, 0);
 
       // If already covered 30 days ahead, skip
       if (startDate >= targetDate) continue;
 
-      // Generate slots from startDate to targetDate
-      const slots = [];
-      for (
-        let d = new Date(startDate);
-        d <= targetDate;
-        d.setDate(d.getDate() + 1)
-      ) {
-        const currentDate = new Date(Date.UTC(
-          d.getFullYear(),
-          d.getMonth(),
-          d.getDate(),
-          12, 0, 0, 0  // ✅ noon UTC — safe from timezone shift
-        ));
-
-        for (let hour = 8; hour < 22; hour++) {
-          const startTime = `${hour.toString().padStart(2, '0')}:00`;
-          const endTime = `${(hour + 1).toString().padStart(2, '0')}:00`;
-
-          const isPeakHour = hour >= 17 && hour <= 20;
-          const dayOfWeek = currentDate.getDay();
-          const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-
-          let price = court.basePrice;
-          if (court.peakPrice && (isPeakHour || isWeekend)) {
-            price = court.peakPrice;
-          }
-
-          slots.push({
-            courtId: court.id,
-            date: currentDate,
-            startTime,
-            endTime,
-            price,
-            status: 'AVAILABLE'
-          });
-        }
-      }
-
+      // Generate missing slots using operating hours
+      const slots = await generateSlotsForCourt(court, court.futsal, startDate, targetDate);
+      
       if (slots.length > 0) {
         const result = await prisma.timeSlot.createMany({
           data: slots,

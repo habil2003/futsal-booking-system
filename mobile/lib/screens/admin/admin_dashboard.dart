@@ -4,6 +4,7 @@ import '../../providers/admin_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/admin/futsal_details_modal.dart';
 import '../../widgets/admin/admin_edit_profile_dialog.dart';
+import '../admin/admin_revenue_screen.dart';  // ✅ ADD THIS
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -288,50 +289,70 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Widget _buildQuickActions() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final itemWidth = (constraints.maxWidth - 36) / 2;
-        return Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            _actionButton(
-                "Pending Futsals",
-                Icons.approval,
-                Colors.orange,
-                () => Navigator.pushNamed(context, "/admin/futsal-approvals"),
-                itemWidth),
-            _actionButton("Manage Users", Icons.people_alt, Colors.blue,
-                () => Navigator.pushNamed(context, "/admin/users"), itemWidth),
-            _actionButton(
-                "All Futsals",
-                Icons.sports_soccer,
-                Colors.green,
-                () => Navigator.pushNamed(context, "/admin/futsals"),
-                itemWidth),
-            _actionButton(
-                "All Bookings",
-                Icons.book_online,
-                Colors.teal,
-                () => Navigator.pushNamed(context, "/admin/bookings"),
-                itemWidth),
-            _actionButton(
-                "Settings",
-                Icons.settings,
-                Colors.grey,
-                () => Navigator.pushNamed(context, "/admin/settings"),
-                itemWidth),
-            _actionButton(
-                "Analytics",
-                Icons.analytics,
-                Colors.indigo,
-                () => Navigator.pushNamed(context, "/admin/analytics"),
-                itemWidth),
-          ],
-        );
-      },
-    );
-  }
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      final itemWidth = (constraints.maxWidth - 36) / 2;
+      return Wrap(
+        spacing: 12,
+        runSpacing: 12,
+        children: [
+          _actionButton(
+            "Pending Futsals",
+            Icons.approval,
+            Colors.orange,
+            () => Navigator.pushNamed(context, "/admin/futsal-approvals"),
+            itemWidth,
+          ),
+          _actionButton(
+            "Manage Users",
+            Icons.people_alt,
+            Colors.blue,
+            () => Navigator.pushNamed(context, "/admin/users"),
+            itemWidth,
+          ),
+          _actionButton(
+            "All Futsals",
+            Icons.sports_soccer,
+            Colors.green,
+            () => Navigator.pushNamed(context, "/admin/futsals"),
+            itemWidth,
+          ),
+          _actionButton(
+            "All Bookings",
+            Icons.book_online,
+            Colors.teal,
+            () => Navigator.pushNamed(context, "/admin/bookings"),
+            itemWidth,
+          ),
+          _actionButton(
+            "Revenue Analytics",  // ✅ NEW BUTTON
+            Icons.analytics,
+            Colors.purple,
+            () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AdminRevenueScreen()),
+            ),
+            itemWidth,
+          ),
+          _actionButton(
+            "Settings",
+            Icons.settings,
+            Colors.grey,
+            () => Navigator.pushNamed(context, "/admin/settings"),
+            itemWidth,
+          ),
+          _actionButton(
+            "Analytics",
+            Icons.analytics_outlined,
+            Colors.indigo,
+            () => Navigator.pushNamed(context, "/admin/analytics"),
+            itemWidth,
+          ),
+        ],
+      );
+    },
+  );
+}
 
   Widget _actionButton(String title, IconData icon, Color color,
       VoidCallback onTap, double width) {

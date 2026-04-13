@@ -1,4 +1,5 @@
 import { prisma } from "../index.js";
+import { generateSlotsForCourt } from "../utils/slotHelpers.js";
 
 /**
  * Get all approved futsals
@@ -9,7 +10,6 @@ export const getAllFutsals = async (req, res) => {
 
     let whereClause = { status: 'ACTIVE' };
 
-    // Add location-based filtering if coordinates provided (optional)
     if (lat && lng && radius) {
       whereClause = {
         ...whereClause,
@@ -50,7 +50,6 @@ export const getAllFutsals = async (req, res) => {
       },
     });
 
-    // Calculate average rating for each futsal
     const futsalsWithRating = futsals.map((futsal) => {
       const avgRating =
         futsal.reviews.length > 0
@@ -58,7 +57,6 @@ export const getAllFutsals = async (req, res) => {
             futsal.reviews.length
           : 0;
 
-      // Remove reviews from response to keep it clean
       const { reviews, ...futsalWithoutReviews } = futsal;
 
       return {
@@ -140,7 +138,6 @@ export const getFutsalById = async (req, res) => {
       });
     }
 
-    // Calculate average rating
     const avgRating =
       futsal.reviews.length > 0
         ? futsal.reviews.reduce((sum, review) => sum + review.rating, 0) /
@@ -168,6 +165,9 @@ export const getFutsalById = async (req, res) => {
 /**
  * Get available slots for a futsal
  */
+/**
+ * Get available slots for a futsal
+ */
 export const getFutsalSlots = async (req, res) => {
   try {
     const { id } = req.params;
@@ -180,14 +180,17 @@ export const getFutsalSlots = async (req, res) => {
       });
     }
 
-    // Parse date
     const queryDate = new Date(date);
     queryDate.setHours(0, 0, 0, 0);
-
     const nextDay = new Date(queryDate);
     nextDay.setDate(nextDay.getDate() + 1);
 
-    // FIXED: Use court relation instead of direct futsalId
+    // Get current time for today's date
+    const now = new Date();
+    const isToday = queryDate.toDateString() === now.toDateString();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+
     const slots = await prisma.timeSlot.findMany({
       where: {
         court: {
@@ -209,8 +212,19 @@ export const getFutsalSlots = async (req, res) => {
       orderBy: [{ court: { courtNumber: "asc" } }, { startTime: "asc" }],
     });
 
-    // Format response to match frontend expectations
-    const formattedSlots = slots.map((slot) => ({
+    // ✅ Filter out past slots for today
+    let filteredSlots = slots;
+    if (isToday) {
+      filteredSlots = slots.filter((slot) => {
+        const [hour, minute] = slot.startTime.split(':').map(Number);
+        // Hide slots that have already started or passed
+        if (hour < currentHour) return false;
+        if (hour === currentHour && minute <= currentMinute) return false;
+        return true;
+      });
+    }
+
+    const formattedSlots = filteredSlots.map((slot) => ({
       id: slot.id,
       courtId: slot.courtId,
       courtNumber: slot.court.courtNumber,
@@ -238,6 +252,57 @@ export const getFutsalSlots = async (req, res) => {
 };
 
 /**
+ * Helper function to regenerate future slots when operating hours change
+ */
+async function regenerateFutureSlots(futsalId) {
+  console.log(`🔄 Regenerating future slots for futsal ${futsalId}...`);
+  
+  const futsal = await prisma.futsal.findUnique({
+    where: { id: futsalId },
+    include: { courts: { where: { isActive: true } } }
+  });
+  
+  if (!futsal || futsal.courts.length === 0) {
+    console.log(`⚠️ No active courts found for futsal ${futsalId}`);
+    return;
+  }
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const thirtyDaysLater = new Date(today);
+  thirtyDaysLater.setDate(thirtyDaysLater.getDate() + 30);
+  
+  let totalGenerated = 0;
+  let totalDeleted = 0;
+  
+  for (const court of futsal.courts) {
+    // Delete future available slots (only AVAILABLE ones, keep BOOKED/LOCKED)
+    const deleted = await prisma.timeSlot.deleteMany({
+      where: {
+        courtId: court.id,
+        date: { gte: today, lte: thirtyDaysLater },
+        status: 'AVAILABLE'
+      }
+    });
+    totalDeleted += deleted.count;
+    
+    // Generate new slots with updated operating hours
+    const slots = await generateSlotsForCourt(court, futsal, today, thirtyDaysLater);
+    
+    if (slots.length > 0) {
+      const result = await prisma.timeSlot.createMany({
+        data: slots,
+        skipDuplicates: true
+      });
+      totalGenerated += result.count;
+      console.log(`✅ Court ${court.courtNumber}: Deleted ${deleted.count}, Generated ${result.count} slots`);
+    }
+  }
+  
+  console.log(`🎯 Total: Deleted ${totalDeleted} slots, Generated ${totalGenerated} slots`);
+}
+
+/**
  * Create a new futsal
  */
 export const createFutsal = async (req, res) => {
@@ -249,7 +314,7 @@ export const createFutsal = async (req, res) => {
       images,
       latitude,
       longitude,
-      operatingHours, // ← ADDED operatingHours
+      operatingHours,
     } = req.body;
 
     if (!name || !address) {
@@ -274,7 +339,7 @@ export const createFutsal = async (req, res) => {
         images: images || [],
         latitude: latitude ? parseFloat(latitude) : null,
         longitude: longitude ? parseFloat(longitude) : null,
-        operatingHours: operatingHours || null, // ← ADDED operatingHours
+        operatingHours: operatingHours || null,
         ownerId: req.user.id,
         status: 'PENDING',
       },
@@ -308,10 +373,11 @@ export const updateFutsal = async (req, res) => {
       latitude,
       longitude,
       operatingHours,
-      isApproved,  // Keep for backward compatibility
-      status,      // New status field
-      toggleActive, // For toggling
+      isApproved,
+      status,
+      toggleActive,
     } = req.body;
+    
 
     const existingFutsal = await prisma.futsal.findFirst({
       where: {
@@ -327,15 +393,23 @@ export const updateFutsal = async (req, res) => {
       });
     }
 
-    // Handle toggle active - if toggleActive is true, flip the status
+    // In updateFutsal function, add these logs:
+console.log("🔵 Operating hours from request:", operatingHours);
+console.log("🔵 Existing operating hours:", existingFutsal.operatingHours);
+console.log("🔵 operatingHoursChanged:", operatingHours && 
+  JSON.stringify(operatingHours) !== JSON.stringify(existingFutsal.operatingHours));
+
+    // Handle toggle active
     let newStatus = status;
     if (toggleActive) {
       newStatus = existingFutsal.status === 'ACTIVE' ? 'DEACTIVATED' : 'ACTIVE';
-    } 
-    // Handle old isApproved for backward compatibility
-    else if (isApproved !== undefined) {
+    } else if (isApproved !== undefined) {
       newStatus = isApproved ? 'ACTIVE' : 'DEACTIVATED';
     }
+
+    // Check if operating hours changed
+    const operatingHoursChanged = operatingHours && 
+      JSON.stringify(operatingHours) !== JSON.stringify(existingFutsal.operatingHours);
 
     const futsal = await prisma.futsal.update({
       where: { id: parseInt(id) },
@@ -350,6 +424,11 @@ export const updateFutsal = async (req, res) => {
         status: newStatus !== undefined ? newStatus : undefined,
       },
     });
+
+    // ✅ If operating hours changed, regenerate future slots
+    if (operatingHoursChanged) {
+      await regenerateFutureSlots(parseInt(id));
+    }
 
     res.json({
       status: "success",
@@ -373,7 +452,6 @@ export const deleteFutsal = async (req, res) => {
     const { id } = req.params;
     const futsalId = parseInt(id);
 
-    // First check if futsal exists and user has permission
     const existingFutsal = await prisma.futsal.findFirst({
       where: {
         id: futsalId,
@@ -388,7 +466,6 @@ export const deleteFutsal = async (req, res) => {
       });
     }
 
-    // Check if futsal has any bookings
     const bookingCount = await prisma.booking.count({
       where: {
         slot: {
@@ -399,14 +476,12 @@ export const deleteFutsal = async (req, res) => {
       },
     });
 
-    // Check if futsal has any favorites
     const favoriteCount = await prisma.favorite.count({
       where: {
         futsalId: futsalId,
       },
     });
 
-    // If there are bookings or favorites, prevent deletion
     if (bookingCount > 0 || favoriteCount > 0) {
       return res.status(400).json({
         status: "error",
@@ -419,7 +494,6 @@ export const deleteFutsal = async (req, res) => {
       });
     }
 
-    // If no related data, proceed with deletion
     await prisma.futsal.delete({
       where: { id: futsalId },
     });
@@ -465,7 +539,6 @@ export const getMyFutsals = async (req, res) => {
       },
     });
 
-    // Add court count to response
     const futsalsWithCount = futsals.map((futsal) => ({
       ...futsal,
       courtCount: futsal._count?.courts || 0,

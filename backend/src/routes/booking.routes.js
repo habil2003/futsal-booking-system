@@ -125,4 +125,5 @@ router.get('/owner/month/:year/:month', authenticate, authorize('OWNER'), getOwn
  */
 router.get('/owner/all', authenticate, authorize('OWNER'), getOwnerBookings);
 
+
 export default router;

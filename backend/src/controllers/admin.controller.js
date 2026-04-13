@@ -344,6 +344,7 @@ export const getAllBookings = async (req, res, next) => {
       date: b.slot.date,
       startTime: b.slot.startTime,
       endTime: b.slot.endTime,
+      duration: b.duration,  // ✅ Added
       totalPrice: b.totalPrice,
       paymentMethod: b.paymentMethod,
       paymentStatus: b.payment?.status ?? 'PENDING',
@@ -368,70 +369,99 @@ export const getAllBookings = async (req, res, next) => {
  */
 export const getAdminAnalytics = async (req, res, next) => {
   try {
-    // Last 7 days revenue
+    const { futsalId } = req.query; // ✅ Add this line
+    
+    // Build where clause for futsal filtering
+    const futsalFilter = futsalId ? { id: parseInt(futsalId) } : {};
+    
+    // Last 7 days revenue (with futsal filter)
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-
+    
     const weeklyRevenue = [];
     for (let i = 6; i >= 0; i--) {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
       const nextDate = new Date(date);
       nextDate.setDate(nextDate.getDate() + 1);
-
+      
+      // Add futsal filter to revenue query
       const revenue = await prisma.booking.aggregate({
         where: {
-          slot: { date: { gte: date, lt: nextDate } },
+          slot: { 
+            date: { gte: date, lt: nextDate },
+            court: futsalId ? { futsalId: parseInt(futsalId) } : {}
+          },
           status: { in: ['CONFIRMED', 'COMPLETED'] },
         },
         _sum: { totalPrice: true },
       });
-
       weeklyRevenue.push(revenue._sum.totalPrice || 0);
     }
-
-    // Bookings by status
+    
+    // Bookings by status (with futsal filter)
     const bookingsByStatus = await prisma.booking.groupBy({
       by: ['status'],
+      where: {
+        slot: futsalId ? {
+          court: { futsalId: parseInt(futsalId) }
+        } : {}
+      },
       _count: { status: true },
     });
-
-    // Top futsals by bookings
-    const topFutsalsData = await prisma.booking.groupBy({
-      by: ['slotId'],
-      _count: { id: true },
-      orderBy: { _count: { id: 'desc' } },
-      take: 5,
-    });
-
-    // Get futsal names for top bookings
-    const topFutsals = await Promise.all(
-      topFutsalsData.map(async (item) => {
-        const slot = await prisma.timeSlot.findUnique({
-          where: { id: item.slotId },
-          include: {
-            court: {
-              include: { futsal: { select: { name: true } } }
+    
+    // Top futsals (only if no specific futsal selected)
+    let topFutsals = [];
+    if (!futsalId) {
+      const topFutsalsData = await prisma.booking.groupBy({
+        by: ['slotId'],
+        _count: { id: true },
+        orderBy: { _count: { id: 'desc' } },
+        take: 5,
+      });
+      
+      topFutsals = await Promise.all(
+        topFutsalsData.map(async (item) => {
+          const slot = await prisma.timeSlot.findUnique({
+            where: { id: item.slotId },
+            include: {
+              court: {
+                include: { futsal: { select: { id: true, name: true } } }
+              }
             }
-          }
-        });
-        return {
-          futsalName: slot?.court?.futsal?.name || 'Unknown',
-          bookings: item._count.id,
-        };
-      })
-    );
-
-    // Total stats
-    const totalBookings = await prisma.booking.count();
+          });
+          return {
+            futsalId: slot?.court?.futsal?.id,
+            futsalName: slot?.court?.futsal?.name || 'Unknown',
+            bookings: item._count.id,
+          };
+        })
+      );
+    }
+    
+    // Total stats (with futsal filter)
+    const totalBookings = await prisma.booking.count({
+      where: {
+        slot: futsalId ? {
+          court: { futsalId: parseInt(futsalId) }
+        } : {}
+      },
+    });
+    
     const totalRevenue = await prisma.booking.aggregate({
       _sum: { totalPrice: true },
-      where: { status: { in: ['CONFIRMED', 'COMPLETED'] } },
+      where: {
+        status: { in: ['CONFIRMED', 'COMPLETED'] },
+        slot: futsalId ? {
+          court: { futsalId: parseInt(futsalId) }
+        } : {}
+      },
     });
+    
     const activeUsers = await prisma.user.count({
       where: { isActive: true },
     });
-
+    
     res.json({
       status: 'success',
       weeklyRevenue,
@@ -516,5 +546,471 @@ export const updateAdminProfile = async (req, res, next) => {
   } catch (error) {
     console.error('❌ Update Profile Error:', error);
     next(error);
+  }
+};
+
+// ============================================
+// REVENUE ANALYTICS ENDPOINTS
+// ============================================
+
+/**
+ * Get revenue overview (platform earnings)
+ * @route   GET /api/admin/revenue/overview
+ */
+export const getRevenueOverview = async (req, res) => {
+  try {
+    const { period = "month", from, to } = req.query;
+    
+    let startDate, endDate;
+    const now = new Date();
+    
+    // Set date range based on period
+    if (from && to) {
+      startDate = new Date(from);
+      endDate = new Date(to);
+    } else {
+      switch (period) {
+        case "today":
+          startDate = new Date(now);
+          startDate.setHours(0, 0, 0, 0);
+          endDate = new Date(now);
+          endDate.setHours(23, 59, 59, 999);
+          break;
+        case "week":
+          startDate = new Date(now);
+          startDate.setDate(now.getDate() - 7);
+          endDate = now;
+          break;
+        case "month":
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+          endDate = now;
+          break;
+        case "year":
+          startDate = new Date(now.getFullYear(), 0, 1);
+          endDate = now;
+          break;
+        default:
+          startDate = new Date(now);
+          startDate.setDate(now.getDate() - 30);
+          endDate = now;
+      }
+    }
+
+    // Get total revenue (platform commission)
+    const totalRevenue = await prisma.transaction.aggregate({
+      where: {
+        createdAt: { gte: startDate, lte: endDate },
+        status: "COMPLETED",
+      },
+      _sum: { commission: true },
+    });
+
+    // Get total bookings count
+    const totalBookings = await prisma.booking.count({
+      where: {
+        bookingDate: { gte: startDate, lte: endDate },
+        status: { in: ["CONFIRMED", "COMPLETED"] },
+      },
+    });
+
+    // Get pending payouts (commission not yet paid to platform? Actually commission is platform revenue)
+    const pendingCommission = await prisma.transaction.aggregate({
+      where: {
+        createdAt: { gte: startDate, lte: endDate },
+        status: "PENDING",
+      },
+      _sum: { commission: true },
+    });
+
+    // Get average booking value
+    const avgBookingValue = totalBookings > 0 
+      ? (totalRevenue._sum.commission || 0) / totalBookings 
+      : 0;
+
+    res.json({
+      status: "success",
+      data: {
+        totalRevenue: totalRevenue._sum.commission || 0,
+        totalBookings,
+        pendingCommission: pendingCommission._sum.commission || 0,
+        avgBookingValue,
+        period: { startDate, endDate },
+      },
+    });
+  } catch (error) {
+    console.error("Get revenue overview error:", error);
+    res.status(500).json({ status: "error", message: error.message });
+  }
+};
+
+/**
+ * Get commission breakdown by futsal
+ * @route   GET /api/admin/revenue/commission-breakdown
+ */
+export const getCommissionBreakdown = async (req, res) => {
+  try {
+    const { futsalId, from, to } = req.query;
+    
+    const startDate = from ? new Date(from) : new Date(new Date().setDate(new Date().getDate() - 30));
+    const endDate = to ? new Date(to) : new Date();
+    
+    const whereCondition = {
+      createdAt: { gte: startDate, lte: endDate },
+      status: "COMPLETED",
+    };
+    
+    if (futsalId) {
+      whereCondition.futsalId = parseInt(futsalId);
+    }
+    
+    // Get transactions grouped by futsal
+    const transactions = await prisma.transaction.groupBy({
+      by: ['futsalId'],
+      where: whereCondition,
+      _sum: {
+        amount: true,
+        commission: true,
+        ownerEarning: true,
+      },
+      _count: {
+        id: true,
+      },
+      orderBy: {
+        _sum: { commission: 'desc' },
+      },
+    });
+    
+    // Get futsal names
+    const breakdown = await Promise.all(
+      transactions.map(async (item) => {
+        const futsal = await prisma.futsal.findUnique({
+          where: { id: item.futsalId },
+          select: { name: true, owner: { select: { fullName: true } } },
+        });
+        
+        return {
+          futsalId: item.futsalId,
+          futsalName: futsal?.name || 'Unknown',
+          ownerName: futsal?.owner?.fullName || 'Unknown',
+          totalBookings: item._count.id,
+          totalAmount: item._sum.amount || 0,
+          totalCommission: item._sum.commission || 0,
+          totalOwnerEarning: item._sum.ownerEarning || 0,
+        };
+      })
+    );
+    
+    // Get overall totals
+    const totals = await prisma.transaction.aggregate({
+      where: whereCondition,
+      _sum: {
+        amount: true,
+        commission: true,
+        ownerEarning: true,
+      },
+      _count: { id: true },
+    });
+    
+    res.json({
+      status: "success",
+      data: {
+        breakdown,
+        totals: {
+          totalBookings: totals._count.id || 0,
+          totalAmount: totals._sum.amount || 0,
+          totalCommission: totals._sum.commission || 0,
+          totalOwnerEarning: totals._sum.ownerEarning || 0,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Get commission breakdown error:", error);
+    res.status(500).json({ status: "error", message: error.message });
+  }
+};
+
+/**
+ * Get revenue trends (daily/weekly/monthly)
+ * @route   GET /api/admin/revenue/trends
+ */
+export const getRevenueTrends = async (req, res) => {
+  try {
+    const { interval = "daily", days = 30 } = req.query;
+    const numDays = parseInt(days);
+    
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - numDays);
+    
+    const results = [];
+    let currentDate = new Date(startDate);
+    
+    if (interval === "daily") {
+      while (currentDate <= endDate) {
+        const dayStart = new Date(currentDate);
+        dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(currentDate);
+        dayEnd.setHours(23, 59, 59, 999);
+        
+        const revenue = await prisma.transaction.aggregate({
+          where: {
+            createdAt: { gte: dayStart, lte: dayEnd },
+            status: "COMPLETED",
+          },
+          _sum: { commission: true },
+          _count: { id: true },
+        });
+        
+        results.push({
+          date: currentDate.toISOString().split('T')[0],
+          label: currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          revenue: revenue._sum.commission || 0,
+          bookings: revenue._count.id || 0,
+        });
+        
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+    } else if (interval === "weekly") {
+      while (currentDate <= endDate) {
+        const weekStart = new Date(currentDate);
+        const weekEnd = new Date(currentDate);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+        
+        const revenue = await prisma.transaction.aggregate({
+          where: {
+            createdAt: { gte: weekStart, lte: weekEnd },
+            status: "COMPLETED",
+          },
+          _sum: { commission: true },
+          _count: { id: true },
+        });
+        
+        results.push({
+          week: `Week ${Math.ceil(currentDate.getDate() / 7)}`,
+          label: `${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+          revenue: revenue._sum.commission || 0,
+          bookings: revenue._count.id || 0,
+        });
+        
+        currentDate.setDate(currentDate.getDate() + 7);
+      }
+    }
+    
+    res.json({
+      status: "success",
+      data: results,
+    });
+  } catch (error) {
+    console.error("Get revenue trends error:", error);
+    res.status(500).json({ status: "error", message: error.message });
+  }
+};
+
+/**
+ * Get pending payout requests
+ * @route   GET /api/admin/revenue/payouts
+ */
+export const getPayoutRequests = async (req, res) => {
+  try {
+    const { status = "PENDING" } = req.query;
+    
+    const payouts = await prisma.payout.findMany({
+      where: { status },
+      include: {
+        owner: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phoneNumber: true,
+          },
+        },
+        transactions: true,
+      },
+      orderBy: { requestDate: "desc" },
+    });
+    
+    res.json({
+      status: "success",
+      data: payouts,
+    });
+  } catch (error) {
+    console.error("Get payout requests error:", error);
+    res.status(500).json({ status: "error", message: error.message });
+  }
+};
+
+/**
+ * Process payout (mark as completed)
+ * @route   POST /api/admin/revenue/payouts/:id/process
+ */
+export const processPayout = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { notes } = req.body;
+    
+    const payout = await prisma.payout.findUnique({
+      where: { id: parseInt(id) },
+      include: { transactions: true },
+    });
+    
+    if (!payout) {
+      return res.status(404).json({ status: "error", message: "Payout not found" });
+    }
+    
+    // Update payout status
+    const updatedPayout = await prisma.payout.update({
+      where: { id: parseInt(id) },
+      data: {
+        status: "COMPLETED",
+        processedAt: new Date(),
+        notes: notes || null,
+      },
+    });
+    
+    // Update all associated transactions to mark owner as paid
+    await prisma.transaction.updateMany({
+      where: { payoutId: payout.id },
+      data: { status: "COMPLETED" },
+    });
+    
+    // Update bookings to mark owner as paid
+    for (const transaction of payout.transactions) {
+      await prisma.booking.updateMany({
+        where: { id: transaction.bookingId },
+        data: { ownerPaid: true },
+      });
+    }
+    
+    res.json({
+      status: "success",
+      message: "Payout processed successfully",
+      data: updatedPayout,
+    });
+  } catch (error) {
+    console.error("Process payout error:", error);
+    res.status(500).json({ status: "error", message: error.message });
+  }
+};
+
+/**
+ * Update commission rate
+ * @route   PUT /api/admin/revenue/commission-rate
+ */
+export const updateCommissionRate = async (req, res) => {
+  try {
+    const { rate } = req.body;
+    
+    if (!rate || rate < 0 || rate > 100) {
+      return res.status(400).json({
+        status: "error",
+        message: "Commission rate must be between 0 and 100",
+      });
+    }
+    
+    // Update system settings
+    const settings = await prisma.systemSettings.findFirst();
+    
+    if (settings) {
+      await prisma.systemSettings.update({
+        where: { id: settings.id },
+        data: { commissionRate: rate },
+      });
+    } else {
+      await prisma.systemSettings.create({
+        data: { commissionRate: rate },
+      });
+    }
+    
+    res.json({
+      status: "success",
+      message: `Commission rate updated to ${rate}%`,
+      data: { rate },
+    });
+  } catch (error) {
+    console.error("Update commission rate error:", error);
+    res.status(500).json({ status: "error", message: error.message });
+  }
+};
+
+/**
+ * Get commission rate
+ * @route   GET /api/admin/revenue/commission-rate
+ */
+export const getCommissionRate = async (req, res) => {
+  try {
+    const settings = await prisma.systemSettings.findFirst();
+    const rate = settings?.commissionRate || 5.0;
+    
+    res.json({
+      status: "success",
+      data: { rate },
+    });
+  } catch (error) {
+    console.error("Get commission rate error:", error);
+    res.status(500).json({ status: "error", message: error.message });
+  }
+};
+
+
+/**
+ * Fix missing transactions for completed bookings
+ * @route   POST /api/admin/fix-transactions
+ */
+export const fixMissingTransactions = async (req, res) => {
+  try {
+    // Get all completed bookings without transactions
+    const completedBookings = await prisma.booking.findMany({
+      where: {
+        status: "COMPLETED",
+        transaction: null  // No transaction linked
+      },
+      include: {
+        slot: {
+          include: {
+            court: {
+              include: {
+                futsal: true
+              }
+            }
+          }
+        }
+      }
+    });
+    
+    console.log(`Found ${completedBookings.length} completed bookings without transactions`);
+    
+    let created = 0;
+    const commissionRate = 5; // 5%
+    
+    for (const booking of completedBookings) {
+      const futsal = booking.slot.court.futsal;
+      const commission = (booking.totalPrice * commissionRate) / 100;
+      const ownerEarning = booking.totalPrice - commission;
+      
+      await prisma.transaction.create({
+        data: {
+          bookingId: booking.id,
+          futsalId: futsal.id,
+          ownerId: futsal.ownerId,
+          amount: booking.totalPrice,
+          commission: commission,
+          ownerEarning: ownerEarning,
+          status: "COMPLETED",
+          type: "BOOKING",
+          createdAt: booking.bookingDate
+        }
+      });
+      created++;
+    }
+    
+    res.json({
+      status: "success",
+      message: `Created ${created} transactions for completed bookings`,
+      created
+    });
+  } catch (error) {
+    console.error("Fix transactions error:", error);
+    res.status(500).json({ status: "error", message: error.message });
   }
 };

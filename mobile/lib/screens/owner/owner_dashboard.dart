@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/futsal_provider.dart';
 import '../../providers/dashboard_provider.dart';
@@ -11,6 +12,7 @@ import '../owner/tournament_list_screen.dart';
 import 'owner_reviews_screen.dart';
 import 'analytics_screen.dart';
 import 'blocked_players_screen.dart';
+import 'owner_earnings_screen.dart';
 import 'dashboard/widgets/dashboard_futsal_card.dart';
 import 'dashboard/widgets/stats_card.dart';
 import 'dashboard/widgets/quick_actions.dart';
@@ -30,8 +32,45 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadSavedFutsal();
       _loadAllData();
     });
+  }
+
+// Load saved futsal from SharedPreferences
+Future<void> _loadSavedFutsal() async {
+  final prefs = await SharedPreferences.getInstance();
+  final savedFutsalId = prefs.getInt('selected_futsal_id');
+  
+  if (savedFutsalId != null) {
+    final futsalProvider = Provider.of<FutsalProvider>(context, listen: false);
+    await futsalProvider.fetchMyFutsals();
+    
+    // Find the saved futsal or use first one
+    Futsal? savedFutsal;
+    for (var futsal in futsalProvider.myFutsals) {
+      if (futsal.id == savedFutsalId) {
+        savedFutsal = futsal;
+        break;
+      }
+    }
+    
+    if (savedFutsal == null && futsalProvider.myFutsals.isNotEmpty) {
+      savedFutsal = futsalProvider.myFutsals.first;
+    }
+    
+    if (savedFutsal != null && mounted) {
+      setState(() {
+        _selectedFutsal = savedFutsal;
+      });
+    }
+  }
+}
+
+  // Save selected futsal to SharedPreferences
+  Future<void> _saveSelectedFutsal(Futsal futsal) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('selected_futsal_id', futsal.id);
   }
 
   Future<void> _loadAllData() async {
@@ -315,6 +354,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                   setState(() {
                     _selectedFutsal = futsal;
                   });
+                  _saveSelectedFutsal(futsal);
                   Provider.of<DashboardProvider>(context, listen: false)
                       .loadStatistics(futsal.id);
                   Navigator.pop(ctx);
@@ -373,54 +413,60 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
       },
       child: Scaffold(
         appBar: AppBar(
-  title: const Text('Dashboard'),
-  backgroundColor: Colors.green,
-  foregroundColor: Colors.white,
-  elevation: 0,
-  automaticallyImplyLeading: false,
-  actions: [
-    // Owner badge
-    Container(
-      margin: const EdgeInsets.only(right: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.amber.shade700,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white, width: 1),
-      ),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.business, size: 16, color: Colors.white),
-          SizedBox(width: 4),
-          Text('OWNER',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12)),
-        ],
-      ),
-    ),
-    // Switch to player mode
-    IconButton(
-      icon: const Icon(Icons.sports_soccer, color: Colors.white, size: 24),
-      onPressed: () => Navigator.pushReplacementNamed(context, '/player/home'),
-      tooltip: 'Switch to Player Mode',
-    ),
-    // Refresh button
-    IconButton(
-      icon: const Icon(Icons.refresh, color: Colors.white, size: 24),
-      onPressed: _loadAllData,
-      tooltip: 'Refresh all data',
-    ),
-    // Logout button
-    IconButton(
-      icon: const Icon(Icons.logout, color: Colors.white, size: 24),
-      onPressed: _showLogoutConfirmation,
-      tooltip: 'Logout',
-    ),
-  ],
-),
+          title: const Text('Dashboard'),
+          backgroundColor: Colors.green,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          automaticallyImplyLeading: false,
+          actions: [
+            Container(
+              margin: const EdgeInsets.only(right: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade700,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white, width: 1),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.business, size: 16, color: Colors.white),
+                  SizedBox(width: 4),
+                  Text('OWNER',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12)),
+                ],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.sports_soccer, color: Colors.white, size: 24),
+              onPressed: () => Navigator.pushReplacementNamed(context, '/player/home'),
+              tooltip: 'Switch to Player Mode',
+            ),
+            IconButton(
+              icon: const Icon(Icons.refresh, color: Colors.white, size: 24),
+              onPressed: _loadAllData,
+              tooltip: 'Refresh all data',
+            ),
+            IconButton(
+              icon: const Icon(Icons.money, color: Colors.white, size: 24),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const OwnerEarningsScreen()),
+                );
+              },
+              tooltip: 'My Earnings',
+            ),
+            IconButton(
+              icon: const Icon(Icons.logout, color: Colors.white, size: 24),
+              onPressed: _showLogoutConfirmation,
+              tooltip: 'Logout',
+            ),
+          ],
+        ),
         body: RefreshIndicator(
           onRefresh: _loadAllData,
           child: _buildBody(futsalProvider, dashboardProvider),
@@ -512,7 +558,6 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
         ),
         const SizedBox(height: 16),
 
-        // Quick Actions + Today Schedule - Side by side with equal heights
         isTabletOrDesktop
             ? IntrinsicHeight(
                 child: Row(
@@ -580,7 +625,6 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
 
         const SizedBox(height: 16),
 
-        // My Futsals Section
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 8),
           child: Text('My Futsals',
@@ -588,28 +632,22 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
         ),
         const SizedBox(height: 12),
 
-// Responsive Wrap layout - cards take height based on content
         LayoutBuilder(
           builder: (context, constraints) {
             final screenWidth = constraints.maxWidth;
             final itemCount = futsalProvider.myFutsals.length;
 
-            // Calculate card width based on screen size
             double cardWidth;
             double spacing = 16;
 
             if (screenWidth > 1200) {
-              // Desktop: 3 cards per row
               cardWidth = (screenWidth - (spacing * 2)) / 3;
             } else if (screenWidth > 800) {
-              // Tablet: 2 cards per row
               cardWidth = (screenWidth - spacing) / 2;
             } else {
-              // Mobile: 1 card per row
               cardWidth = screenWidth;
             }
 
-            // Build cards list
             final List<Widget> cards = [];
             for (int i = 0; i < itemCount; i++) {
               final futsal = futsalProvider.myFutsals[i];

@@ -29,6 +29,10 @@ model User {
   ownerBlocks  Block[]      @relation("OwnerBlocks")
   playerBlocks Block[]      @relation("PlayerBlocks")
   favorites    Favorite[]
+  
+  // Revenue/Commission fields
+  payouts      Payout[]
+  transactions Transaction[]
 }
 
 model Futsal {
@@ -50,7 +54,9 @@ model Futsal {
   tournaments Tournament[]
   blocks      Block[]
   favorites   Favorite[]
-  operatingHours Json?  // Store as JSON: { "monday": "6:00-22:00", ... }
+  operatingHours Json?
+  
+  transactions Transaction[]
 }
 
 model Court {
@@ -91,18 +97,26 @@ model Booking {
   userId       Int
   slotId       Int          
   totalPrice   Float
-  duration     Int           @default(1)        // ✅ added
-  paymentMethod String       @default("COD")    // ✅ added
-  groupId      String?                          // ✅ groups multi-hour bookings
+  duration     Int           @default(1)
+  paymentMethod String       @default("COD")
+  groupId      String?
   status       BookingStatus @default(PENDING)
   bookingDate  DateTime      @default(now())
   checkInTime  DateTime?
   checkOutTime DateTime?
-  review     Review?
+  review       Review?
 
   slot         TimeSlot      @relation(fields: [slotId], references: [id])
   user         User          @relation(fields: [userId], references: [id])
   payment      Payment?
+  
+  // Revenue/Commission fields
+  commission      Float?
+  ownerEarning    Float?
+  commissionPaid  Boolean     @default(false)
+  ownerPaid       Boolean     @default(false)
+  
+  transaction     Transaction?
 
   @@index([slotId])
   @@index([status])
@@ -122,22 +136,82 @@ model Payment {
   booking       Booking  @relation(fields: [bookingId], references: [id])
 }
 
+// Transaction model for tracking all financial movements
+model Transaction {
+  id            Int      @id @default(autoincrement())
+  bookingId     Int      @unique
+  futsalId      Int
+  ownerId       Int
+  amount        Float
+  commission    Float
+  ownerEarning  Float
+  status        String   @default("PENDING")
+  type          String   @default("BOOKING")
+    paymentMethod String   @default("COD")  
+  requiresPayout Boolean @default(false)   
+  createdAt     DateTime @default(now())
+  
+  booking       Booking  @relation(fields: [bookingId], references: [id])
+  futsal        Futsal   @relation(fields: [futsalId], references: [id])
+  owner         User     @relation(fields: [ownerId], references: [id])
+  payoutId      Int?
+  payout        Payout?  @relation(fields: [payoutId], references: [id])
+}
+
+// Payout model for owner withdrawal requests
+model Payout {
+  id            Int        @id @default(autoincrement())
+  ownerId       Int
+  amount        Float
+  status        String     @default("PENDING")
+  requestDate   DateTime   @default(now())
+  processedAt   DateTime?
+  notes         String?
+  
+  transactions  Transaction[]
+  owner         User       @relation(fields: [ownerId], references: [id])
+}
+
+// PlatformRevenue model for admin revenue tracking (simplified, no direct booking relation)
+model PlatformRevenue {
+  id            Int      @id @default(autoincrement())
+  amount        Float
+  type          String   // COMMISSION, SUBSCRIPTION, REGISTRATION
+  description   String?
+  bookingId     Int?     // Store as reference without relation
+  createdAt     DateTime @default(now())
+}
+
+// SystemSettings with commission settings
+model SystemSettings {
+  id                       Int      @id @default(autoincrement())
+  autoApproveOwners        Boolean  @default(false)
+  autoApproveFutsals       Boolean  @default(false)
+  maintenanceMode          Boolean  @default(false)
+  bookingCancellationHours Int      @default(2)
+  slotLockMinutes          Int      @default(5)
+  slotGenerationDays       Int      @default(30)
+  commissionRate           Float    @default(5.0)
+  minPayoutAmount          Float    @default(1000)
+  updatedAt                DateTime @updatedAt
+}
+
 model Tournament {
   id          Int            @id @default(autoincrement())
   futsalId    Int
   name        String
-  description String?        // ← ADD
+  description String?
   type        TournamentType
   startDate   DateTime
-  endDate     DateTime?      // ← make optional
+  endDate     DateTime?
   maxTeams    Int
-  entryFee    Float?         // ← ADD
-  prizePool   Float?         // ← ADD
-  rules       String?        // ← ADD
-  prizes      String[]       // ← ADD
-  isPublished Boolean        @default(false)  // ← ADD
-  status      String         @default("DRAFT")  // ← change UPCOMING to DRAFT
-  createdAt   DateTime       @default(now())  // ← ADD
+  entryFee    Float?
+  prizePool   Float?
+  rules       String?
+  prizes      String[]
+  isPublished Boolean        @default(false)
+  status      String         @default("DRAFT")
+  createdAt   DateTime       @default(now())
 
   matches     Match[]
   teams       Team[]
@@ -190,10 +264,10 @@ model Review {
   id        Int      @id @default(autoincrement())
   userId    Int
   futsalId  Int
-  bookingId Int      @unique  // one review per booking
-  rating    Float    // 1.0 to 5.0
+  bookingId Int      @unique
+  rating    Float
   comment   String?
-  reply     String?  // owner's reply
+  reply     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -232,17 +306,6 @@ model Favorite {
   @@unique([userId, futsalId])
 }
 
-model SystemSettings {
-  id                       Int      @id @default(autoincrement())
-  autoApproveOwners        Boolean  @default(false)
-  autoApproveFutsals       Boolean  @default(false)
-  maintenanceMode          Boolean  @default(false)
-  bookingCancellationHours Int      @default(2)
-  slotLockMinutes          Int      @default(5)
-  slotGenerationDays       Int      @default(30)
-  updatedAt                DateTime @updatedAt
-}
-
 enum Role {
   PLAYER
   OWNER
@@ -275,7 +338,7 @@ enum MatchStatus {
 }
 
 enum FutsalStatus {
-  PENDING     // Waiting for admin approval
-  ACTIVE      // Approved and active
-  DEACTIVATED // Owner deactivated
+  PENDING
+  ACTIVE
+  DEACTIVATED
 }

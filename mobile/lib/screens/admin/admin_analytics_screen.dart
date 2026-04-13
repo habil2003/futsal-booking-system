@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
 import '../../providers/admin_provider.dart';
+import '../../services/api_service.dart';
+import '../../models/futsal.dart';
 
 class AdminAnalyticsScreen extends StatefulWidget {
   const AdminAnalyticsScreen({super.key});
@@ -11,12 +13,40 @@ class AdminAnalyticsScreen extends StatefulWidget {
 }
 
 class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
+  Futsal? _selectedFutsal;
+  List<Futsal> _allFutsals = [];
+  bool _loadingFutsals = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<AdminProvider>(context, listen: false).loadAdminAnalytics();
+      _loadFutsalsForFilter();
+      _loadAnalytics();
     });
+  }
+
+  Future<void> _loadFutsalsForFilter() async {
+    setState(() => _loadingFutsals = true);
+    try {
+      final response = await ApiService.get('admin/futsals');
+      if (response['data'] != null) {
+        setState(() {
+          _allFutsals = (response['data'] as List)
+              .map((json) => Futsal.fromJson(json))
+              .toList();
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading futsals: $e');
+    } finally {
+      setState(() => _loadingFutsals = false);
+    }
+  }
+
+  Future<void> _loadAnalytics() async {
+    final adminProvider = Provider.of<AdminProvider>(context, listen: false);
+    await adminProvider.loadAdminAnalytics(futsalId: _selectedFutsal?.id);
   }
 
   List<String> get _dayLabels {
@@ -37,10 +67,48 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
         foregroundColor: Colors.white,
         centerTitle: true,
         actions: [
+          // ✅ Futsal Filter Dropdown
+          if (_allFutsals.isNotEmpty)
+            Container(
+              margin: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: DropdownButton<Futsal>(
+                value: _selectedFutsal,
+                hint: const Text('All', style: TextStyle(color: Colors.white)),
+                dropdownColor: Colors.white,
+                underline: const SizedBox(),
+                icon: const Icon(Icons.filter_list, color: Colors.white),
+                style: const TextStyle(color: Colors.black),
+                items: [
+                  const DropdownMenuItem<Futsal>(
+                    value: null,
+                    child: Text('All Futsals'),
+                  ),
+                  ..._allFutsals.map((futsal) {
+                    return DropdownMenuItem<Futsal>(
+                      value: futsal,
+                      child: Text(
+                        futsal.name,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  }),
+                ],
+                onChanged: (futsal) {
+                  setState(() {
+                    _selectedFutsal = futsal;
+                  });
+                  _loadAnalytics();
+                },
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => Provider.of<AdminProvider>(context, listen: false)
-                .loadAdminAnalytics(),
+            onPressed: () => _loadAnalytics(),
           ),
         ],
       ),
@@ -65,7 +133,7 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
                       style: TextStyle(color: Colors.grey.shade600)),
                   const SizedBox(height: 16),
                   ElevatedButton(
-                    onPressed: () => adminProvider.loadAdminAnalytics(),
+                    onPressed: () => _loadAnalytics(),
                     style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
                         foregroundColor: Colors.white),
@@ -86,19 +154,58 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
           final totalRevenue =
               (analytics['totalRevenue'] as num?)?.toDouble() ?? 0;
           final activeUsers = analytics['activeUsers'] ?? 0;
+          
+          // Get selected futsal name for display
+          final filterText = _selectedFutsal != null 
+              ? ' (${_selectedFutsal!.name})' 
+              : '';
 
           return RefreshIndicator(
-            onRefresh: () => adminProvider.loadAdminAnalytics(),
+            onRefresh: () => _loadAnalytics(),
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
+                // Filter indicator
+                if (_selectedFutsal != null)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.green.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.filter_alt, size: 16, color: Colors.green.shade700),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Showing data for: ${_selectedFutsal!.name}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.green.shade700,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: () {
+                            setState(() => _selectedFutsal = null);
+                            _loadAnalytics();
+                          },
+                          child: Icon(Icons.close, size: 16, color: Colors.green.shade700),
+                        ),
+                      ],
+                    ),
+                  ),
+
                 // Summary cards
-                _buildSummaryCards(totalBookings, totalRevenue, activeUsers),
+                _buildSummaryCards(totalBookings, totalRevenue, activeUsers, filterText),
 
                 const SizedBox(height: 24),
 
                 // Weekly revenue chart
-                _buildWeeklyRevenueChart(weeklyRevenue),
+                _buildWeeklyRevenueChart(weeklyRevenue, filterText),
 
                 const SizedBox(height: 24),
 
@@ -120,10 +227,10 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
   }
 
   // ============================================
-  // SUMMARY CARDS
+  // SUMMARY CARDS (Updated with filter context)
   // ============================================
   Widget _buildSummaryCards(
-      int totalBookings, double totalRevenue, int activeUsers) {
+      int totalBookings, double totalRevenue, int activeUsers, String filterText) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final cardWidth = (constraints.maxWidth - 24) / 2;
@@ -133,14 +240,14 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
           children: [
             _buildSummaryCard(
               width: cardWidth,
-              label: 'Total Bookings',
+              label: 'Total Bookings$filterText',
               value: totalBookings.toString(),
               icon: Icons.book_online,
               color: Colors.green,
             ),
             _buildSummaryCard(
               width: cardWidth,
-              label: 'Total Revenue',
+              label: 'Total Revenue$filterText',
               value: 'रू ${totalRevenue.toStringAsFixed(0)}',
               icon: Icons.currency_rupee,
               color: Colors.blue,
@@ -154,7 +261,7 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
             ),
             _buildSummaryCard(
               width: cardWidth,
-              label: 'Avg per Booking',
+              label: 'Avg per Booking$filterText',
               value: totalBookings > 0
                   ? 'रू ${(totalRevenue / totalBookings).toStringAsFixed(0)}'
                   : 'रू 0',
@@ -216,9 +323,9 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
   // ============================================
   // WEEKLY REVENUE CHART
   // ============================================
-  Widget _buildWeeklyRevenueChart(List<double> revenue) {
+  Widget _buildWeeklyRevenueChart(List<double> revenue, String filterText) {
     if (revenue.isEmpty || revenue.every((v) => v == 0)) {
-      return _buildEmptyChart('Weekly Revenue', 'No revenue this week');
+      return _buildEmptyChart('Weekly Revenue', 'No revenue data available');
     }
 
     final maxRevenue = revenue.reduce((a, b) => a > b ? a : b);
@@ -243,8 +350,12 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
           const Text('Weekly Revenue',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
-          Text('Platform-wide last 7 days',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+          Text(
+            _selectedFutsal != null 
+                ? 'Last 7 days for ${_selectedFutsal!.name}'
+                : 'Platform-wide last 7 days',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+          ),
           const SizedBox(height: 20),
           SizedBox(
             height: 200,
@@ -360,15 +471,13 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
       return PieChartSectionData(
         value: count,
         color: color,
-        // Only show title if section is large enough
         title: percent >= 10 ? '${count.toInt()}' : '',
-        radius: 60, // ← reduced from 80
+        radius: 60,
         titleStyle: const TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.bold,
           color: Colors.white,
         ),
-        // Add badge position to avoid overlap
         titlePositionPercentageOffset: 0.6,
       );
     }).toList();

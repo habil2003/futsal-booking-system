@@ -47,9 +47,30 @@ class _BookingsScreenState extends State<BookingsScreen>
 
   Future<void> _loadBookings() async {
     final provider = Provider.of<BookingProvider>(context, listen: false);
+
+    // Apply filters when loading
     await provider.loadTodayBookings(widget.futsalId);
     await provider.loadOwnerUpcomingBookings(widget.futsalId);
     await provider.loadOwnerMonthBookings(widget.futsalId, _selectedDate);
+
+    // Apply local filtering after loading
+    _applyFilters();
+  }
+
+  void _applyFilters() {
+    final provider = Provider.of<BookingProvider>(context, listen: false);
+
+    // Filter today's bookings
+    var filtered = provider.todayBookings;
+    if (_selectedStatus != null) {
+      filtered =
+          filtered.where((b) => b.bookingStatus == _selectedStatus).toList();
+    }
+    if (_selectedCourtId != null) {
+      filtered = filtered.where((b) => b.courtId == _selectedCourtId).toList();
+    }
+    // Update UI with filtered list
+    setState(() {});
   }
 
   @override
@@ -410,23 +431,24 @@ class _BookingsScreenState extends State<BookingsScreen>
   }
 
   Future<void> _markAsPaid(Booking booking, BookingProvider provider) async {
-  final confirmed = await BookingActionDialog.show(
-    context: context,
-    title: 'Mark as Paid',
-    message: 'Confirm cash payment of रू ${booking.totalAmount} received?',
-    confirmText: 'CONFIRM PAID',
-  );
-  if (confirmed != true) return;
+    final confirmed = await BookingActionDialog.show(
+      context: context,
+      title: 'Mark as Paid',
+      message: 'Confirm cash payment of रू ${booking.totalAmount} received?',
+      confirmText: 'CONFIRM PAID',
+    );
+    if (confirmed != true) return;
 
-  _showLoading();
-  final response = await provider.initiateCodPayment(booking.id, widget.futsalId);
-  _hideLoadingAndShowResult(response);
-  
-  // ✅ Force refresh after action
-  if (response['status'] == 'success') {
-    await _loadBookings();
+    _showLoading();
+    final response =
+        await provider.initiateCodPayment(booking.id, widget.futsalId);
+    _hideLoadingAndShowResult(response);
+
+    // ✅ Force refresh after action
+    if (response['status'] == 'success') {
+      await _loadBookings();
+    }
   }
-}
 
   Future<void> _cancelBooking(Booking booking, BookingProvider provider) async {
     final confirmed = await BookingActionDialog.show(
@@ -575,32 +597,40 @@ class _BookingsScreenState extends State<BookingsScreen>
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            DropdownButtonFormField(
+            DropdownButtonFormField<String>(
               value: _selectedStatus,
               hint: const Text('All Status'),
-              items: const [
-                DropdownMenuItem(value: null, child: Text('All Status')),
-                DropdownMenuItem(value: 'confirmed', child: Text('Confirmed')),
-                DropdownMenuItem(
-                    value: 'checked_in', child: Text('Checked In')),
-                DropdownMenuItem(value: 'completed', child: Text('Completed')),
-                DropdownMenuItem(value: 'cancelled', child: Text('Cancelled')),
+              items: [
+                const DropdownMenuItem(value: null, child: Text('All Status')),
+                const DropdownMenuItem(
+                    value: 'PENDING', child: Text('Pending')),
+                const DropdownMenuItem(
+                    value: 'CONFIRMED', child: Text('Confirmed')),
+                const DropdownMenuItem(
+                    value: 'CHECKED_IN', child: Text('Checked In')),
+                const DropdownMenuItem(
+                    value: 'COMPLETED', child: Text('Completed')),
+                const DropdownMenuItem(
+                    value: 'CANCELLED', child: Text('Cancelled')),
               ],
               onChanged: (value) {
                 setState(() => _selectedStatus = value);
                 Navigator.pop(ctx);
+                _loadBookings(); // ✅ Reload with filter
               },
             ),
             const SizedBox(height: 12),
-            DropdownButtonFormField(
+            DropdownButtonFormField<int>(
               value: _selectedCourtId,
               hint: const Text('All Courts'),
-              items: const [
-                DropdownMenuItem(value: null, child: Text('All Courts'))
+              items: [
+                const DropdownMenuItem(value: null, child: Text('All Courts')),
+                // Add your courts here dynamically
               ],
               onChanged: (value) {
                 setState(() => _selectedCourtId = value);
                 Navigator.pop(ctx);
+                _loadBookings(); // ✅ Reload with filter
               },
             ),
           ],

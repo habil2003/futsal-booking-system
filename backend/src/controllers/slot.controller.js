@@ -1,4 +1,6 @@
 import { prisma } from "../index.js";
+import { generateSlotsForCourt } from '../utils/slotHelpers.js';
+import { getSlotLockMinutes } from "../utils/settings.js";
 
 /**
  * Generate slots for a specific court
@@ -13,13 +15,7 @@ export const generateCourtSlots = async (req, res) => {
     const court = await prisma.court.findUnique({
       where: { id: parseInt(courtId) },
       include: {
-        futsal: {
-          select: {
-            id: true,
-            ownerId: true,
-            basePrice: true,
-          },
-        },
+        futsal: true,
       },
     });
 
@@ -40,56 +36,14 @@ export const generateCourtSlots = async (req, res) => {
 
     const start = new Date(startDate);
     const end = new Date(endDate);
-    const slots = [];
-
-    // Generate slots for each day from start to end
-    for (
-      let day = new Date(start);
-      day <= end;
-      day.setDate(day.getDate() + 1)
-    ) {
-      const currentDate = new Date(
-        Date.UTC(
-          day.getFullYear(),
-          day.getMonth(),
-          day.getDate(),
-          12,
-          0,
-          0,
-          0, // ✅ noon UTC = safe from date shifting
-        ),
-      );
-
-      // Create slots from 8 AM to 10 PM (14 slots per day)
-      for (let hour = 8; hour < 22; hour++) {
-        const startTime = `${hour.toString().padStart(2, "0")}:00`;
-        const endTime = `${(hour + 1).toString().padStart(2, "0")}:00`;
-
-        // Calculate price based on time
-        const isPeakHour = hour >= 17 && hour <= 20;
-        const dayOfWeek = currentDate.getDay();
-        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-
-        let price = court.basePrice;
-        if (court.peakPrice && (isPeakHour || isWeekend)) {
-          price = court.peakPrice;
-        }
-
-        slots.push({
-          courtId: parseInt(courtId),
-          date: currentDate,
-          startTime: startTime,
-          endTime: endTime,
-          price: price,
-          status: "AVAILABLE",
-        });
-      }
-    }
+    
+    // Generate slots using operating hours
+    const slots = await generateSlotsForCourt(court, court.futsal, start, end);
 
     // Bulk create slots
     const result = await prisma.timeSlot.createMany({
       data: slots,
-      skipDuplicates: true, // Skip if slot already exists
+      skipDuplicates: true,
     });
 
     res.status(201).json({
@@ -148,55 +102,15 @@ export const generateAllCourtSlots = async (req, res) => {
 
     // Generate slots for each court
     for (const court of futsal.courts) {
-      const slots = [];
-
-      for (
-        let day = new Date(start);
-        day <= end;
-        day.setDate(day.getDate() + 1)
-      ) {
-        const currentDate = new Date(
-          Date.UTC(
-            day.getFullYear(),
-            day.getMonth(),
-            day.getDate(),
-            12,
-            0,
-            0,
-            0, // ✅ noon UTC = 17:45 NPT = safe from date shifting in any timezone
-          ),
-        );
-
-        for (let hour = 8; hour < 22; hour++) {
-          const startTime = `${hour.toString().padStart(2, "0")}:00`;
-          const endTime = `${(hour + 1).toString().padStart(2, "0")}:00`;
-
-          const isPeakHour = hour >= 17 && hour <= 20;
-          const dayOfWeek = currentDate.getDay();
-          const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-
-          let price = court.basePrice;
-          if (court.peakPrice && (isPeakHour || isWeekend)) {
-            price = court.peakPrice;
-          }
-
-          slots.push({
-            courtId: court.id,
-            date: currentDate,
-            startTime: startTime,
-            endTime: endTime,
-            price: price,
-            status: "AVAILABLE",
-          });
-        }
+      const slots = await generateSlotsForCourt(court, futsal, start, end);
+      
+      if (slots.length > 0) {
+        const result = await prisma.timeSlot.createMany({
+          data: slots,
+          skipDuplicates: true,
+        });
+        totalSlots += result.count;
       }
-
-      const result = await prisma.timeSlot.createMany({
-        data: slots,
-        skipDuplicates: true,
-      });
-
-      totalSlots += result.count;
     }
 
     res.status(201).json({
@@ -383,12 +297,14 @@ export const lockSlot = async (req, res) => {
       });
     }
 
+    const lockMinutes = await getSlotLockMinutes();
+
     // ✅ 6. Lock the slot
     const lockedSlot = await prisma.timeSlot.update({
       where: { id: parseInt(slotId) },
       data: {
         status: "LOCKED",
-        lockedUntil: new Date(Date.now() + 5 * 60000), // 5 minutes
+        lockedUntil: new Date(Date.now() + lockMinutes * 60000),
       },
     });
 

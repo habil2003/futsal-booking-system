@@ -14,7 +14,15 @@ import {
   getAllBookings,
   getAdminAnalytics,
    getAdminProfile,      // ✅ Add this
-  updateAdminProfile,   // ✅ Add this
+  updateAdminProfile,
+  getRevenueOverview,
+  getCommissionBreakdown,
+  getRevenueTrends,
+  getPayoutRequests,
+  processPayout,
+  getCommissionRate,
+  updateCommissionRate,
+  fixMissingTransactions,   // ✅ Add this
 } from "../controllers/admin.controller.js";
 
 const router = express.Router();
@@ -42,6 +50,31 @@ router.get("/analytics", authenticate, authorize("ADMIN"), getAdminAnalytics);
 /* Admin Profile */
 router.get("/profile", authenticate, authorize("ADMIN"), getAdminProfile);
 router.put("/profile", authenticate, authorize("ADMIN"), updateAdminProfile);
+
+// ============================================
+// REVENUE ROUTES
+// ============================================
+
+// Revenue overview
+router.get('/revenue/overview', authenticate, authorize('ADMIN'), getRevenueOverview);
+
+// Commission breakdown
+router.get('/revenue/commission-breakdown', authenticate, authorize('ADMIN'), getCommissionBreakdown);
+
+// Revenue trends
+router.get('/revenue/trends', authenticate, authorize('ADMIN'), getRevenueTrends);
+
+// Payout requests
+router.get('/revenue/payouts', authenticate, authorize('ADMIN'), getPayoutRequests);
+router.post('/revenue/payouts/:id/process', authenticate, authorize('ADMIN'), processPayout);
+
+// Commission rate settings
+router.get('/revenue/commission-rate', authenticate, authorize('ADMIN'), getCommissionRate);
+router.put('/revenue/commission-rate', authenticate, authorize('ADMIN'), updateCommissionRate);
+
+
+// Fix missing transactions (temporary endpoint)
+router.post('/fix-transactions', authenticate, authorize('ADMIN'), fixMissingTransactions);
 
 
 

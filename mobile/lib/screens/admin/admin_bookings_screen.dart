@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/admin_provider.dart';
+import '../../models/booking.dart';
 
 class AdminBookingsScreen extends StatefulWidget {
   const AdminBookingsScreen({super.key});
@@ -72,12 +73,12 @@ class _AdminBookingsScreenState extends State<AdminBookingsScreen> {
     _loadBookings();
   }
 
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'CONFIRMED':
-        return Colors.green;
+  Color _getStatusColor(String status) {
+    switch (status.toUpperCase()) {
       case 'COMPLETED':
-        return Colors.blue;
+        return Colors.green;
+      case 'CONFIRMED':
+        return Colors.teal;
       case 'CANCELLED':
         return Colors.red;
       case 'PENDING':
@@ -87,17 +88,18 @@ class _AdminBookingsScreenState extends State<AdminBookingsScreen> {
     }
   }
 
-  Color _paymentColor(String status) {
+  String _getStatusText(String status) {
     switch (status.toUpperCase()) {
       case 'COMPLETED':
-      case 'PAID':
-        return Colors.green;
+        return 'Completed';
+      case 'CONFIRMED':
+        return 'Confirmed';
+      case 'CANCELLED':
+        return 'Cancelled';
       case 'PENDING':
-        return Colors.orange;
-      case 'FAILED':
-        return Colors.red;
+        return 'Pending';
       default:
-        return Colors.grey;
+        return status;
     }
   }
 
@@ -306,6 +308,10 @@ class _AdminBookingsScreenState extends State<AdminBookingsScreen> {
     final bookingStatus = booking['bookingStatus'] ?? 'PENDING';
     final paymentStatus = booking['paymentStatus'] ?? 'PENDING';
     final paymentMethod = booking['paymentMethod'] ?? 'COD';
+    final isPaid = paymentStatus.toUpperCase() == 'COMPLETED' || 
+                   paymentStatus.toUpperCase() == 'PAID';
+    final isCOD = paymentMethod == 'COD';
+    final isKhalti = paymentMethod == 'KHALTI';
 
     final date = booking['date'] != null
         ? DateTime.parse(booking['date'])
@@ -315,186 +321,238 @@ class _AdminBookingsScreenState extends State<AdminBookingsScreen> {
         ? DateTime.parse(booking['bookingDate'])
         : DateTime.now();
 
+    // Determine status color and text
+    final statusColor = _getStatusColor(bookingStatus);
+    final statusText = _getStatusText(bookingStatus);
+
     return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Top row — futsal name + booking status
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    booking['futsalName'] ?? 'Unknown Futsal',
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _statusColor(bookingStatus).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    bookingStatus,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: _statusColor(bookingStatus),
-                    ),
-                  ),
-                ),
-              ],
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          // Status bar
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: statusColor.withOpacity(0.1),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(12),
+              ),
             ),
-
-            const SizedBox(height: 8),
-
-            // Player info
-            Row(
+            child: Row(
               children: [
-                Icon(Icons.person_outline,
-                    size: 14, color: Colors.grey.shade500),
+                Icon(
+                  _getStatusIcon(bookingStatus),
+                  size: 14,
+                  color: statusColor,
+                ),
                 const SizedBox(width: 4),
                 Text(
-                  booking['playerName'] ?? 'Unknown',
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
-                ),
-                const SizedBox(width: 8),
-                Icon(Icons.email_outlined,
-                    size: 14, color: Colors.grey.shade500),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    booking['playerEmail'] ?? '',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 6),
-
-            // Court + date + time
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.sports_soccer,
-                        size: 14, color: Colors.grey.shade500),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Court ${booking['courtNumber']}',
-                      style:
-                          TextStyle(fontSize: 13, color: Colors.grey.shade700),
-                    ),
-                  ],
-                ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.calendar_today,
-                        size: 14, color: Colors.grey.shade500),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${date.day}/${date.month}/${date.year}',
-                      style:
-                          TextStyle(fontSize: 13, color: Colors.grey.shade700),
-                    ),
-                  ],
-                ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.access_time,
-                        size: 14, color: Colors.grey.shade500),
-                    const SizedBox(width: 4),
-                    Text(
-                      booking['startTime'] ?? '',
-                      style:
-                          TextStyle(fontSize: 13, color: Colors.grey.shade700),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 8),
-            const Divider(height: 1),
-            const SizedBox(height: 8),
-
-            // Price + payment
-            Row(
-              children: [
-                Icon(Icons.currency_rupee,
-                    size: 14, color: Colors.green.shade600),
-                Text(
-                  '${booking['totalPrice']}',
+                  statusText,
                   style: TextStyle(
-                    fontSize: 15,
+                    fontSize: 12,
+                    color: statusColor,
                     fontWeight: FontWeight.bold,
-                    color: Colors.green.shade700,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: paymentMethod == 'KHALTI'
-                        ? Colors.purple.shade50
-                        : Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    paymentMethod,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: paymentMethod == 'KHALTI'
-                          ? Colors.purple
-                          : Colors.blue,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: _paymentColor(paymentStatus).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    paymentStatus,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: _paymentColor(paymentStatus),
-                    ),
                   ),
                 ),
                 const Spacer(),
-                Text(
-                  'Booked ${bookingDate.day}/${bookingDate.month}',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                // Payment method badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: isCOD ? Colors.orange.shade100 : Colors.purple.shade100,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    isCOD ? 'COD' : 'KHALTI',
+                    style: TextStyle(
+                      fontSize: 8,
+                      color: isCOD ? Colors.orange.shade700 : Colors.purple.shade700,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                // Unpaid badge (only for unpaid COD or failed Khalti)
+                if (!isPaid && !_isTerminalStatus(bookingStatus))
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade100,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      'UNPAID',
+                      style: TextStyle(
+                        fontSize: 8,
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          // Main content
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Futsal name + court
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        booking['futsalName'] ?? 'Unknown Futsal',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade100,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'Court ${booking['courtNumber']}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.blue.shade700,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+
+                // Player info
+                Row(
+                  children: [
+                    Icon(Icons.person_outline,
+                        size: 14, color: Colors.grey.shade500),
+                    const SizedBox(width: 4),
+                    Text(
+                      booking['playerName'] ?? 'Unknown',
+                      style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                    ),
+                    const SizedBox(width: 12),
+                    Icon(Icons.email_outlined,
+                        size: 14, color: Colors.grey.shade500),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        booking['playerEmail'] ?? '',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+
+                // Date and time
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 4,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.calendar_today,
+                            size: 14, color: Colors.grey.shade500),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${date.day}/${date.month}/${date.year}',
+                          style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.access_time,
+                            size: 14, color: Colors.grey.shade500),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${booking['startTime']} - ${booking['endTime']}',
+                          style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                        ),
+                      ],
+                    ),
+                    if (booking['duration'] != null)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.timer,
+                              size: 14, color: Colors.grey.shade500),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${booking['duration']}h',
+                            style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Divider(height: 1),
+                const SizedBox(height: 8),
+
+                // Price and booking date
+                Row(
+                  children: [
+                    Icon(Icons.currency_rupee,
+                        size: 14, color: Colors.green.shade600),
+                    Text(
+                      ' ${booking['totalPrice']}',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: isPaid ? Colors.green : Colors.orange,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      'Booked on ${bookingDate.day}/${bookingDate.month}/${bookingDate.year}',
+                      style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
+  }
+
+  IconData _getStatusIcon(String status) {
+    switch (status.toUpperCase()) {
+      case 'CANCELLED':
+        return Icons.cancel;
+      case 'COMPLETED':
+        return Icons.check_circle;
+      case 'CONFIRMED':
+        return Icons.login;
+      case 'PENDING':
+        return Icons.hourglass_empty;
+      default:
+        return Icons.check_circle_outline;
+    }
+  }
+
+  bool _isTerminalStatus(String status) {
+    final upper = status.toUpperCase();
+    return upper == 'COMPLETED' || upper == 'CANCELLED';
   }
 }
