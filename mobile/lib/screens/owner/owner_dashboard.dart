@@ -17,6 +17,8 @@ import 'dashboard/widgets/dashboard_futsal_card.dart';
 import 'dashboard/widgets/stats_card.dart';
 import 'dashboard/widgets/quick_actions.dart';
 import 'dashboard/widgets/today_schedule.dart';
+import 'registration_payment_screen.dart'; // Add this with other imports
+
 
 class OwnerDashboard extends StatefulWidget {
   const OwnerDashboard({super.key});
@@ -38,34 +40,35 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
   }
 
 // Load saved futsal from SharedPreferences
-Future<void> _loadSavedFutsal() async {
-  final prefs = await SharedPreferences.getInstance();
-  final savedFutsalId = prefs.getInt('selected_futsal_id');
-  
-  if (savedFutsalId != null) {
-    final futsalProvider = Provider.of<FutsalProvider>(context, listen: false);
-    await futsalProvider.fetchMyFutsals();
-    
-    // Find the saved futsal or use first one
-    Futsal? savedFutsal;
-    for (var futsal in futsalProvider.myFutsals) {
-      if (futsal.id == savedFutsalId) {
-        savedFutsal = futsal;
-        break;
+  Future<void> _loadSavedFutsal() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedFutsalId = prefs.getInt('selected_futsal_id');
+
+    if (savedFutsalId != null) {
+      final futsalProvider =
+          Provider.of<FutsalProvider>(context, listen: false);
+      await futsalProvider.fetchMyFutsals();
+
+      // Find the saved futsal or use first one
+      Futsal? savedFutsal;
+      for (var futsal in futsalProvider.myFutsals) {
+        if (futsal.id == savedFutsalId) {
+          savedFutsal = futsal;
+          break;
+        }
+      }
+
+      if (savedFutsal == null && futsalProvider.myFutsals.isNotEmpty) {
+        savedFutsal = futsalProvider.myFutsals.first;
+      }
+
+      if (savedFutsal != null && mounted) {
+        setState(() {
+          _selectedFutsal = savedFutsal;
+        });
       }
     }
-    
-    if (savedFutsal == null && futsalProvider.myFutsals.isNotEmpty) {
-      savedFutsal = futsalProvider.myFutsals.first;
-    }
-    
-    if (savedFutsal != null && mounted) {
-      setState(() {
-        _selectedFutsal = savedFutsal;
-      });
-    }
   }
-}
 
   // Save selected futsal to SharedPreferences
   Future<void> _saveSelectedFutsal(Futsal futsal) async {
@@ -312,25 +315,36 @@ Future<void> _loadSavedFutsal() async {
     );
   }
 
-  Future<void> _toggleActive(Futsal futsal) async {
-    final futsalProvider = Provider.of<FutsalProvider>(context, listen: false);
+Future<void> _toggleActive(Futsal futsal) async {
+  final futsalProvider = Provider.of<FutsalProvider>(context, listen: false);
 
-    final response = await futsalProvider.updateFutsal(futsal.id, {
-      'toggleActive': true,
-    });
-
+  // ✅ Check if admin deactivated this futsal
+  if (futsal.adminDeactivated == true) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(response['message']),
-        backgroundColor:
-            response['status'] == 'success' ? Colors.green : Colors.red,
+      const SnackBar(
+        content: Text('This futsal was deactivated by admin. You cannot reactivate it.'),
+        backgroundColor: Colors.red,
+        duration: Duration(seconds: 3),
       ),
     );
-
-    if (response['status'] == 'success') {
-      _loadAllData();
-    }
+    return;
   }
+
+  final response = await futsalProvider.updateFutsal(futsal.id, {
+    'toggleActive': true,
+  });
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(response['message']),
+      backgroundColor: response['status'] == 'success' ? Colors.green : Colors.red,
+    ),
+  );
+
+  if (response['status'] == 'success') {
+    _loadAllData();
+  }
+}
 
   void _showFutsalSelector() {
     final futsalProvider = Provider.of<FutsalProvider>(context, listen: false);
@@ -441,8 +455,10 @@ Future<void> _loadSavedFutsal() async {
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.sports_soccer, color: Colors.white, size: 24),
-              onPressed: () => Navigator.pushReplacementNamed(context, '/player/home'),
+              icon: const Icon(Icons.sports_soccer,
+                  color: Colors.white, size: 24),
+              onPressed: () =>
+                  Navigator.pushReplacementNamed(context, '/player/home'),
               tooltip: 'Switch to Player Mode',
             ),
             IconButton(
@@ -455,7 +471,8 @@ Future<void> _loadSavedFutsal() async {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const OwnerEarningsScreen()),
+                  MaterialPageRoute(
+                      builder: (_) => const OwnerEarningsScreen()),
                 );
               },
               tooltip: 'My Earnings',
@@ -547,6 +564,7 @@ Future<void> _loadSavedFutsal() async {
       children: [
         _buildActiveFutsalCard(futsalProvider),
         const SizedBox(height: 16),
+        _buildPendingPaymentsSection(),
         StatsCard(
           totalCourts: dashboardProvider.totalCourts,
           todayBookings: dashboardProvider.todayBookings,
@@ -557,7 +575,6 @@ Future<void> _loadSavedFutsal() async {
           onRetry: _loadAllData,
         ),
         const SizedBox(height: 16),
-
         isTabletOrDesktop
             ? IntrinsicHeight(
                 child: Row(
@@ -622,16 +639,13 @@ Future<void> _loadSavedFutsal() async {
                   ),
                 ],
               ),
-
         const SizedBox(height: 16),
-
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 8),
           child: Text('My Futsals',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         ),
         const SizedBox(height: 12),
-
         LayoutBuilder(
           builder: (context, constraints) {
             final screenWidth = constraints.maxWidth;
@@ -766,4 +780,156 @@ Future<void> _loadSavedFutsal() async {
       ),
     );
   }
+
+  // ============================================
+  // PENDING PAYMENT SECTION
+  // ============================================
+  Widget _buildPendingPaymentsSection() {
+  final futsalProvider = Provider.of<FutsalProvider>(context);
+  // ❌ Remove settingsProvider - not needed
+  // final settingsProvider = Provider.of<SettingsProvider>(context);
+
+  final pendingFutsals = futsalProvider.myFutsals
+      .where((f) => f.status == 'PENDING_PAYMENT' && !f.registrationFeePaid)
+      .toList();
+
+  if (pendingFutsals.isEmpty) return const SizedBox.shrink();
+
+  return Container(
+    margin: const EdgeInsets.only(bottom: 16),
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        colors: [Colors.orange.shade400, Colors.orange.shade700],
+      ),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Row(
+          children: [
+            Icon(Icons.warning_amber, color: Colors.white, size: 24),
+            SizedBox(width: 8),
+            Text(
+              'Registration Fee Pending',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Complete registration fee payment to activate your futsal(s)',
+          style: TextStyle(color: Colors.white70, fontSize: 12),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 120,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: pendingFutsals.length,
+            itemBuilder: (context, index) {
+              final futsal = pendingFutsals[index];
+              return Container(
+                width: 200,
+                margin: const EdgeInsets.only(right: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      futsal.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade100,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'Fee: ₹${futsal.registrationFeeAmount.toStringAsFixed(0)}', // ✅ Use futsal's fee
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.orange.shade700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ElevatedButton(
+                      onPressed: () => _payRegistrationFee(futsal),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(double.infinity, 32),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      child: const Text('Pay Now', style: TextStyle(fontSize: 12)),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+// Navigate to payment screen
+Future<void> _payRegistrationFee(Futsal futsal) async {
+  // ✅ Use the fee from the futsal object
+  final amount = futsal.registrationFeeAmount;
+
+  final result = await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => RegistrationPaymentScreen(
+        futsalId: futsal.id,
+        futsalName: futsal.name,
+        amount: amount,  // ✅ Use futsal's fee
+      ),
+    ),
+  );
+
+  if (result == true) {
+    final futsalProvider = Provider.of<FutsalProvider>(context, listen: false);
+    await futsalProvider.fetchMyFutsals();
+
+    if (_selectedFutsal != null) {
+      final dashboardProvider = Provider.of<DashboardProvider>(context, listen: false);
+      await dashboardProvider.loadStatistics(_selectedFutsal!.id);
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Payment successful! Futsal pending admin approval.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+}
 }

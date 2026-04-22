@@ -5,15 +5,23 @@ class Futsal {
   final String address;
   final List<String> images;
   final double? averageRating;
-  final bool isApproved;  // Keep for backward compatibility
+  final bool isApproved;
   final int ownerId;
   final DateTime createdAt;
   final double? latitude;
   final double? longitude;
   final Map<String, dynamic>? operatingHours;
   final List<Map<String, dynamic>>? courts;
-  final String status;  // ← ADD THIS
+  final String status;
   double? distance;
+
+  final bool registrationFeePaid;
+  final DateTime? registrationPaidAt;
+  final bool needsRegistrationPayment;
+  final double registrationFeeAmount;
+  
+  // ✅ ADD THIS FIELD
+  final bool adminDeactivated;
 
   Futsal({
     required this.id,
@@ -30,7 +38,12 @@ class Futsal {
     this.operatingHours,
     this.courts,
     this.distance,
-    required this.status,  // ← ADD THIS
+    required this.status,
+    this.registrationFeePaid = false,
+    this.registrationPaidAt,
+    this.needsRegistrationPayment = false,
+    this.registrationFeeAmount = 10,
+    this.adminDeactivated = false,  // ✅ ADD THIS
   });
 
   factory Futsal.fromJson(Map<String, dynamic> json) {
@@ -66,7 +79,14 @@ class Futsal {
       courts: json['courts'] != null 
           ? List<Map<String, dynamic>>.from(json['courts']) 
           : null,
-      status: json['status'] ?? 'PENDING',  // ← ADD THIS
+      status: json['status'] ?? 'PENDING',
+      registrationFeePaid: json['registrationFeePaid'] ?? false,
+      registrationPaidAt: json['registrationPaidAt'] != null 
+          ? DateTime.parse(json['registrationPaidAt']) 
+          : null,
+      needsRegistrationPayment: json['needsRegistrationPayment'] ?? false,
+      registrationFeeAmount: (json['registrationFeeAmount'] ?? 10).toDouble(),
+      adminDeactivated: json['adminDeactivated'] ?? false,  // ✅ ADD THIS
     );
   }
 
@@ -85,7 +105,12 @@ class Futsal {
       'longitude': longitude,
       'operatingHours': operatingHours,
       'courts': courts,
-      'status': status,  // ← ADD THIS
+      'status': status,
+      'registrationFeePaid': registrationFeePaid,
+      'registrationPaidAt': registrationPaidAt?.toIso8601String(),
+      'needsRegistrationPayment': needsRegistrationPayment,
+      'registrationFeeAmount': registrationFeeAmount,
+      'adminDeactivated': adminDeactivated,  // ✅ ADD THIS
     };
   }
 

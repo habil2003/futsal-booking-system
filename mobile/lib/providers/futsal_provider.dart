@@ -168,43 +168,50 @@ Future<void> fetchFutsals() async {
   }
 
   // ============================================
-  // CREATE FUTSAL - Called when owner submits form
-  // ============================================
-  Future<Map<String, dynamic>> createFutsal(Map<String, dynamic> futsalData) async {
-    debugPrint('📍 Provider: Creating futsal');
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
+// CREATE FUTSAL - Called when owner submits form
+// ============================================
+Future<Map<String, dynamic>> createFutsal(Map<String, dynamic> futsalData) async {
+  debugPrint('📍 Provider: Creating futsal');
+  _isLoading = true;
+  _error = null;
+  notifyListeners();
 
-    try {
-      // Call API
-      final response = await ApiService.createFutsal(futsalData);
-      
-      debugPrint('✅ Provider: Create successful');
-      
-      // Refresh the list
-      await fetchMyFutsals();
-      
-      _isLoading = false;
-      notifyListeners();
-      
-      return {
-        'status': 'success',
-        'message': response['message'] ?? 'Futsal created successfully',
-      };
-      
-    } catch (e) {
-      debugPrint('❌ Provider: Create failed - $e');
-      _isLoading = false;
-      _error = e.toString();
-      notifyListeners();
-      
-      return {
-        'status': 'error',
-        'message': 'Failed to create futsal: $e',
-      };
-    }
+  try {
+    // Call API
+    final response = await ApiService.createFutsal(futsalData);
+    
+    debugPrint('✅ Provider: Create successful');
+    debugPrint('📝 Response: $response');
+    
+    // Refresh the list
+    await fetchMyFutsals();
+    
+    _isLoading = false;
+    notifyListeners();
+    
+    // Return the full response which includes payment info if needed
+    return {
+      'status': 'success',
+      'message': response['message'] ?? 'Futsal created successfully',
+      'requiresPayment': response['requiresPayment'] ?? false,
+      'registrationFeeAmount': response['registrationFeeAmount'] ?? 0,
+      'futsal': response['futsal'] != null 
+          ? Futsal.fromJson(response['futsal']) 
+          : null,
+    };
+    
+  } catch (e) {
+    debugPrint('❌ Provider: Create failed - $e');
+    _isLoading = false;
+    _error = e.toString();
+    notifyListeners();
+    
+    return {
+      'status': 'error',
+      'message': 'Failed to create futsal: $e',
+    };
   }
+}
 
   // ============================================
   // UPDATE FUTSAL - Edit existing futsal
@@ -287,4 +294,110 @@ Future<void> fetchFutsals() async {
     _error = null;
     notifyListeners();
   }
+
+  // ============================================
+// INITIATE REGISTRATION PAYMENT - Khalti payment for registration fee
+// ============================================
+Future<Map<String, dynamic>> initiateRegistrationPayment(int futsalId) async {
+  debugPrint('📍 Provider: Initiating registration payment for futsal $futsalId');
+  _isLoading = true;
+  _error = null;
+  notifyListeners();
+
+  try {
+    final response = await ApiService.post('futsals/initiate-registration-payment', {
+      'futsalId': futsalId,
+    });
+    
+    debugPrint('✅ Provider: Payment initiated - ${response['paymentUrl']}');
+    
+    _isLoading = false;
+    notifyListeners();
+    
+    return {
+      'status': 'success',
+      'paymentUrl': response['paymentUrl'],
+      'pidx': response['pidx'],
+      'futsalId': response['futsalId'],
+    };
+  } catch (e) {
+    debugPrint('❌ Provider: Initiate payment failed - $e');
+    _isLoading = false;
+    _error = e.toString();
+    notifyListeners();
+    
+    return {
+      'status': 'error',
+      'message': 'Failed to initiate payment: $e',
+    };
+  }
+}
+
+// ============================================
+// VERIFY REGISTRATION PAYMENT - After Khalti callback
+// ============================================
+Future<bool> verifyRegistrationPayment(String pidx, int futsalId) async {
+  debugPrint('📍 Provider: Verifying registration payment for futsal $futsalId');
+  _isLoading = true;
+  notifyListeners();
+
+  try {
+    final response = await ApiService.post('futsals/verify-registration-payment', {
+      'pidx': pidx,
+      'futsalId': futsalId,
+    });
+    
+    final success = response['success'] == true;
+    
+    if (success) {
+      debugPrint('✅ Provider: Payment verified successfully');
+      // Refresh my futsals to update status
+      await fetchMyFutsals();
+    } else {
+      debugPrint('❌ Provider: Payment verification failed');
+    }
+    
+    _isLoading = false;
+    notifyListeners();
+    
+    return success;
+  } catch (e) {
+    debugPrint('❌ Provider: Verify payment failed - $e');
+    _isLoading = false;
+    notifyListeners();
+    return false;
+  }
+}
+
+// ============================================
+// CHECK IF FUTSAL NEEDS REGISTRATION PAYMENT
+// ============================================
+bool needsRegistrationPayment(Futsal futsal) {
+  return futsal.status == 'PENDING_PAYMENT' && !futsal.registrationFeePaid;
+}
+
+// ============================================
+// GET PENDING PAYMENT FUTSALS - For owner dashboard
+// ============================================
+List<Futsal> getPendingPaymentFutsals() {
+  return _myFutsals.where((f) => needsRegistrationPayment(f)).toList();
+}
+
+// ============================================
+// REFRESH SINGLE FUTSAL - Update specific futsal
+// ============================================
+Future<void> refreshFutsal(int futsalId) async {
+  try {
+    final futsal = await fetchFutsalById(futsalId);
+    if (futsal != null) {
+      final index = _myFutsals.indexWhere((f) => f.id == futsalId);
+      if (index != -1) {
+        _myFutsals[index] = futsal;
+        notifyListeners();
+      }
+    }
+  } catch (e) {
+    debugPrint('❌ Provider: Refresh futsal failed - $e');
+  }
+}
 }

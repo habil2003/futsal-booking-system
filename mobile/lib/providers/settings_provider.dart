@@ -19,6 +19,14 @@ class SettingsProvider extends ChangeNotifier {
   int get slotLockMinutes => _settings?.slotLockMinutes ?? 5;
   int get slotGenerationDays => _settings?.slotGenerationDays ?? 30;
 
+    // Add these to your SettingsProvider class
+
+double _registrationFeeAmount = 10;
+bool _registrationFeeEnabled = false;
+
+double get registrationFeeAmount => _registrationFeeAmount;
+bool get registrationFeeEnabled => _registrationFeeEnabled;
+
   Future<void> loadSettings() async {
     isLoading = true;
     error = null;
@@ -117,4 +125,19 @@ class SettingsProvider extends ChangeNotifier {
     );
     notifyListeners();
   }
+
+Future<void> fetchRegistrationFeeSettings() async {
+  try {
+    final response = await ApiService.getRegistrationFeeSettings();
+    if (response['status'] == 'success') {
+      _registrationFeeAmount = response['data']['registrationFeeAmount']?.toDouble() ?? 500;
+      _registrationFeeEnabled = response['data']['registrationFeeEnabled'] ?? false;
+      notifyListeners();
+    }
+  } catch (e) {
+    debugPrint('Failed to fetch registration fee settings: $e');
+    _registrationFeeAmount = 500;
+    _registrationFeeEnabled = false;
+  }
+}
 }

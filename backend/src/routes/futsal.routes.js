@@ -6,7 +6,11 @@ import {
   getFutsalSlots,
   updateFutsal,
   deleteFutsal,
-  getMyFutsals
+  getMyFutsals,
+  confirmRegistrationPayment,
+  initiateRegistrationPayment,
+  verifyRegistrationPayment,
+  registrationPaymentCallback
 } from '../controllers/futsal.controller.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { getFutsalReviews, canReview } from '../controllers/review.controller.js';
@@ -18,6 +22,12 @@ router.get('/my', authenticate, authorize('OWNER', 'ADMIN'), getMyFutsals);
 router.post('/', authenticate, authorize('OWNER', 'ADMIN'), createFutsal);
 router.put('/:id', authenticate, authorize('OWNER', 'ADMIN'), updateFutsal);
 router.delete('/:id', authenticate, authorize('OWNER', 'ADMIN'), deleteFutsal);
+
+// Registration fee payment routes
+router.post('/initiate-registration-payment', authenticate, initiateRegistrationPayment);
+router.post('/verify-registration-payment', authenticate, verifyRegistrationPayment);
+router.get('/registration-payment/callback', registrationPaymentCallback);
+router.post('/confirm-registration-payment', authenticate, confirmRegistrationPayment);
 
 // Public routes
 router.get('/', getAllFutsals);

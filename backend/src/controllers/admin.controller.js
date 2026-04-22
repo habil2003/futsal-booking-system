@@ -15,7 +15,23 @@ export const getDashboardStats = async (req, res, next) => {
       where: { status: 'PENDING' },
     });
 
+    // ✅ Show ALL bookings
     const totalBookings = await prisma.booking.count();
+    
+    // ✅ Show completed bookings separately
+    const completedBookings = await prisma.booking.count({
+      where: { status: "COMPLETED" },
+    });
+    
+    // ✅ Show pending + confirmed (active bookings)
+    const activeBookings = await prisma.booking.count({
+      where: { status: { in: ["PENDING", "CONFIRMED"] } },
+    });
+    
+    // ✅ Show cancelled bookings
+    const cancelledBookings = await prisma.booking.count({
+      where: { status: "CANCELLED" },
+    });
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -31,12 +47,24 @@ export const getDashboardStats = async (req, res, next) => {
       },
     });
 
-    const revenue = await prisma.booking.aggregate({
+    // ✅ Revenue from completed bookings only
+    const bookingRevenue = await prisma.booking.aggregate({
       _sum: { totalPrice: true },
       where: {
         status: { in: ["CONFIRMED", "COMPLETED"] },
       },
     });
+
+    // ✅ NEW: Get registration fee revenue from PlatformRevenue
+    const registrationRevenue = await prisma.platformRevenue.aggregate({
+      _sum: { amount: true },
+      where: {
+        type: "REGISTRATION",
+      },
+    });
+
+    // ✅ Total revenue = booking revenue + registration fees
+    const totalRevenue = (bookingRevenue._sum.totalPrice || 0) + (registrationRevenue._sum.amount || 0);
     
     const recentBookings = await prisma.booking.findMany({
       orderBy: { bookingDate: "desc" },
@@ -54,8 +82,13 @@ export const getDashboardStats = async (req, res, next) => {
         totalFutsals,
         pendingFutsals,
         totalBookings,
+        completedBookings,
+        activeBookings,
+        cancelledBookings,
         todayBookings,
-        totalRevenue: revenue._sum.totalPrice || 0,
+        totalRevenue,
+        bookingRevenue: bookingRevenue._sum.totalPrice || 0,
+        registrationRevenue: registrationRevenue._sum.amount || 0,
         recentActivities: recentBookings,
       },
     });
@@ -146,7 +179,29 @@ export const approveFutsal = async (req, res, next) => {
   try {
     const futsalId = parseInt(req.params.id);
 
-    const futsal = await prisma.futsal.update({
+    console.log(`🟢 Approving futsal ${futsalId}`);
+
+    // First, check if futsal exists and has paid registration fee
+    const futsal = await prisma.futsal.findUnique({
+      where: { id: futsalId },
+    });
+
+    if (!futsal) {
+      return res.status(404).json({
+        status: "error",
+        message: "Futsal not found",
+      });
+    }
+
+    // Check if registration fee is paid
+    if (!futsal.registrationFeePaid) {
+      return res.status(400).json({
+        status: "error",
+        message: "Cannot approve: Registration fee not paid yet",
+      });
+    }
+
+    const updatedFutsal = await prisma.futsal.update({
       where: { id: futsalId },
       data: {
         isApproved: true,
@@ -154,13 +209,19 @@ export const approveFutsal = async (req, res, next) => {
       },
     });
 
+    console.log(`✅ Futsal ${futsalId} (${futsal.name}) approved successfully`);
+
     res.json({
       status: "success",
       message: "Futsal approved successfully",
-      data: futsal,
+      data: updatedFutsal,
     });
   } catch (error) {
-    next(error);
+    console.error("❌ Approve futsal error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Server error: " + error.message,
+    });
   }
 };
 
@@ -170,17 +231,75 @@ export const approveFutsal = async (req, res, next) => {
 export const rejectFutsal = async (req, res, next) => {
   try {
     const futsalId = parseInt(req.params.id);
+    const { reason } = req.body;
 
-    await prisma.futsal.delete({
+    console.log(`🔴 Rejecting futsal ${futsalId}, reason: ${reason || 'No reason provided'}`);
+
+    // First, check if futsal exists
+    const futsal = await prisma.futsal.findUnique({
       where: { id: futsalId },
+      include: {
+        courts: true,
+        transactions: true,
+      },
     });
+
+    if (!futsal) {
+      return res.status(404).json({
+        status: "error",
+        message: "Futsal not found",
+      });
+    }
+
+    console.log(`📋 Futsal details: ${futsal.name}, Status: ${futsal.status}, Has transactions: ${futsal.transactions?.length || 0}`);
+
+    // Delete all related records in correct order
+    await prisma.$transaction(async (tx) => {
+      // 1. Delete all time slots for courts
+      for (const court of futsal.courts) {
+        await tx.timeSlot.deleteMany({
+          where: { courtId: court.id },
+        });
+      }
+
+      // 2. Delete all courts
+      await tx.court.deleteMany({
+        where: { futsalId: futsalId },
+      });
+
+      // 3. Delete all favorites
+      await tx.favorite.deleteMany({
+        where: { futsalId: futsalId },
+      });
+
+      // 4. Delete all transactions related to this futsal
+      await tx.transaction.deleteMany({
+        where: { futsalId: futsalId },
+      });
+
+      // 5. Delete all blocks related to this futsal
+      await tx.block.deleteMany({
+        where: { futsalId: futsalId },
+      });
+
+      // 6. Finally, delete the futsal
+      await tx.futsal.delete({
+        where: { id: futsalId },
+      });
+    });
+
+    console.log(`✅ Futsal ${futsalId} (${futsal.name}) rejected and deleted successfully`);
 
     res.json({
       status: "success",
-      message: "Futsal rejected and removed",
+      message: "Futsal rejected and removed successfully",
     });
   } catch (error) {
-    next(error);
+    console.error("❌ Reject futsal error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Server error: " + error.message,
+    });
   }
 };
 
@@ -217,6 +336,142 @@ export const getAllFutsals = async (req, res, next) => {
     res.json({ status: "success", data: futsalsWithCount });
   } catch (error) {
     next(error);
+  }
+};
+
+export const adminDeactivateFutsal = async (req, res, next) => {
+  try {
+    const futsalId = parseInt(req.params.id);
+
+    const futsal = await prisma.futsal.update({
+      where: { id: futsalId },
+      data: {
+        status: 'DEACTIVATED',
+        deactivatedBy: 'ADMIN',
+        deactivatedAt: new Date(),
+      },
+    });
+
+    res.json({
+      status: "success",
+      message: "Futsal deactivated by admin. Owner cannot reactivate.",
+      data: futsal,
+    });
+  } catch (error) {
+    console.error("Admin deactivate error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Server error: " + error.message,
+    });
+  }
+};
+
+export const adminActivateFutsal = async (req, res, next) => {
+  try {
+    const futsalId = parseInt(req.params.id);
+
+    const futsal = await prisma.futsal.update({
+      where: { id: futsalId },
+      data: {
+        status: 'ACTIVE',
+        deactivatedBy: null,
+        deactivatedAt: null,
+      },
+    });
+
+    res.json({
+      status: "success",
+      message: "Futsal activated by admin.",
+      data: futsal,
+    });
+  } catch (error) {
+    console.error("Admin activate error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Server error: " + error.message,
+    });
+  }
+};
+
+
+
+/**
+ * Delete Futsal (Admin force delete)
+ */
+export const deleteFutsal = async (req, res, next) => {
+  try {
+    const futsalId = parseInt(req.params.id);
+
+    const futsal = await prisma.futsal.findUnique({
+      where: { id: futsalId },
+      include: {
+        courts: {
+          include: {
+            slots: true,
+          },
+        },
+        transactions: true,
+      },
+    });
+
+    if (!futsal) {
+      return res.status(404).json({
+        status: "error",
+        message: "Futsal not found",
+      });
+    }
+
+    // Check if there are any bookings through slots
+    let hasBookings = false;
+    for (const court of futsal.courts) {
+      const bookingCount = await prisma.booking.count({
+        where: {
+          slot: {
+            courtId: court.id,
+          },
+        },
+      });
+      if (bookingCount > 0) {
+        hasBookings = true;
+        break;
+      }
+    }
+
+    if (hasBookings) {
+      return res.status(400).json({
+        status: "error",
+        message: "Cannot delete futsal with existing bookings. Archive instead.",
+      });
+    }
+
+    // Delete all related records
+    await prisma.$transaction(async (tx) => {
+      // Delete slots
+      for (const court of futsal.courts) {
+        await tx.timeSlot.deleteMany({ where: { courtId: court.id } });
+      }
+      // Delete courts
+      await tx.court.deleteMany({ where: { futsalId: futsalId } });
+      // Delete favorites
+      await tx.favorite.deleteMany({ where: { futsalId: futsalId } });
+      // Delete transactions
+      await tx.transaction.deleteMany({ where: { futsalId: futsalId } });
+      // Delete blocks
+      await tx.block.deleteMany({ where: { futsalId: futsalId } });
+      // Delete futsal
+      await tx.futsal.delete({ where: { id: futsalId } });
+    });
+
+    res.json({
+      status: "success",
+      message: "Futsal deleted successfully",
+    });
+  } catch (error) {
+    console.error("Admin delete futsal error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Server error: " + error.message,
+    });
   }
 };
 
@@ -596,8 +851,26 @@ export const getRevenueOverview = async (req, res) => {
       }
     }
 
-    // Get total revenue (platform commission)
-    const totalRevenue = await prisma.transaction.aggregate({
+    // ✅ Get booking revenue (total amount from completed bookings)
+    const bookingRevenue = await prisma.booking.aggregate({
+      where: {
+        bookingDate: { gte: startDate, lte: endDate },
+        status: { in: ["CONFIRMED", "COMPLETED"] },
+      },
+      _sum: { totalPrice: true },
+    });
+
+    // ✅ Get registration fee revenue
+    const registrationRevenue = await prisma.platformRevenue.aggregate({
+      where: {
+        createdAt: { gte: startDate, lte: endDate },
+        type: "REGISTRATION",
+      },
+      _sum: { amount: true },
+    });
+
+    // ✅ Get platform commission revenue (admin's cut)
+    const commissionRevenue = await prisma.transaction.aggregate({
       where: {
         createdAt: { gte: startDate, lte: endDate },
         status: "COMPLETED",
@@ -613,7 +886,7 @@ export const getRevenueOverview = async (req, res) => {
       },
     });
 
-    // Get pending payouts (commission not yet paid to platform? Actually commission is platform revenue)
+    // Get pending commission
     const pendingCommission = await prisma.transaction.aggregate({
       where: {
         createdAt: { gte: startDate, lte: endDate },
@@ -624,13 +897,25 @@ export const getRevenueOverview = async (req, res) => {
 
     // Get average booking value
     const avgBookingValue = totalBookings > 0 
-      ? (totalRevenue._sum.commission || 0) / totalBookings 
+      ? (bookingRevenue._sum.totalPrice || 0) / totalBookings 
       : 0;
+
+    // ✅ Total revenue = booking revenue + registration fees
+    const totalRevenue = (bookingRevenue._sum.totalPrice || 0) + (registrationRevenue._sum.amount || 0);
+
+    console.log(`📊 Revenue Overview - Period: ${period}`);
+    console.log(`   Booking Revenue: ${bookingRevenue._sum.totalPrice || 0}`);
+    console.log(`   Registration Revenue: ${registrationRevenue._sum.amount || 0}`);
+    console.log(`   Total Revenue: ${totalRevenue}`);
+    console.log(`   Commission Revenue: ${commissionRevenue._sum.commission || 0}`);
 
     res.json({
       status: "success",
       data: {
-        totalRevenue: totalRevenue._sum.commission || 0,
+        totalRevenue,
+        bookingRevenue: bookingRevenue._sum.totalPrice || 0,
+        registrationRevenue: registrationRevenue._sum.amount || 0,
+        commissionRevenue: commissionRevenue._sum.commission || 0,
         totalBookings,
         pendingCommission: pendingCommission._sum.commission || 0,
         avgBookingValue,

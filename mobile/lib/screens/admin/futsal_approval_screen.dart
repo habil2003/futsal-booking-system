@@ -14,7 +14,6 @@ class _FutsalApprovalScreenState extends State<FutsalApprovalScreen> {
   @override
   void initState() {
     super.initState();
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<AdminProvider>(context, listen: false).loadDashboardStats();
     });
@@ -25,6 +24,8 @@ class _FutsalApprovalScreenState extends State<FutsalApprovalScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Futsal Approvals"),
+        backgroundColor: Colors.green,
+        foregroundColor: Colors.white,
       ),
       body: Consumer<AdminProvider>(
         builder: (context, adminProvider, child) {
@@ -34,9 +35,21 @@ class _FutsalApprovalScreenState extends State<FutsalApprovalScreen> {
 
           if (adminProvider.pendingFutsals.isEmpty) {
             return const Center(
-              child: Text(
-                "No pending futsals for approval",
-                style: TextStyle(fontSize: 16),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.check_circle, size: 64, color: Colors.green),
+                  SizedBox(height: 16),
+                  Text(
+                    "No pending futsals for approval",
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    "All futsals have been processed",
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ],
               ),
             );
           }
@@ -50,6 +63,7 @@ class _FutsalApprovalScreenState extends State<FutsalApprovalScreen> {
               itemCount: adminProvider.pendingFutsals.length,
               itemBuilder: (context, index) {
                 final futsal = adminProvider.pendingFutsals[index];
+                final registrationFeeAmount = futsal['registrationFeeAmount'] ?? 0;
 
                 return Card(
                   elevation: 3,
@@ -115,6 +129,34 @@ class _FutsalApprovalScreenState extends State<FutsalApprovalScreen> {
                                   ),
                                 ),
                               ],
+                            ),
+
+                            // Show registration fee paid info
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade50,
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: Colors.green.shade200),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.check_circle,
+                                      size: 14, color: Colors.green.shade700),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Registration Fee Paid: ₹${registrationFeeAmount.toStringAsFixed(0)}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.green.shade700,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
 
                             const SizedBox(height: 8),
@@ -224,6 +266,14 @@ class _FutsalApprovalScreenState extends State<FutsalApprovalScreen> {
                                         style: const TextStyle(fontSize: 13),
                                       ),
                                       const Spacer(),
+                                      Text(
+                                        'रू ${court['basePrice']}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.green.shade700,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 );
@@ -343,7 +393,12 @@ class _FutsalApprovalScreenState extends State<FutsalApprovalScreen> {
                                       ScaffoldMessenger.of(context)
                                           .showSnackBar(
                                         SnackBar(
-                                            content: Text(result['message'])),
+                                            content: Text(result['message']),
+                                            backgroundColor: 
+                                                result['status'] == 'success' 
+                                                    ? Colors.green 
+                                                    : Colors.red,
+                                          ),
                                       );
                                     }
                                   },
@@ -364,9 +419,6 @@ class _FutsalApprovalScreenState extends State<FutsalApprovalScreen> {
     );
   }
 
-  /// =========================
-  /// REJECT FUTSAL DIALOG
-  /// =========================
   void _showRejectDialog(BuildContext context, int futsalId) {
     final TextEditingController reasonController = TextEditingController();
 
@@ -375,11 +427,23 @@ class _FutsalApprovalScreenState extends State<FutsalApprovalScreen> {
       builder: (context) {
         return AlertDialog(
           title: const Text("Reject Futsal"),
-          content: TextField(
-            controller: reasonController,
-            decoration: const InputDecoration(
-              hintText: "Enter rejection reason",
-            ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                "This futsal has already paid the registration fee.",
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: reasonController,
+                decoration: const InputDecoration(
+                  hintText: "Enter rejection reason (optional)",
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 3,
+              ),
+            ],
           ),
           actions: [
             TextButton(
@@ -392,7 +456,7 @@ class _FutsalApprovalScreenState extends State<FutsalApprovalScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
                   ),
-                  child: const Text("Reject"),
+                  child: const Text("Reject & Delete"),
                   onPressed: () async {
                     final result = await adminProvider.rejectFutsal(
                       futsalId,
@@ -404,6 +468,7 @@ class _FutsalApprovalScreenState extends State<FutsalApprovalScreen> {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(result["message"]),
+                        backgroundColor: Colors.red,
                       ),
                     );
                   },

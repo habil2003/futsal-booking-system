@@ -6,6 +6,7 @@ import '../../providers/futsal_provider.dart';
 import '../../services/api_service.dart';
 import 'dart:typed_data';
 import '../../widgets/operating_hours_input.dart';
+import 'registration_payment_screen.dart';
 
 class AddFutsalScreen extends StatefulWidget {
   final Map<String, dynamic>? futsalToEdit;
@@ -152,7 +153,7 @@ class _AddFutsalScreenState extends State<AddFutsalScreen> {
   }
 
   // ============================================
-  // SUBMIT FORM
+  // SUBMIT FORM (UPDATED)
   // ============================================
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) return;
@@ -196,22 +197,71 @@ class _AddFutsalScreenState extends State<AddFutsalScreen> {
           widget.futsalToEdit!['id'],
           futsalData,
         );
+
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response['message'] ?? 'Operation completed'),
+            backgroundColor:
+                response['status'] == 'success' ? Colors.green : Colors.red,
+          ),
+        );
+
+        if (response['status'] == 'success') {
+          Navigator.pop(context, true);
+        }
       } else {
+        // NEW FUTSAL CREATION
         response = await futsalProvider.createFutsal(futsalData);
-      }
 
-      if (!mounted) return;
+        if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(response['message'] ?? 'Operation completed'),
-          backgroundColor:
-              response['status'] == 'success' ? Colors.green : Colors.red,
-        ),
-      );
+        if (response['requiresPayment'] == true) {
+          final feeAmount =
+              response['registrationFeeAmount'] ?? 500; // ✅ Use from response
 
-      if (response['status'] == 'success') {
-        Navigator.pop(context, true);
+          final shouldPay = await _showRegistrationFeeDialog(feeAmount);
+
+          if (shouldPay && mounted) {
+            // Navigate to payment screen
+            final paymentSuccess = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => RegistrationPaymentScreen(
+                  futsalId: response['futsal']?.id ?? 0,
+                  futsalName: _nameController.text.trim(),
+                  amount: response['registrationFeeAmount'] ?? 15,
+                ),
+              ),
+            );
+
+            if (paymentSuccess == true) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content:
+                      Text('Registration fee paid! Futsal pending approval.'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+              Navigator.pop(context, true);
+              return;
+            }
+          }
+        }
+
+        // No payment required or user canceled
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response['message'] ?? 'Futsal created successfully'),
+            backgroundColor:
+                response['status'] == 'success' ? Colors.green : Colors.red,
+          ),
+        );
+
+        if (response['status'] == 'success') {
+          Navigator.pop(context, true);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -225,6 +275,70 @@ class _AddFutsalScreenState extends State<AddFutsalScreen> {
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
+  }
+
+  // ============================================
+  // SHOW REGISTRATION FEE DIALOG (NEW)
+  // ============================================
+  Future<bool> _showRegistrationFeeDialog(double amount) async {
+    return await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.attach_money, color: Colors.green),
+                SizedBox(width: 8),
+                Text('Registration Fee Required'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'A one-time registration fee of ₹${amount.toStringAsFixed(0)} is required to list your futsal.',
+                  style: const TextStyle(fontSize: 14),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text(
+                        '✓ Includes:',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      SizedBox(height: 4),
+                      Text('• Verification & approval process'),
+                      Text('• Priority support'),
+                      Text('• Featured listing for 30 days'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                ),
+                child: const Text('Pay Now'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
   }
 
   // ============================================

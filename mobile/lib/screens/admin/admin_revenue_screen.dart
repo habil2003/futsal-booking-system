@@ -18,6 +18,7 @@ class _AdminRevenueScreenState extends State<AdminRevenueScreen> {
   String _selectedTab = "overview";
   Futsal? _selectedFutsal;
   List<Futsal> _allFutsals = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -26,6 +27,8 @@ class _AdminRevenueScreenState extends State<AdminRevenueScreen> {
   }
 
   Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+    
     final revenueProvider = Provider.of<RevenueProvider>(context, listen: false);
     await Future.wait([
       revenueProvider.loadRevenueOverview(period: _selectedPeriod),
@@ -34,6 +37,10 @@ class _AdminRevenueScreenState extends State<AdminRevenueScreen> {
       revenueProvider.loadPayoutRequests(),
       _loadFutsals(),
     ]);
+    
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _loadFutsals() async {
@@ -60,8 +67,8 @@ class _AdminRevenueScreenState extends State<AdminRevenueScreen> {
           title: const Text('Revenue Analytics'),
           backgroundColor: Colors.green,
           foregroundColor: Colors.white,
-          bottom: TabBar(
-            tabs: const [
+          bottom: const TabBar(
+            tabs: [
               Tab(text: 'OVERVIEW', icon: Icon(Icons.dashboard)),
               Tab(text: 'COMMISSIONS', icon: Icon(Icons.percent)),
               Tab(text: 'TRENDS', icon: Icon(Icons.trending_up)),
@@ -93,11 +100,11 @@ class _AdminRevenueScreenState extends State<AdminRevenueScreen> {
                   DropdownMenuItem(value: "month", child: Text("This Month")),
                   DropdownMenuItem(value: "year", child: Text("This Year")),
                 ],
-                onChanged: (value) {
+                onChanged: (value) async {
                   if (value != null) {
                     setState(() => _selectedPeriod = value);
-                    Provider.of<RevenueProvider>(context, listen: false)
-                        .loadRevenueOverview(period: value);
+                    final revenueProvider = Provider.of<RevenueProvider>(context, listen: false);
+                    await revenueProvider.loadRevenueOverview(period: value);
                   }
                 },
               ),
@@ -109,8 +116,8 @@ class _AdminRevenueScreenState extends State<AdminRevenueScreen> {
           ],
         ),
         body: Consumer<RevenueProvider>(
-          builder: (context, revenueProvider, _) {
-            if (revenueProvider.isLoading) {
+          builder: (context, revenueProvider, child) {
+            if (_isLoading || revenueProvider.isLoading) {
               return const Center(child: CircularProgressIndicator(color: Colors.green));
             }
 
@@ -138,7 +145,7 @@ class _AdminRevenueScreenState extends State<AdminRevenueScreen> {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // Summary Cards
+          // Summary Cards - First Row (Total Revenue + Total Bookings)
           Row(
             children: [
               Expanded(
@@ -161,6 +168,32 @@ class _AdminRevenueScreenState extends State<AdminRevenueScreen> {
             ],
           ),
           const SizedBox(height: 12),
+          
+          // ✅ Second Row - Revenue Breakdown (Booking Revenue + Registration Fees)
+          Row(
+            children: [
+              Expanded(
+                child: _buildSummaryCard(
+                  title: 'Booking Revenue',
+                  value: 'रू ${provider.bookingRevenue.toStringAsFixed(0)}',
+                  icon: Icons.shopping_cart,
+                  color: Colors.teal,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildSummaryCard(
+                  title: 'Registration Fees',
+                  value: 'रू ${provider.registrationRevenue.toStringAsFixed(0)}',
+                  icon: Icons.assignment_ind,
+                  color: Colors.orange,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          
+          // Third Row - Pending Commission + Avg per Booking
           Row(
             children: [
               Expanded(
@@ -370,9 +403,9 @@ class _AdminRevenueScreenState extends State<AdminRevenueScreen> {
                     child: Text(f.name),
                   )),
                 ],
-                onChanged: (futsal) {
+                onChanged: (futsal) async {
                   setState(() => _selectedFutsal = futsal);
-                  provider.loadCommissionBreakdown(futsalId: futsal?.id);
+                  await provider.loadCommissionBreakdown(futsalId: futsal?.id);
                 },
               ),
             ),
@@ -463,105 +496,105 @@ class _AdminRevenueScreenState extends State<AdminRevenueScreen> {
   }
 
   // ============================================
-// TRENDS TAB
-// ============================================
-Widget _buildTrendsTab(RevenueProvider provider) {
-  final trends = provider.revenueTrends;
-  
-  // Convert to double safely
-  double maxRevenue = 1000.0;
-  if (trends.isNotEmpty) {
-    final maxVal = trends.map<double>((t) => (t['revenue'] ?? 0).toDouble()).reduce((a, b) => a > b ? a : b);
-    maxRevenue = maxVal * 1.2;
-  }
+  // TRENDS TAB
+  // ============================================
+  Widget _buildTrendsTab(RevenueProvider provider) {
+    final trends = provider.revenueTrends;
+    
+    // Convert to double safely
+    double maxRevenue = 1000.0;
+    if (trends.isNotEmpty) {
+      final maxVal = trends.map<double>((t) => (t['revenue'] ?? 0).toDouble()).reduce((a, b) => a > b ? a : b);
+      maxRevenue = maxVal * 1.2;
+    }
 
-  return SingleChildScrollView(
-    padding: const EdgeInsets.all(16),
-    child: Column(
-      children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Daily Revenue Trend',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  height: 250,
-                  child: BarChart(
-                    BarChartData(
-                      alignment: BarChartAlignment.spaceAround,
-                      maxY: maxRevenue,
-                      barTouchData: BarTouchData(
-                        enabled: true,
-                        touchTooltipData: BarTouchTooltipData(
-                          getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                            if (group.x.toInt() < trends.length) {
-                              final trend = trends[group.x.toInt()];
-                              return BarTooltipItem(
-                                'रू ${(trend['revenue'] ?? 0).toStringAsFixed(0)}\n${trend['bookings'] ?? 0} bookings',
-                                const TextStyle(color: Colors.white, fontSize: 12),
-                              );
-                            }
-                            return null;
-                          },
-                        ),
-                      ),
-                      titlesData: FlTitlesData(
-                        bottomTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: true,
-                            getTitlesWidget: (value, meta) {
-                              final index = value.toInt();
-                              if (index >= 0 && index < trends.length) {
-                                return Padding(
-                                  padding: const EdgeInsets.only(top: 8),
-                                  child: Text(
-                                    trends[index]['label'] ?? '',
-                                    style: const TextStyle(fontSize: 10),
-                                  ),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Daily Revenue Trend',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    height: 250,
+                    child: BarChart(
+                      BarChartData(
+                        alignment: BarChartAlignment.spaceAround,
+                        maxY: maxRevenue,
+                        barTouchData: BarTouchData(
+                          enabled: true,
+                          touchTooltipData: BarTouchTooltipData(
+                            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                              if (group.x.toInt() < trends.length) {
+                                final trend = trends[group.x.toInt()];
+                                return BarTooltipItem(
+                                  'रू ${(trend['revenue'] ?? 0).toStringAsFixed(0)}\n${trend['bookings'] ?? 0} bookings',
+                                  const TextStyle(color: Colors.white, fontSize: 12),
                                 );
                               }
-                              return const SizedBox.shrink();
+                              return null;
                             },
                           ),
                         ),
-                        leftTitles: const AxisTitles(
-                          sideTitles: SideTitles(showTitles: true, reservedSize: 50),
-                        ),
-                        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      ),
-                      gridData: FlGridData(show: true),
-                      borderData: FlBorderData(show: false),
-                      barGroups: List.generate(trends.length, (index) {
-                        return BarChartGroupData(
-                          x: index,
-                          barRods: [
-                            BarChartRodData(
-                              toY: (trends[index]['revenue'] ?? 0).toDouble(),
-                              color: Colors.green,
-                              width: 24,
-                              borderRadius: BorderRadius.circular(4),
+                        titlesData: FlTitlesData(
+                          bottomTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              getTitlesWidget: (value, meta) {
+                                final index = value.toInt();
+                                if (index >= 0 && index < trends.length) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 8),
+                                    child: Text(
+                                      trends[index]['label'] ?? '',
+                                      style: const TextStyle(fontSize: 10),
+                                    ),
+                                  );
+                                }
+                                return const SizedBox.shrink();
+                              },
                             ),
-                          ],
-                        );
-                      }),
+                          ),
+                          leftTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: true, reservedSize: 50),
+                          ),
+                          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        ),
+                        gridData: FlGridData(show: true),
+                        borderData: FlBorderData(show: false),
+                        barGroups: List.generate(trends.length, (index) {
+                          return BarChartGroupData(
+                            x: index,
+                            barRods: [
+                              BarChartRodData(
+                                toY: (trends[index]['revenue'] ?? 0).toDouble(),
+                                color: Colors.green,
+                                width: 24,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ],
+                          );
+                        }),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-      ],
-    ),
-  );
-}
+        ],
+      ),
+    );
+  }
 
   // ============================================
   // PAYOUTS TAB

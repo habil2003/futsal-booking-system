@@ -5,6 +5,12 @@ class RevenueProvider extends ChangeNotifier {
   bool isLoading = false;
   String? error;
 
+  double _bookingRevenue = 0;
+double _registrationRevenue = 0;
+
+double get bookingRevenue => _bookingRevenue;
+double get registrationRevenue => _registrationRevenue;
+
   // Admin Revenue Data
   Map<String, dynamic> _revenueOverview = {};
   Map<String, dynamic> get revenueOverview => _revenueOverview;
@@ -50,22 +56,31 @@ class RevenueProvider extends ChangeNotifier {
   // ADMIN REVENUE METHODS
   // ============================================
 
-  Future<void> loadRevenueOverview({String period = "month"}) async {
-    isLoading = true;
-    error = null;
-    notifyListeners();
+Future<void> loadRevenueOverview({String period = "month"}) async {
+  isLoading = true;
+  error = null;
+  notifyListeners();
 
-    try {
-      final response = await ApiService.getRevenueOverview(period: period);
-      _revenueOverview = response['data'] ?? {};
-      isLoading = false;
-      notifyListeners();
-    } catch (e) {
-      error = e.toString();
-      isLoading = false;
-      notifyListeners();
-    }
+  try {
+    final response = await ApiService.getRevenueOverview(period: period);
+    final data = response['data'] ?? {};
+    
+    _revenueOverview = data;
+    
+    // ✅ ADD THESE LINES - Parse booking and registration revenue
+    _bookingRevenue = (data['bookingRevenue'] ?? 0).toDouble();
+    _registrationRevenue = (data['registrationRevenue'] ?? 0).toDouble();
+    
+    print('📊 Revenue loaded - Booking: $_bookingRevenue, Registration: $_registrationRevenue, Total: ${data['totalRevenue']}');
+    
+    isLoading = false;
+    notifyListeners();
+  } catch (e) {
+    error = e.toString();
+    isLoading = false;
+    notifyListeners();
   }
+}
 
   Future<void> loadCommissionBreakdown({int? futsalId, String? from, String? to}) async {
     isLoading = true;

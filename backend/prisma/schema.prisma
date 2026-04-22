@@ -57,6 +57,12 @@ model Futsal {
   operatingHours Json?
   
   transactions Transaction[]
+
+  registrationFeePaid   Boolean   @default(false)
+  registrationPaidAt    DateTime?
+
+  deactivatedBy       String?      // 'OWNER' or 'ADMIN'
+  deactivatedAt       DateTime?
 }
 
 model Court {
@@ -139,7 +145,7 @@ model Payment {
 // Transaction model for tracking all financial movements
 model Transaction {
   id            Int      @id @default(autoincrement())
-  bookingId     Int      @unique
+  bookingId     Int?     @unique  // ✅ Make optional (add ?)
   futsalId      Int
   ownerId       Int
   amount        Float
@@ -147,11 +153,11 @@ model Transaction {
   ownerEarning  Float
   status        String   @default("PENDING")
   type          String   @default("BOOKING")
-    paymentMethod String   @default("COD")  
+  paymentMethod String   @default("COD")  
   requiresPayout Boolean @default(false)   
   createdAt     DateTime @default(now())
   
-  booking       Booking  @relation(fields: [bookingId], references: [id])
+  booking       Booking? @relation(fields: [bookingId], references: [id])  // ✅ Make optional
   futsal        Futsal   @relation(fields: [futsalId], references: [id])
   owner         User     @relation(fields: [ownerId], references: [id])
   payoutId      Int?
@@ -194,6 +200,9 @@ model SystemSettings {
   commissionRate           Float    @default(5.0)
   minPayoutAmount          Float    @default(1000)
   updatedAt                DateTime @updatedAt
+
+  registrationFeeAmount  Float    @default(500.0)
+  registrationFeeEnabled Boolean  @default(false)  // Toggle feature on/off
 }
 
 model Tournament {
@@ -339,6 +348,7 @@ enum MatchStatus {
 
 enum FutsalStatus {
   PENDING
+  PENDING_PAYMENT   // NEW: Waiting for registration fee payment
   ACTIVE
   DEACTIVATED
 }

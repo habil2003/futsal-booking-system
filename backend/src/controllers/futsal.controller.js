@@ -1,5 +1,25 @@
 import { prisma } from "../index.js";
 import { generateSlotsForCourt } from "../utils/slotHelpers.js";
+import axios from "axios";  // ✅ ADD THIS LINE
+
+// Mock payment function - REPLACE with actual payment gateway later
+async function createRegistrationPaymentIntent(futsalId, amount, ownerId) {
+  // This is a mock implementation for testing
+  // TODO: Replace with Khalti/eSewa/Stripe integration
+  console.log(`📝 Creating payment intent for futsal ${futsalId}, amount: ${amount}`);
+  return {
+    client_secret: `mock_secret_${futsalId}_${Date.now()}`,
+    amount: amount,
+    futsalId: futsalId
+  };
+}
+
+async function verifyPayment(paymentIntentId) {
+  // This is a mock implementation for testing
+  // TODO: Replace with actual payment verification
+  console.log(`🔍 Verifying payment: ${paymentIntentId}`);
+  return true;
+}
 
 /**
  * Get all approved futsals
@@ -8,7 +28,10 @@ export const getAllFutsals = async (req, res) => {
   try {
     const { lat, lng, radius } = req.query;
 
-    let whereClause = { status: 'ACTIVE' };
+    let whereClause = { 
+      status: 'ACTIVE',
+      registrationFeePaid: true  // Only show if fee is paid
+    };
 
     if (lat && lng && radius) {
       whereClause = {
@@ -305,6 +328,7 @@ async function regenerateFutureSlots(futsalId) {
 /**
  * Create a new futsal
  */
+// Add this to createFutsal function
 export const createFutsal = async (req, res) => {
   try {
     const {
@@ -331,6 +355,17 @@ export const createFutsal = async (req, res) => {
       });
     }
 
+    // Check if registration fee is enabled
+    const settings = await prisma.systemSettings.findFirst();
+    const registrationFeeEnabled = settings?.registrationFeeEnabled || false;
+    const registrationFeeAmount = settings?.registrationFeeAmount || 500;
+
+    // Determine initial status
+    let initialStatus = 'PENDING_PAYMENT';
+    if (!registrationFeeEnabled) {
+      initialStatus = 'PENDING';
+    }
+
     const futsal = await prisma.futsal.create({
       data: {
         name,
@@ -341,14 +376,19 @@ export const createFutsal = async (req, res) => {
         longitude: longitude ? parseFloat(longitude) : null,
         operatingHours: operatingHours || null,
         ownerId: req.user.id,
-        status: 'PENDING',
+        status: initialStatus,
+        registrationFeePaid: !registrationFeeEnabled,
       },
     });
 
     res.status(201).json({
       status: "success",
-      message: "Futsal created successfully. Waiting for admin approval.",
-      futsal,
+      message: registrationFeeEnabled 
+        ? "Futsal created. Please pay registration fee to activate."
+        : "Futsal created successfully. Waiting for admin approval.",
+      requiresPayment: registrationFeeEnabled,
+      registrationFeeAmount: registrationFeeAmount,
+      futsal: futsal,
     });
   } catch (error) {
     console.error("Create futsal error:", error);
@@ -378,10 +418,11 @@ export const updateFutsal = async (req, res) => {
       toggleActive,
     } = req.body;
     
-
+    const futsalId = parseInt(id);
+    
     const existingFutsal = await prisma.futsal.findFirst({
       where: {
-        id: parseInt(id),
+        id: futsalId,
         ownerId: req.user.id,
       },
     });
@@ -393,17 +434,57 @@ export const updateFutsal = async (req, res) => {
       });
     }
 
-    // In updateFutsal function, add these logs:
-console.log("🔵 Operating hours from request:", operatingHours);
-console.log("🔵 Existing operating hours:", existingFutsal.operatingHours);
-console.log("🔵 operatingHoursChanged:", operatingHours && 
-  JSON.stringify(operatingHours) !== JSON.stringify(existingFutsal.operatingHours));
-
-    // Handle toggle active
+    // Handle owner toggle active (deactivate/reactivate)
     let newStatus = status;
     if (toggleActive) {
+      // Check if admin deactivated this futsal
+      if (existingFutsal.deactivatedBy === 'ADMIN') {
+        return res.status(403).json({
+          status: "error",
+          message: "This futsal was deactivated by admin. You cannot reactivate it.",
+        });
+      }
+      
+      // Owner toggle
       newStatus = existingFutsal.status === 'ACTIVE' ? 'DEACTIVATED' : 'ACTIVE';
-    } else if (isApproved !== undefined) {
+      
+      // If deactivating, set deactivatedBy = OWNER
+      if (newStatus === 'DEACTIVATED') {
+        await prisma.futsal.update({
+          where: { id: futsalId },
+          data: {
+            status: newStatus,
+            deactivatedBy: 'OWNER',
+            deactivatedAt: new Date(),
+          },
+        });
+        
+        return res.json({
+          status: "success",
+          message: "Futsal deactivated successfully",
+          futsal: existingFutsal,
+        });
+      } else {
+        // Reactivating - clear deactivatedBy
+        await prisma.futsal.update({
+          where: { id: futsalId },
+          data: {
+            status: newStatus,
+            deactivatedBy: null,
+            deactivatedAt: null,
+          },
+        });
+        
+        return res.json({
+          status: "success",
+          message: "Futsal activated successfully",
+          futsal: existingFutsal,
+        });
+      }
+    }
+
+    // Handle admin status change
+    if (isApproved !== undefined && req.user.role === "ADMIN") {
       newStatus = isApproved ? 'ACTIVE' : 'DEACTIVATED';
     }
 
@@ -412,7 +493,7 @@ console.log("🔵 operatingHoursChanged:", operatingHours &&
       JSON.stringify(operatingHours) !== JSON.stringify(existingFutsal.operatingHours);
 
     const futsal = await prisma.futsal.update({
-      where: { id: parseInt(id) },
+      where: { id: futsalId },
       data: {
         name,
         description,
@@ -425,9 +506,9 @@ console.log("🔵 operatingHoursChanged:", operatingHours &&
       },
     });
 
-    // ✅ If operating hours changed, regenerate future slots
+    // If operating hours changed, regenerate future slots
     if (operatingHoursChanged) {
-      await regenerateFutureSlots(parseInt(id));
+      await regenerateFutureSlots(futsalId);
     }
 
     res.json({
@@ -466,6 +547,7 @@ export const deleteFutsal = async (req, res) => {
       });
     }
 
+    // Check for bookings (blocks deletion for ACTIVE futsals)
     const bookingCount = await prisma.booking.count({
       where: {
         slot: {
@@ -476,32 +558,55 @@ export const deleteFutsal = async (req, res) => {
       },
     });
 
-    const favoriteCount = await prisma.favorite.count({
-      where: {
-        futsalId: futsalId,
-      },
-    });
-
-    if (bookingCount > 0 || favoriteCount > 0) {
+    if (bookingCount > 0) {
       return res.status(400).json({
         status: "error",
-        message:
-          "Cannot delete futsal. It has existing bookings or favorites. Consider archiving it instead.",
-        details: {
-          bookings: bookingCount,
-          favorites: favoriteCount,
-        },
+        message: "Cannot delete futsal. It has existing bookings.",
+        details: { bookings: bookingCount },
       });
     }
 
-    await prisma.futsal.delete({
-      where: { id: futsalId },
+    // Check if payment was made (has transaction record)
+    const transactionCount = await prisma.transaction.count({
+      where: { futsalId: futsalId },
     });
 
-    res.json({
-      status: "success",
-      message: "Futsal deleted successfully",
+    const hasPayment = transactionCount > 0;
+
+    // For PENDING_PAYMENT (no payment) - Owner can delete
+    if (existingFutsal.status === 'PENDING_PAYMENT' && !hasPayment) {
+      // Delete favorites first
+      await prisma.favorite.deleteMany({ where: { futsalId: futsalId } });
+      // Delete the futsal
+      await prisma.futsal.delete({ where: { id: futsalId } });
+      
+      return res.json({
+        status: "success",
+        message: "Futsal deleted successfully",
+      });
+    }
+
+    // For PENDING or any status with payment - Only Admin can delete
+    if (req.user.role === "ADMIN") {
+      // Admin force delete - no refund
+      await prisma.$transaction([
+        prisma.favorite.deleteMany({ where: { futsalId: futsalId } }),
+        prisma.transaction.deleteMany({ where: { futsalId: futsalId } }),
+        prisma.futsal.delete({ where: { id: futsalId } }),
+      ]);
+      
+      return res.json({
+        status: "success",
+        message: "Futsal deleted successfully by admin",
+      });
+    }
+
+    // Owner trying to delete a futsal that has payment
+    return res.status(400).json({
+      status: "error",
+      message: "Cannot delete futsal after payment. Please contact admin.",
     });
+    
   } catch (error) {
     console.error("Delete futsal error:", error);
     res.status(500).json({
@@ -542,6 +647,11 @@ export const getMyFutsals = async (req, res) => {
     const futsalsWithCount = futsals.map((futsal) => ({
       ...futsal,
       courtCount: futsal._count?.courts || 0,
+      needsRegistrationPayment: futsal.status === 'PENDING_PAYMENT',
+      registrationFeePaid: futsal.registrationFeePaid,
+      registrationFeeAmount: futsal.registrationFeeAmount ?? 10,
+      // ✅ Add this flag for frontend
+      adminDeactivated: futsal.deactivatedBy === 'ADMIN',
     }));
 
     res.json({
@@ -555,5 +665,307 @@ export const getMyFutsals = async (req, res) => {
       status: "error",
       message: "Server error: " + error.message,
     });
+  }
+};
+
+// Add this to futsal.controller.js
+export const confirmRegistrationPayment = async (req, res) => {
+  try {
+    const { futsalId, paymentIntentId } = req.body;
+    
+    // Verify payment with your payment gateway
+    const paymentVerified = await verifyPayment(paymentIntentId);
+    
+    if (!paymentVerified) {
+      return res.status(400).json({
+        status: "error",
+        message: "Payment verification failed"
+      });
+    }
+    
+    // Update futsal
+    const futsal = await prisma.futsal.update({
+      where: { id: parseInt(futsalId) },
+      data: {
+        registrationFeePaid: true,
+        registrationPaidAt: new Date(),
+        status: 'PENDING'  // Now ready for admin approval
+      }
+    });
+    
+    // Record in PlatformRevenue
+    const settings = await prisma.systemSettings.findFirst();
+    await prisma.platformRevenue.create({
+      data: {
+        amount: settings?.registrationFeeAmount || 500,
+        type: 'REGISTRATION',
+        description: `Registration fee for futsal ID: ${futsalId}`,
+        bookingId: null
+      }
+    });
+    
+    res.json({
+      status: "success",
+      message: "Payment confirmed. Futsal is now pending admin approval.",
+      futsal
+    });
+  } catch (error) {
+    console.error("Confirm registration payment error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Server error: " + error.message
+    });
+  }
+};
+
+// ============================================
+// KHALTI PAYMENT FOR REGISTRATION FEE
+// ============================================
+
+export const initiateRegistrationPayment = async (req, res) => {
+  try {
+    const { futsalId } = req.body;
+    const userId = req.user.id;
+
+    // Check if futsal exists and belongs to this owner
+    const futsal = await prisma.futsal.findFirst({
+      where: { 
+        id: parseInt(futsalId),
+        ownerId: userId
+      }
+    });
+
+    if (!futsal) {
+      return res.status(404).json({ message: "Futsal not found" });
+    }
+
+    // Check if registration fee already paid
+    if (futsal.registrationFeePaid) {
+      return res.status(400).json({ message: "Registration fee already paid" });
+    }
+
+    // Get registration fee amount
+    const settings = await prisma.systemSettings.findFirst();
+    const amount = settings?.registrationFeeAmount || 500;
+    const amountInPaisa = Math.round(amount * 100);
+
+    // Create Khalti payment payload
+    const payload = {
+      return_url: `${process.env.BACKEND_URL}/api/futsals/registration-payment/callback`,
+      purchase_order_id: `REG_${futsal.id}_${Date.now()}`,
+      purchase_order_name: `Futsal Registration Fee - ${futsal.name}`,
+      amount: amountInPaisa,
+      website_url: process.env.FRONTEND_URL,
+      customer_info: {
+        name: req.user.fullName || req.user.email,
+        email: req.user.email,
+        phone: req.user.phoneNumber || "9800000000",
+      },
+    };
+
+    console.log("📝 Khalti registration payment payload:", payload);
+
+    const response = await axios.post(
+      "https://dev.khalti.com/api/v2/epayment/initiate/",
+      payload,
+      {
+        headers: {
+          Authorization: `Key ${process.env.KHALTI_SECRET_KEY}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (!response.data?.pidx || !response.data?.payment_url) {
+      return res.status(400).json({ 
+        message: "Invalid Khalti response", 
+        details: response.data 
+      });
+    }
+
+    // Store payment info in a temporary record or session
+    // You can create a RegistrationPayment model or use existing Payment model
+    // For now, store in a variable or create a new model
+
+    return res.json({ 
+      paymentUrl: response.data.payment_url, 
+      pidx: response.data.pidx,
+      futsalId: futsal.id
+    });
+
+  } catch (error) {
+    console.error("Registration payment initiation error:", error);
+    return res.status(500).json({ 
+      message: "Server error", 
+      error: error.message 
+    });
+  }
+};
+
+export const verifyRegistrationPayment = async (req, res) => {
+  const { pidx, futsalId } = req.body;
+
+  try {
+    console.log("🔍 Verifying registration payment:", { pidx, futsalId });
+
+    const response = await axios.post(
+      "https://a.khalti.com/api/v2/epayment/lookup/",
+      { pidx },
+      { 
+        headers: { 
+          Authorization: `Key ${process.env.KHALTI_SECRET_KEY}` 
+        } 
+      }
+    );
+
+    const status = response.data.status?.toString().toLowerCase();
+    const isSuccess = status === "completed" || status === "success";
+
+    if (isSuccess) {
+      const futsal = await prisma.futsal.findUnique({
+        where: { id: parseInt(futsalId) }
+      });
+      
+      if (!futsal) {
+        return res.status(404).json({ success: false, message: "Futsal not found" });
+      }
+      
+      const settings = await prisma.systemSettings.findFirst();
+      const registrationFeeAmount = settings?.registrationFeeAmount || 500;
+
+      await prisma.futsal.update({
+        where: { id: parseInt(futsalId) },
+        data: {
+          registrationFeePaid: true,
+          registrationPaidAt: new Date(),
+          status: 'PENDING'
+        }
+      });
+
+      await prisma.platformRevenue.create({
+        data: {
+          amount: registrationFeeAmount,
+          type: 'REGISTRATION',
+          description: `Registration fee for futsal ID: ${futsalId}`,
+          bookingId: null
+        }
+      });
+
+      // ✅ REMOVED bookingId
+      await prisma.transaction.create({
+        data: {
+          futsalId: parseInt(futsalId),
+          ownerId: futsal.ownerId,
+          amount: registrationFeeAmount,
+          commission: 0,
+          ownerEarning: 0,
+          status: 'COMPLETED',
+          type: 'REGISTRATION_FEE',
+          paymentMethod: 'KHALTI',
+          requiresPayout: false
+        }
+      });
+
+      return res.json({ 
+        success: true, 
+        message: "Registration fee paid successfully"
+      });
+    } else {
+      return res.json({
+        success: false,
+        message: "Payment failed. Please try again.",
+      });
+    }
+  } catch (error) {
+    console.error("Registration payment verification error:", error);
+    return res.status(400).json({ 
+      success: false, 
+      message: "Payment verification failed: " + error.message
+    });
+  }
+};
+
+export const registrationPaymentCallback = async (req, res) => {
+  const { pidx, purchase_order_id } = req.query;
+  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+
+  try {
+    console.log("📞 Registration payment callback:", { pidx, purchase_order_id });
+
+    if (!pidx) {
+      return res.redirect(`${frontendUrl}/futsal-registration-status?status=error&message=No payment ID received`);
+    }
+
+    // Extract futsalId from purchase_order_id (format: REG_{futsalId}_{timestamp})
+    const futsalId = parseInt(purchase_order_id.split('_')[1]);
+    
+    // FIRST, get the futsal to find the ownerId
+    const futsal = await prisma.futsal.findUnique({
+      where: { id: futsalId }
+    });
+    
+    if (!futsal) {
+      return res.redirect(`${frontendUrl}/futsal-registration-status?status=error&message=Futsal not found`);
+    }
+    
+    // Verify payment
+    const response = await axios.post(
+      "https://a.khalti.com/api/v2/epayment/lookup/",
+      { pidx },
+      { 
+        headers: { 
+          Authorization: `Key ${process.env.KHALTI_SECRET_KEY}` 
+        } 
+      }
+    );
+
+    const status = response.data.status?.toString().toLowerCase();
+    const isSuccess = status === "completed" || status === "success";
+
+    if (isSuccess) {
+      const settings = await prisma.systemSettings.findFirst();
+      const registrationFeeAmount = settings?.registrationFeeAmount || 500;
+
+      // ✅ REMOVED bookingId from transaction creation
+      await prisma.$transaction([
+        prisma.futsal.update({
+          where: { id: futsalId },
+          data: {
+            registrationFeePaid: true,
+            registrationPaidAt: new Date(),
+            status: 'PENDING'
+          }
+        }),
+        prisma.platformRevenue.create({
+          data: {
+            amount: registrationFeeAmount,
+            type: 'REGISTRATION',
+            description: `Registration fee for futsal ID: ${futsalId}`,
+            bookingId: null
+          }
+        }),
+        prisma.transaction.create({
+          data: {
+            // bookingId is OMITTED (will be null)
+            futsalId: futsalId,
+            ownerId: futsal.ownerId,
+            amount: registrationFeeAmount,
+            commission: 0,
+            ownerEarning: 0,
+            status: 'COMPLETED',
+            type: 'REGISTRATION_FEE',
+            paymentMethod: 'KHALTI',
+            requiresPayout: false
+          }
+        })
+      ]);
+
+      return res.redirect(`${frontendUrl}/futsal-registration-status?status=success&futsal_id=${futsalId}`);
+    } else {
+      return res.redirect(`${frontendUrl}/futsal-registration-status?status=failed&futsal_id=${futsalId}`);
+    }
+  } catch (error) {
+    console.error("Registration payment callback error:", error);
+    return res.redirect(`${frontendUrl}/futsal-registration-status?status=error&message=${encodeURIComponent(error.message)}`);
   }
 };

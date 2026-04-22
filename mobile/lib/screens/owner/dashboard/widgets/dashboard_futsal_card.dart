@@ -22,6 +22,22 @@ class DashboardFutsalCard extends StatelessWidget {
     required this.onToggleActive,
   });
 
+  // ✅ Helper to determine if delete should be shown
+  bool get _canDelete {
+    // Only show delete for PENDING_PAYMENT status with no payment made
+    return futsal.status == 'PENDING_PAYMENT' && !futsal.registrationFeePaid;
+  }
+
+  // ✅ Helper to determine if payment is pending (show banner)
+  bool get _isPaymentPending {
+    return futsal.status == 'PENDING_PAYMENT' && !futsal.registrationFeePaid;
+  }
+
+  // ✅ Helper to determine if waiting for admin approval after payment
+  bool get _isWaitingApproval {
+    return futsal.status == 'PENDING' && futsal.registrationFeePaid;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isPending = futsal.status == 'PENDING';
@@ -48,8 +64,46 @@ class DashboardFutsalCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Status Banner
-          if (isPending)
+          // ✅ Status Banner - Updated for Payment Pending
+          if (_isPaymentPending)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+              decoration: const BoxDecoration(
+                color: Colors.orange,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.payment, color: Colors.white, size: 16),
+                  SizedBox(width: 4),
+                  Text(
+                    'Payment Required',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          if (_isWaitingApproval)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+              decoration: const BoxDecoration(
+                color: Colors.blue,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.hourglass_empty, color: Colors.white, size: 16),
+                  SizedBox(width: 4),
+                  Text(
+                    'Pending Admin Approval',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          if (isPending && !_isWaitingApproval && !_isPaymentPending)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
@@ -220,17 +274,18 @@ class DashboardFutsalCard extends StatelessWidget {
                               ],
                             ),
                           ),
-                          PopupMenuItem(
-                            value: 'delete',
-                            enabled: futsal.status == 'PENDING' && !hasCourts,
-                            child: Row(
-                              children: [
-                                Icon(Icons.delete, size: 18, color: futsal.status == 'PENDING' && !hasCourts ? Colors.red : Colors.grey),
-                                const SizedBox(width: 8),
-                                Text('Delete', style: TextStyle(color: futsal.status == 'PENDING' && !hasCourts ? Colors.red : Colors.grey)),
-                              ],
+                          // ✅ Updated Delete condition
+                          if (_canDelete)
+                            PopupMenuItem(
+                              value: 'delete',
+                              child: const Row(
+                                children: [
+                                  Icon(Icons.delete, size: 18, color: Colors.red),
+                                  SizedBox(width: 8),
+                                  Text('Delete', style: TextStyle(color: Colors.red)),
+                                ],
+                              ),
                             ),
-                          ),
                           PopupMenuItem(
                             value: 'toggle_active',
                             enabled: futsal.status == 'ACTIVE' || futsal.status == 'DEACTIVATED',
@@ -281,7 +336,8 @@ class DashboardFutsalCard extends StatelessWidget {
                               color: futsal.status == 'ACTIVE' ? Colors.orange : Colors.green,
                               enabled: true,
                             ),
-                          if (futsal.status == 'PENDING' && !hasCourts)
+                          // ✅ Updated Delete condition
+                          if (_canDelete)
                             _buildIconButton(
                               icon: Icons.delete,
                               onTap: onDelete,

@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "FutsalStatus" ADD VALUE 'PENDING_PAYMENT';

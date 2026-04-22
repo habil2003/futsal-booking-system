@@ -1,13 +1,20 @@
 import express from 'express';
+import {
+  getSystemSettings,
+  updateSystemSettings,
+  getRegistrationFeeSettings,
+  updateRegistrationFee,
+} from '../controllers/settings.controller.js';
 import { authenticate, authorize } from '../middleware/auth.js';
-import { getSystemSettings, updateSystemSettings } from '../controllers/settings.controller.js';
 
 const router = express.Router();
 
-// All settings routes require admin authentication
-router.use(authenticate, authorize('ADMIN'));
-
+// Public routes (anyone can view settings)
 router.get('/', getSystemSettings);
-router.put('/', updateSystemSettings);
+
+// Admin only routes
+router.put('/', authenticate, authorize('ADMIN'), updateSystemSettings);
+router.get('/registration-fee', authenticate, authorize('ADMIN'), getRegistrationFeeSettings);
+router.put('/registration-fee', authenticate, authorize('ADMIN'), updateRegistrationFee);
 
 export default router;

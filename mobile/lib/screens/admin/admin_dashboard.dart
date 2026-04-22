@@ -4,7 +4,7 @@ import '../../providers/admin_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/admin/futsal_details_modal.dart';
 import '../../widgets/admin/admin_edit_profile_dialog.dart';
-import '../admin/admin_revenue_screen.dart';  // ✅ ADD THIS
+import '../admin/admin_revenue_screen.dart'; // ✅ ADD THIS
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -72,10 +72,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     value: 'profile',
                     child: Row(
                       children: [
-                        Icon(Icons.person, size: 18, color: Colors.green,),
+                        Icon(
+                          Icons.person,
+                          size: 18,
+                          color: Colors.green,
+                        ),
                         SizedBox(width: 12),
                         Text('Profile'),
-                        
                       ],
                     ),
                   ),
@@ -141,6 +144,26 @@ class _AdminDashboardState extends State<AdminDashboard> {
                           Icons.sports_soccer,
                           Colors.green),
                       _statCard(
+                          "Total Bookings",
+                          adminProvider.totalBookings.toString(),
+                          Icons.book_online,
+                          Colors.indigo),
+                      _statCard(
+                          "Completed",
+                          adminProvider.completedBookings.toString(),
+                          Icons.check_circle,
+                          Colors.green),
+                      _statCard(
+                          "Active",
+                          adminProvider.activeBookings.toString(),
+                          Icons.pending,
+                          Colors.orange),
+                      _statCard(
+                          "Cancelled",
+                          adminProvider.cancelledBookings.toString(),
+                          Icons.cancel,
+                          Colors.red),
+                      _statCard(
                           "Pending Approvals",
                           adminProvider.pendingApprovals.toString(),
                           Icons.pending_actions,
@@ -148,12 +171,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       _statCard(
                           "Today's Bookings",
                           adminProvider.todayBookings.toString(),
-                          Icons.book_online,
+                          Icons.today,
                           Colors.purple),
                       _statCard(
                           "Total Revenue",
-                          "Rs ${adminProvider.totalRevenue.toStringAsFixed(0)}",
-                          Icons.attach_money,
+                          "रू ${adminProvider.totalRevenue.toStringAsFixed(0)}",
+                          Icons.currency_rupee,
                           Colors.teal),
                     ],
                   ),
@@ -289,70 +312,70 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Widget _buildQuickActions() {
-  return LayoutBuilder(
-    builder: (context, constraints) {
-      final itemWidth = (constraints.maxWidth - 36) / 2;
-      return Wrap(
-        spacing: 12,
-        runSpacing: 12,
-        children: [
-          _actionButton(
-            "Pending Futsals",
-            Icons.approval,
-            Colors.orange,
-            () => Navigator.pushNamed(context, "/admin/futsal-approvals"),
-            itemWidth,
-          ),
-          _actionButton(
-            "Manage Users",
-            Icons.people_alt,
-            Colors.blue,
-            () => Navigator.pushNamed(context, "/admin/users"),
-            itemWidth,
-          ),
-          _actionButton(
-            "All Futsals",
-            Icons.sports_soccer,
-            Colors.green,
-            () => Navigator.pushNamed(context, "/admin/futsals"),
-            itemWidth,
-          ),
-          _actionButton(
-            "All Bookings",
-            Icons.book_online,
-            Colors.teal,
-            () => Navigator.pushNamed(context, "/admin/bookings"),
-            itemWidth,
-          ),
-          _actionButton(
-            "Revenue Analytics",  // ✅ NEW BUTTON
-            Icons.analytics,
-            Colors.purple,
-            () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const AdminRevenueScreen()),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final itemWidth = (constraints.maxWidth - 36) / 2;
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            _actionButton(
+              "Pending Futsals",
+              Icons.approval,
+              Colors.orange,
+              () => Navigator.pushNamed(context, "/admin/futsal-approvals"),
+              itemWidth,
             ),
-            itemWidth,
-          ),
-          _actionButton(
-            "Settings",
-            Icons.settings,
-            Colors.grey,
-            () => Navigator.pushNamed(context, "/admin/settings"),
-            itemWidth,
-          ),
-          _actionButton(
-            "Analytics",
-            Icons.analytics_outlined,
-            Colors.indigo,
-            () => Navigator.pushNamed(context, "/admin/analytics"),
-            itemWidth,
-          ),
-        ],
-      );
-    },
-  );
-}
+            _actionButton(
+              "Manage Users",
+              Icons.people_alt,
+              Colors.blue,
+              () => Navigator.pushNamed(context, "/admin/users"),
+              itemWidth,
+            ),
+            _actionButton(
+              "All Futsals",
+              Icons.sports_soccer,
+              Colors.green,
+              () => Navigator.pushNamed(context, "/admin/futsals"),
+              itemWidth,
+            ),
+            _actionButton(
+              "All Bookings",
+              Icons.book_online,
+              Colors.teal,
+              () => Navigator.pushNamed(context, "/admin/bookings"),
+              itemWidth,
+            ),
+            _actionButton(
+              "Revenue Analytics", // ✅ NEW BUTTON
+              Icons.analytics,
+              Colors.purple,
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AdminRevenueScreen()),
+              ),
+              itemWidth,
+            ),
+            _actionButton(
+              "Settings",
+              Icons.settings,
+              Colors.grey,
+              () => Navigator.pushNamed(context, "/admin/settings"),
+              itemWidth,
+            ),
+            _actionButton(
+              "Analytics",
+              Icons.analytics_outlined,
+              Colors.indigo,
+              () => Navigator.pushNamed(context, "/admin/analytics"),
+              itemWidth,
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   Widget _actionButton(String title, IconData icon, Color color,
       VoidCallback onTap, double width) {

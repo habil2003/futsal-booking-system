@@ -22,7 +22,9 @@ import {
   processPayout,
   getCommissionRate,
   updateCommissionRate,
-  fixMissingTransactions,   // ✅ Add this
+  deleteFutsal,
+  adminDeactivateFutsal,
+  adminActivateFutsal,
 } from "../controllers/admin.controller.js";
 
 const router = express.Router();
@@ -41,6 +43,11 @@ router.get("/futsals", authenticate, authorize("ADMIN"), getAllFutsals); // ✅ 
 router.patch("/futsals/:id/approve", authenticate, authorize("ADMIN"), approveFutsal);
 router.patch("/futsals/:id/reject", authenticate, authorize("ADMIN"), rejectFutsal);
 
+// Add this with other futsal routes
+// These should be present
+router.patch("/futsals/:id/admin-deactivate", authenticate, authorize("ADMIN"), adminDeactivateFutsal);
+router.patch("/futsals/:id/admin-activate", authenticate, authorize("ADMIN"), adminActivateFutsal);
+router.delete("/futsals/:id", authenticate, authorize("ADMIN"), deleteFutsal);
 /* Reports */
 router.get("/reports", authenticate, authorize("ADMIN"), generateReport); // ✅ report endpoint
 
@@ -71,11 +78,5 @@ router.post('/revenue/payouts/:id/process', authenticate, authorize('ADMIN'), pr
 // Commission rate settings
 router.get('/revenue/commission-rate', authenticate, authorize('ADMIN'), getCommissionRate);
 router.put('/revenue/commission-rate', authenticate, authorize('ADMIN'), updateCommissionRate);
-
-
-// Fix missing transactions (temporary endpoint)
-router.post('/fix-transactions', authenticate, authorize('ADMIN'), fixMissingTransactions);
-
-
 
 export default router;
