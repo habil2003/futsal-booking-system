@@ -8,67 +8,73 @@ datasource db {
 }
 
 model User {
-  id           Int          @id @default(autoincrement())
-  email        String       @unique
-  password     String
-  fullName     String
-  phoneNumber  String?
-  role         Role         @default(PLAYER)
-  isApproved   Boolean      @default(false)
-  isActive     Boolean      @default(true)
-  createdAt    DateTime     @default(now())
-
-  bookings     Booking[]
-  ownedFutsals Futsal[]     @relation("OwnerFutsals")
-  reviews      Review[]
-  teams        TeamMember[]
-  isEmailVerified Boolean @default(false)
-  otp          String?
-  otpExpiry    DateTime?
-
-  ownerBlocks  Block[]      @relation("OwnerBlocks")
-  playerBlocks Block[]      @relation("PlayerBlocks")
-  favorites    Favorite[]
+  id              Int           @id @default(autoincrement())
+  email           String        @unique
+  username        String? // unique username for all users
+  password        String
+  fullName        String
+  phoneNumber     String?
+  // Business details (optional, mainly for owners)
+  businessName    String?
+  businessType    String? // 'Individual Owner' or 'Company'
+  panVatNumber    String?
+  address         String?
+  city            String?
+  province        String?
+  // ... rest of the fields remain unchanged
+  role            Role          @default(PLAYER)
+  isApproved      Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  isActive        Boolean       @default(true)
+  isEmailVerified Boolean       @default(false)
+  otp             String?
+  otpExpiry       DateTime?
+  ownerBlocks     Block[]       @relation("OwnerBlocks")
+  playerBlocks    Block[]       @relation("PlayerBlocks")
+  bookings        Booking[]
+  favorites       Favorite[]
+  ownedFutsals    Futsal[]      @relation("OwnerFutsals")
+  reviews         Review[]
+  teams           TeamMember[]
+  activities      ActivityLog[]
 }
 
 model Futsal {
-  id          Int          @id @default(autoincrement())
-  name        String
-  description String?
-  address     String
-  latitude    Float?
-  longitude   Float?
-  images      String[]
-  ownerId     Int
-  isApproved  Boolean      @default(false)
-  status      FutsalStatus @default(PENDING)
-  createdAt   DateTime     @default(now())
-
-  owner       User         @relation("OwnerFutsals", fields: [ownerId], references: [id])
-  reviews     Review[]
-  courts      Court[]
-  tournaments Tournament[]
-  blocks      Block[]
-  favorites   Favorite[]
-  operatingHours Json?  // Store as JSON: { "monday": "6:00-22:00", ... }
+  id             Int          @id @default(autoincrement())
+  name           String
+  description    String?
+  address        String
+  latitude       Float?
+  longitude      Float?
+  images         String[]
+  ownerId        Int
+  isApproved     Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  operatingHours Json?
+  status         FutsalStatus @default(PENDING)
+  blocks         Block[]
+  courts         Court[]
+  favorites      Favorite[]
+  owner          User         @relation("OwnerFutsals", fields: [ownerId], references: [id])
+  reviews        Review[]
+  tournaments    Tournament[]
 }
 
 model Court {
-  id                 Int       @id @default(autoincrement())
+  id                 Int        @id @default(autoincrement())
   futsalId           Int
   courtNumber        String
   courtType          String
   basePrice          Float
   peakPrice          Float?
   amenities          String[]
-  isActive           Boolean   @default(true)
-  isUnderMaintenance Boolean   @default(false)
+  isActive           Boolean    @default(true)
+  isUnderMaintenance Boolean    @default(false)
   maintenanceUntil   DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-
-  futsal Futsal     @relation(fields: [futsalId], references: [id])
-  slots  TimeSlot[]
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  futsal             Futsal     @relation(fields: [futsalId], references: [id])
+  slots              TimeSlot[]
 }
 
 model TimeSlot {
@@ -80,29 +86,26 @@ model TimeSlot {
   price       Float
   status      SlotStatus @default(AVAILABLE)
   lockedUntil DateTime?
-
-  bookings    Booking[]  
-
+  bookings    Booking[]
   court       Court      @relation(fields: [courtId], references: [id])
 }
 
 model Booking {
-  id           Int           @id @default(autoincrement())
-  userId       Int
-  slotId       Int          
-  totalPrice   Float
-  duration     Int           @default(1)        // ✅ added
-  paymentMethod String       @default("COD")    // ✅ added
-  groupId      String?                          // ✅ groups multi-hour bookings
-  status       BookingStatus @default(PENDING)
-  bookingDate  DateTime      @default(now())
-  checkInTime  DateTime?
-  checkOutTime DateTime?
-  review     Review?
-
-  slot         TimeSlot      @relation(fields: [slotId], references: [id])
-  user         User          @relation(fields: [userId], references: [id])
-  payment      Payment?
+  id            Int           @id @default(autoincrement())
+  userId        Int
+  slotId        Int
+  totalPrice    Float
+  status        BookingStatus @default(PENDING)
+  bookingDate   DateTime      @default(now())
+  checkInTime   DateTime?
+  checkOutTime  DateTime?
+  duration      Int           @default(1)
+  groupId       String?
+  paymentMethod String        @default("COD")
+  slot          TimeSlot      @relation(fields: [slotId], references: [id])
+  user          User          @relation(fields: [userId], references: [id])
+  payment       Payment?
+  review        Review?
 
   @@index([slotId])
   @@index([status])
@@ -116,9 +119,7 @@ model Payment {
   method        String
   status        String
   transactionId String?
-  
   createdAt     DateTime @default(now())
-
   booking       Booking  @relation(fields: [bookingId], references: [id])
 }
 
@@ -126,19 +127,18 @@ model Tournament {
   id          Int            @id @default(autoincrement())
   futsalId    Int
   name        String
-  description String?        // ← ADD
   type        TournamentType
   startDate   DateTime
-  endDate     DateTime?      // ← make optional
+  endDate     DateTime?
   maxTeams    Int
-  entryFee    Float?         // ← ADD
-  prizePool   Float?         // ← ADD
-  rules       String?        // ← ADD
-  prizes      String[]       // ← ADD
-  isPublished Boolean        @default(false)  // ← ADD
-  status      String         @default("DRAFT")  // ← change UPCOMING to DRAFT
-  createdAt   DateTime       @default(now())  // ← ADD
-
+  status      String         @default("DRAFT")
+  createdAt   DateTime       @default(now())
+  description String?
+  entryFee    Float?
+  isPublished Boolean        @default(false)
+  prizePool   Float?
+  prizes      String[]
+  rules       String?
   matches     Match[]
   teams       Team[]
   futsal      Futsal         @relation(fields: [futsalId], references: [id])
@@ -149,25 +149,22 @@ model Team {
   name         String
   tournamentId Int
   logo         String?
-
   awayMatches  Match[]      @relation("AwayTeam")
   homeMatches  Match[]      @relation("HomeTeam")
-
   tournament   Tournament   @relation(fields: [tournamentId], references: [id])
   players      TeamMember[]
 }
 
 model TeamMember {
-  id     Int    @id @default(autoincrement())
-  teamId Int
-  userId Int?
-  role   String @default("PLAYER")
-  playerName  String? 
-  playerPhone String? 
-  jerseyColor String? 
-
-  team   Team   @relation(fields: [teamId], references: [id])
-  user   User?   @relation(fields: [userId], references: [id])
+  id          Int     @id @default(autoincrement())
+  teamId      Int
+  userId      Int?
+  role        String  @default("PLAYER")
+  jerseyColor String?
+  playerName  String?
+  playerPhone String?
+  team        Team    @relation(fields: [teamId], references: [id])
+  user        User?   @relation(fields: [userId], references: [id])
 }
 
 model Match {
@@ -180,7 +177,6 @@ model Match {
   awayScore    Int?
   status       MatchStatus @default(SCHEDULED)
   round        String
-
   awayTeam     Team        @relation("AwayTeam", fields: [awayTeamId], references: [id])
   homeTeam     Team        @relation("HomeTeam", fields: [homeTeamId], references: [id])
   tournament   Tournament  @relation(fields: [tournamentId], references: [id])
@@ -190,16 +186,15 @@ model Review {
   id        Int      @id @default(autoincrement())
   userId    Int
   futsalId  Int
-  bookingId Int      @unique  // one review per booking
-  rating    Float    // 1.0 to 5.0
+  rating    Float
   comment   String?
-  reply     String?  // owner's reply
   createdAt DateTime @default(now())
+  bookingId Int      @unique
+  reply     String?
   updatedAt DateTime @updatedAt
-
+  booking   Booking  @relation(fields: [bookingId], references: [id])
   futsal    Futsal   @relation(fields: [futsalId], references: [id])
   user      User     @relation(fields: [userId], references: [id])
-  booking   Booking  @relation(fields: [bookingId], references: [id])
 
   @@index([futsalId])
   @@index([userId])
@@ -212,10 +207,9 @@ model Block {
   futsalId  Int
   reason    String?
   createdAt DateTime @default(now())
-
-  owner     User   @relation("OwnerBlocks", fields: [ownerId], references: [id])
-  player    User   @relation("PlayerBlocks", fields: [playerId], references: [id])
-  futsal    Futsal @relation(fields: [futsalId], references: [id])
+  futsal    Futsal   @relation(fields: [futsalId], references: [id])
+  owner     User     @relation("OwnerBlocks", fields: [ownerId], references: [id])
+  player    User     @relation("PlayerBlocks", fields: [playerId], references: [id])
 
   @@unique([ownerId, playerId, futsalId])
 }
@@ -225,9 +219,8 @@ model Favorite {
   userId    Int
   futsalId  Int
   createdAt DateTime @default(now())
-
-  user      User     @relation(fields: [userId], references: [id])
   futsal    Futsal   @relation(fields: [futsalId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
 
   @@unique([userId, futsalId])
 }
@@ -241,6 +234,18 @@ model SystemSettings {
   slotLockMinutes          Int      @default(5)
   slotGenerationDays       Int      @default(30)
   updatedAt                DateTime @updatedAt
+}
+
+model Ad {
+  id         Int      @id @default(autoincrement())
+  title      String
+  subtitle   String
+  buttonText String
+  buttonLink String
+  imageUrl   String
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 enum Role {
@@ -263,6 +268,7 @@ enum BookingStatus {
 }
 
 enum TournamentType {
+  LEAGUE
   KNOCKOUT
   ROUND_ROBIN
 }
@@ -275,7 +281,19 @@ enum MatchStatus {
 }
 
 enum FutsalStatus {
-  PENDING     // Waiting for admin approval
-  ACTIVE      // Approved and active
-  DEACTIVATED // Owner deactivated
+  PENDING
+  ACTIVE
+  DEACTIVATED
+}
+
+model ActivityLog {
+  id          Int      @id @default(autoincrement())
+  type        String // e.g., 'BOOKING', 'USER_REGISTER'
+  description String
+  userId      Int?
+  user        User?    @relation(fields: [userId], references: [id])
+  category    String // e.g., 'Booking', 'User Added'
+  status      String // e.g., 'completed', 'pending', 'registered'
+  metadata    Json? // extra info (name, email, phone, bookingId, etc.)
+  createdAt   DateTime @default(now())
 }

@@ -15,6 +15,8 @@ import 'dashboard/widgets/dashboard_futsal_card.dart';
 import 'dashboard/widgets/stats_card.dart';
 import 'dashboard/widgets/quick_actions.dart';
 import 'dashboard/widgets/today_schedule.dart';
+import 'customer_screen.dart';
+import 'owner_setting.dart';
 
 class OwnerDashboard extends StatefulWidget {
   const OwnerDashboard({super.key});
@@ -25,6 +27,22 @@ class OwnerDashboard extends StatefulWidget {
 
 class _OwnerDashboardState extends State<OwnerDashboard> {
   Futsal? _selectedFutsal;
+  String _selectedMenu = 'Dashboard'; // active sidebar item
+
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  // Sidebar items
+  static const List<Map<String, dynamic>> _menuItems = [
+    {'title': 'Dashboard', 'icon': Icons.dashboard},
+    {'title': 'My Grounds', 'icon': Icons.sports_soccer},
+    {'title': 'Bookings', 'icon': Icons.book_online},
+    {'title': 'Earnings', 'icon': Icons.attach_money},
+    {'title': 'Reviews', 'icon': Icons.star},
+    {'title': 'Blocked Players', 'icon': Icons.block},
+    {'title': 'Customers', 'icon': Icons.people},
+    {'title': 'Notifications', 'icon': Icons.notifications},
+    {'title': 'Settings', 'icon': Icons.settings},
+  ];
 
   @override
   void initState() {
@@ -59,287 +77,121 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     }
   }
 
-  Future<void> _showLogoutConfirmation() async {
-    final bool? shouldLogout = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            style: TextButton.styleFrom(foregroundColor: Colors.grey),
-            child: const Text('CANCEL'),
+  void _onMenuSelected(String menu) {
+    setState(() => _selectedMenu = menu);
+    // Close drawer on mobile after selection
+    if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
+      Navigator.pop(context);
+    }
+  }
+
+  // ------------------------------------ Sidebar Widget (desktop / tablet) ------------------------------------
+  Widget _buildSidebar() {
+    return Container(
+      width: 250,
+      decoration: BoxDecoration(
+        color: Colors.green.shade800,
+        boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 10)],
+      ),
+      child: Column(
+        children: [
+          const SizedBox(height: 40),
+          // Logo / title
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text('Owner Panel',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold)),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('LOGOUT'),
+          const Divider(color: Colors.white24),
+          Expanded(
+            child: ListView.builder(
+              itemCount: _menuItems.length,
+              itemBuilder: (ctx, index) {
+                final item = _menuItems[index];
+                final isSelected = item['title'] == _selectedMenu;
+                return ListTile(
+                  leading: Icon(item['icon'],
+                      color: isSelected ? Colors.white : Colors.white70),
+                  title: Text(item['title'],
+                      style: TextStyle(
+                          color: isSelected ? Colors.white : Colors.white70)),
+                  selected: isSelected,
+                  selectedTileColor: Colors.white.withOpacity(0.15),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                  onTap: () => _onMenuSelected(item['title']),
+                );
+              },
+            ),
           ),
-        ],
-      ),
-    );
-
-    if (shouldLogout == true && mounted) {
-      final auth = Provider.of<AuthProvider>(context, listen: false);
-
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => const Center(child: CircularProgressIndicator()),
-      );
-
-      await auth.logout();
-
-      if (mounted) {
-        Navigator.pop(context);
-        Navigator.pushReplacementNamed(context, '/login');
-      }
-    }
-  }
-
-  Future<void> _navigateToAddFutsal([Futsal? futsalToEdit]) async {
-    final shouldRefresh = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => AddFutsalScreen(futsalToEdit: futsalToEdit?.toJson()),
-      ),
-    );
-
-    if (shouldRefresh == true) {
-      _loadAllData();
-    }
-  }
-
-  void _navigateToCourtManagement(Futsal futsal) {
-    if (futsal.status != 'ACTIVE') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Courts can only be managed for active futsals'),
-          backgroundColor: Colors.orange,
-          duration: Duration(seconds: 3),
-        ),
-      );
-      return;
-    }
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => CourtManagementScreen(
-          futsalId: futsal.id,
-          futsalName: futsal.name,
-        ),
-      ),
-    );
-  }
-
-  void _navigateToBookings(Futsal futsal) {
-    if (futsal.status != 'ACTIVE') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Bookings are only available for active futsals'),
-          backgroundColor: Colors.orange,
-          duration: Duration(seconds: 3),
-        ),
-      );
-      return;
-    }
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => BookingsScreen(
-          futsalId: futsal.id,
-          futsalName: futsal.name,
-        ),
-      ),
-    );
-  }
-
-  void _navigateToReviews(Futsal futsal) {
-    if (futsal.status != 'ACTIVE') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Reviews are only available for active futsals'),
-          backgroundColor: Colors.orange,
-          duration: Duration(seconds: 3),
-        ),
-      );
-      return;
-    }
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => OwnerReviewsScreen(
-          futsalId: futsal.id,
-          futsalName: futsal.name,
-        ),
-      ),
-    );
-  }
-
-  void _navigateToAnalytics(Futsal futsal) {
-    if (futsal.status != 'ACTIVE') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Analytics available for active futsals only'),
-          backgroundColor: Colors.orange,
-          duration: Duration(seconds: 3),
-        ),
-      );
-      return;
-    }
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => AnalyticsScreen(
-          futsalId: futsal.id,
-          futsalName: futsal.name,
-        ),
-      ),
-    );
-  }
-
-  void _navigateToBlockedPlayers(Futsal futsal) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => BlockedPlayersScreen(
-          futsalId: futsal.id,
-          futsalName: futsal.name,
-        ),
-      ),
-    );
-  }
-
-  Future<void> _deleteFutsal(Futsal futsal) async {
-    final futsalProvider = Provider.of<FutsalProvider>(context, listen: false);
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => const Center(child: CircularProgressIndicator()),
-    );
-
-    final response = await futsalProvider.deleteFutsal(futsal.id);
-    if (mounted) Navigator.pop(context);
-
-    if (response['status'] == 'success') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(response['message']),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 3),
-        ),
-      );
-      _loadAllData();
-    } else {
-      String errorMessage = response['message'];
-      if (errorMessage.contains('bookings') ||
-          errorMessage.contains('favorites')) {
-        errorMessage =
-            'Cannot delete this futsal.\n\nIt has existing bookings or favorites.';
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 4),
-        ),
-      );
-    }
-  }
-
-  void _showDeleteDialog(Futsal futsal) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Futsal'),
-        content: Text('Are you sure you want to delete "${futsal.name}"?'),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('CANCEL')),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _deleteFutsal(futsal);
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('DELETE'),
+          // Logout button at bottom
+          ListTile(
+            leading: Icon(Icons.logout, color: Colors.red.shade300),
+            title: Text('Logout', style: TextStyle(color: Colors.red.shade300)),
+            onTap: _showLogoutConfirmation,
           ),
+          const SizedBox(height: 20),
         ],
       ),
     );
   }
 
-  Future<void> _toggleActive(Futsal futsal) async {
-    final futsalProvider = Provider.of<FutsalProvider>(context, listen: false);
-
-    final response = await futsalProvider.updateFutsal(futsal.id, {
-      'toggleActive': true,
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(response['message']),
-        backgroundColor:
-            response['status'] == 'success' ? Colors.green : Colors.red,
-      ),
-    );
-
-    if (response['status'] == 'success') {
-      _loadAllData();
-    }
-  }
-
-  void _showFutsalSelector() {
-    final futsalProvider = Provider.of<FutsalProvider>(context, listen: false);
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Select Futsal'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Column(
+  // ------------------------------------ App Bar for Mobile (with hamburger and title) ------------------------------------
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      title: Text(_selectedMenu),
+      backgroundColor: Colors.green,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      actions: [
+        Container(
+          margin: const EdgeInsets.only(right: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.amber.shade700,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white, width: 1),
+          ),
+          child: const Row(
             mainAxisSize: MainAxisSize.min,
-            children: futsalProvider.myFutsals.map((futsal) {
-              return ListTile(
-                leading: const Icon(Icons.sports_soccer, color: Colors.green),
-                title: Text(futsal.name),
-                trailing: _selectedFutsal?.id == futsal.id
-                    ? const Icon(Icons.check_circle, color: Colors.green)
-                    : null,
-                onTap: () {
-                  setState(() {
-                    _selectedFutsal = futsal;
-                  });
-                  Provider.of<DashboardProvider>(context, listen: false)
-                      .loadStatistics(futsal.id);
-                  Navigator.pop(ctx);
-                },
-              );
-            }).toList(),
+            children: [
+              Icon(Icons.business, size: 16, color: Colors.white),
+              SizedBox(width: 4),
+              Text('OWNER',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12)),
+            ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
+        IconButton(
+          icon: const Icon(Icons.sports_soccer),
+          onPressed: () => Navigator.pushReplacementNamed(context, '/home'),
+          tooltip: 'Switch to Player Mode',
+        ),
+        IconButton(
+          icon: const Icon(Icons.refresh),
+          onPressed: _loadAllData,
+          tooltip: 'Refresh',
+        ),
+      ],
     );
   }
 
+  // ------------------------------------ Build method (responsive layout) ------------------------------------
   @override
   Widget build(BuildContext context) {
-    final futsalProvider = Provider.of<FutsalProvider>(context);
-    final dashboardProvider = Provider.of<DashboardProvider>(context);
+    final isMobile = MediaQuery.of(context).size.width < 700;
+    final isTablet = MediaQuery.of(context).size.width >= 700 &&
+        MediaQuery.of(context).size.width < 1100;
 
     return WillPopScope(
       onWillPop: () async {
+        // Ask for logout before closing
         final shouldLogout = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
@@ -349,19 +201,14 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                style: TextButton.styleFrom(foregroundColor: Colors.grey),
-                child: const Text('STAY'),
-              ),
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('STAY')),
               TextButton(
                 onPressed: () async {
                   final auth =
                       Provider.of<AuthProvider>(context, listen: false);
                   await auth.logout();
-                  if (mounted) {
-                    Navigator.pop(ctx, true);
-                    Navigator.pushReplacementNamed(context, '/login');
-                  }
+                  if (mounted) Navigator.pop(ctx, true);
                 },
                 style: TextButton.styleFrom(foregroundColor: Colors.red),
                 child: const Text('LOGOUT'),
@@ -369,74 +216,84 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
             ],
           ),
         );
+        if (shouldLogout == true && mounted) {
+          Navigator.pushReplacementNamed(context, '/login');
+          return false;
+        }
         return false;
       },
       child: Scaffold(
-        appBar: AppBar(
-  title: const Text('Dashboard'),
-  backgroundColor: Colors.green,
-  foregroundColor: Colors.white,
-  elevation: 0,
-  automaticallyImplyLeading: false,
-  actions: [
-    // Owner badge
-    Container(
-      margin: const EdgeInsets.only(right: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.amber.shade700,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white, width: 1),
-      ),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.business, size: 16, color: Colors.white),
-          SizedBox(width: 4),
-          Text('OWNER',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12)),
-        ],
-      ),
-    ),
-    // Switch to player mode
-    IconButton(
-      icon: const Icon(Icons.sports_soccer, color: Colors.white, size: 24),
-      onPressed: () => Navigator.pushReplacementNamed(context, '/player/home'),
-      tooltip: 'Switch to Player Mode',
-    ),
-    // Refresh button
-    IconButton(
-      icon: const Icon(Icons.refresh, color: Colors.white, size: 24),
-      onPressed: _loadAllData,
-      tooltip: 'Refresh all data',
-    ),
-    // Logout button
-    IconButton(
-      icon: const Icon(Icons.logout, color: Colors.white, size: 24),
-      onPressed: _showLogoutConfirmation,
-      tooltip: 'Logout',
-    ),
-  ],
-),
-        body: RefreshIndicator(
-          onRefresh: _loadAllData,
-          child: _buildBody(futsalProvider, dashboardProvider),
+        key: _scaffoldKey,
+        appBar: isMobile ? _buildAppBar() : null,
+        drawer: isMobile ? Drawer(child: _buildSidebar()) : null,
+        body: Row(
+          children: [
+            if (!isMobile)
+              _buildSidebar(), // permanent sidebar on desktop/tablet
+            Expanded(
+              child: _buildBody(),
+            ),
+          ],
         ),
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: () => _navigateToAddFutsal(),
-          icon: const Icon(Icons.add),
-          label: const Text('Add Futsal'),
-          backgroundColor: Colors.green,
-          tooltip: 'Add new futsal',
-        ),
+        floatingActionButton: _selectedMenu == 'My Grounds'
+            ? FloatingActionButton.extended(
+                onPressed: () => _navigateToAddFutsal(),
+                icon: const Icon(Icons.add),
+                label: const Text('Add Futsal'),
+                backgroundColor: Colors.green,
+              )
+            : null,
       ),
     );
   }
 
-  Widget _buildBody(
+  // ------------------------------------ Body content based on selected menu ------------------------------------
+  Widget _buildBody() {
+    final futsalProvider = Provider.of<FutsalProvider>(context);
+    final dashboardProvider = Provider.of<DashboardProvider>(context);
+
+    switch (_selectedMenu) {
+      case 'Dashboard':
+        return _buildDashboardContent(futsalProvider, dashboardProvider);
+      case 'My Grounds':
+        return _buildMyGroundsContent();
+      case 'Bookings':
+        if (_selectedFutsal != null)
+          return BookingsScreen(
+              futsalId: _selectedFutsal!.id, futsalName: _selectedFutsal!.name);
+        return const Center(child: Text('No futsal selected'));
+      case 'Earnings':
+        if (_selectedFutsal != null)
+          return AnalyticsScreen(
+              futsalId: _selectedFutsal!.id, futsalName: _selectedFutsal!.name);
+        return const Center(child: Text('No futsal selected'));
+      case 'Reviews':
+        if (_selectedFutsal != null)
+          return OwnerReviewsScreen(
+              futsalId: _selectedFutsal!.id, futsalName: _selectedFutsal!.name);
+        return const Center(child: Text('No futsal selected'));
+      case 'Blocked Players':
+        if (_selectedFutsal != null)
+          return BlockedPlayersScreen(
+              futsalId: _selectedFutsal!.id, futsalName: _selectedFutsal!.name);
+        return const Center(child: Text('No futsal selected'));
+      case 'Customers':
+        if (_selectedFutsal != null)
+          return CustomersScreen(
+              futsalId: _selectedFutsal!.id,
+              futsalName: _selectedFutsal!.name);
+        return const Center(child: Text('Select a futsal first'));
+      case 'Notifications':
+        return const Center(child: Text('Notifications coming soon'));
+      case 'Settings':
+  return const OwnerSettingsScreen();
+      default:
+        return _buildDashboardContent(futsalProvider, dashboardProvider);
+    }
+  }
+
+  // ------------------------------------ Dashboard content (original) ------------------------------------
+  Widget _buildDashboardContent(
       FutsalProvider futsalProvider, DashboardProvider dashboardProvider) {
     if (futsalProvider.isLoading && futsalProvider.myFutsals.isEmpty) {
       return const Center(
@@ -496,161 +353,379 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isTabletOrDesktop = screenWidth > 800;
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        _buildActiveFutsalCard(futsalProvider),
-        const SizedBox(height: 16),
-        StatsCard(
-          totalCourts: dashboardProvider.totalCourts,
-          todayBookings: dashboardProvider.todayBookings,
-          todayRevenue: dashboardProvider.todayRevenue,
-          pendingApprovals: dashboardProvider.pendingApprovals,
-          isLoading: dashboardProvider.isLoading,
-          error: dashboardProvider.error,
-          onRetry: _loadAllData,
-        ),
-        const SizedBox(height: 16),
-
-        // Quick Actions + Today Schedule - Side by side with equal heights
-        isTabletOrDesktop
-            ? IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      child: QuickActions(
-                        currentFutsal: _selectedFutsal!,
-                        futsalCount: futsalProvider.myFutsals.length,
-                        onCourts: () =>
-                            _navigateToCourtManagement(_selectedFutsal!),
-                        onBookings: () => _navigateToBookings(_selectedFutsal!),
-                        onTournaments: () {
-                          Navigator.push(
+    return RefreshIndicator(
+      onRefresh: _loadAllData,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _buildActiveFutsalCard(futsalProvider),
+          const SizedBox(height: 16),
+          StatsCard(
+            totalCourts: dashboardProvider.totalCourts,
+            todayBookings: dashboardProvider.todayBookings,
+            todayRevenue: dashboardProvider.todayRevenue,
+            pendingApprovals: dashboardProvider.pendingApprovals,
+            isLoading: dashboardProvider.isLoading,
+            error: dashboardProvider.error,
+            onRetry: _loadAllData,
+          ),
+          const SizedBox(height: 16),
+          // Quick Actions + Today Schedule
+          isTabletOrDesktop
+              ? IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: QuickActions(
+                          currentFutsal: _selectedFutsal!,
+                          futsalCount: futsalProvider.myFutsals.length,
+                          onCourts: () =>
+                              _navigateToCourtManagement(_selectedFutsal!),
+                          onBookings: () => _onMenuSelected('Bookings'),
+                          onTournaments: () => Navigator.push(
                               context,
                               MaterialPageRoute(
                                   builder: (_) =>
-                                      const TournamentListScreen()));
-                        },
-                        onAnalytics: () =>
-                            _navigateToAnalytics(_selectedFutsal!),
-                        onReviews: () => _navigateToReviews(_selectedFutsal!),
-                        onBlocked: () =>
-                            _navigateToBlockedPlayers(_selectedFutsal!),
+                                      const TournamentListScreen())),
+                          onAnalytics: () =>
+                              _navigateToAnalytics(_selectedFutsal!),
+                          onReviews: () => _navigateToReviews(_selectedFutsal!),
+                          onBlocked: () =>
+                              _navigateToBlockedPlayers(_selectedFutsal!),
+                        ),
                       ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: TodaySchedule(
+                          bookings: dashboardProvider.todayBookingsList,
+                          onViewAll: () =>
+                              _navigateToBookings(_selectedFutsal!),
+                          maxBookingsToShow: 3,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : Column(
+                  children: [
+                    QuickActions(
+                      currentFutsal: _selectedFutsal!,
+                      futsalCount: futsalProvider.myFutsals.length,
+                      onCourts: () =>
+                          _navigateToCourtManagement(_selectedFutsal!),
+                      onBookings: () => _onMenuSelected('Bookings'),
+                      onTournaments: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const TournamentListScreen())),
+                      onAnalytics: () => _navigateToAnalytics(_selectedFutsal!),
+                      onReviews: () => _navigateToReviews(_selectedFutsal!),
+                      onBlocked: () =>
+                          _navigateToBlockedPlayers(_selectedFutsal!),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: TodaySchedule(
-                        bookings: dashboardProvider.todayBookingsList,
-                        onViewAll: () => _navigateToBookings(_selectedFutsal!),
-                        maxBookingsToShow: 3,
-                      ),
+                    const SizedBox(height: 16),
+                    TodaySchedule(
+                      bookings: dashboardProvider.todayBookingsList,
+                      onViewAll: () => _navigateToBookings(_selectedFutsal!),
+                      maxBookingsToShow: 3,
                     ),
                   ],
                 ),
-              )
-            : Column(
-                children: [
-                  QuickActions(
-                    currentFutsal: _selectedFutsal!,
-                    futsalCount: futsalProvider.myFutsals.length,
-                    onCourts: () =>
-                        _navigateToCourtManagement(_selectedFutsal!),
-                    onBookings: () => _navigateToBookings(_selectedFutsal!),
-                    onTournaments: () {
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const TournamentListScreen()));
-                    },
-                    onAnalytics: () => _navigateToAnalytics(_selectedFutsal!),
-                    onReviews: () => _navigateToReviews(_selectedFutsal!),
-                    onBlocked: () =>
-                        _navigateToBlockedPlayers(_selectedFutsal!),
+          const SizedBox(height: 16),
+          // My Futsals Section
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8),
+            child: Text('My Futsals',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final itemCount = futsalProvider.myFutsals.length;
+              double cardWidth;
+              double spacing = 16;
+              if (constraints.maxWidth > 1200) {
+                cardWidth = (constraints.maxWidth - (spacing * 2)) / 3;
+              } else if (constraints.maxWidth > 800) {
+                cardWidth = (constraints.maxWidth - spacing) / 2;
+              } else {
+                cardWidth = constraints.maxWidth;
+              }
+              final List<Widget> cards = [];
+              for (int i = 0; i < itemCount; i++) {
+                final futsal = futsalProvider.myFutsals[i];
+                cards.add(
+                  SizedBox(
+                    width: cardWidth,
+                    child: DashboardFutsalCard(
+                      futsal: futsal,
+                      onEdit: () => _navigateToAddFutsal(futsal),
+                      onDelete: () => _showDeleteDialog(futsal),
+                      onManageCourts: () => _navigateToCourtManagement(futsal),
+                      onViewBookings: () => _navigateToBookings(futsal),
+                      onViewReviews: () => _navigateToReviews(futsal),
+                      onToggleActive: () => _toggleActive(futsal),
+                    ),
                   ),
-                  const SizedBox(height: 16),
-                  TodaySchedule(
-                    bookings: dashboardProvider.todayBookingsList,
-                    onViewAll: () => _navigateToBookings(_selectedFutsal!),
-                    maxBookingsToShow: 3,
-                  ),
-                ],
-              ),
-
-        const SizedBox(height: 16),
-
-        // My Futsals Section
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 8),
-          child: Text('My Futsals',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        ),
-        const SizedBox(height: 12),
-
-// Responsive Wrap layout - cards take height based on content
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final screenWidth = constraints.maxWidth;
-            final itemCount = futsalProvider.myFutsals.length;
-
-            // Calculate card width based on screen size
-            double cardWidth;
-            double spacing = 16;
-
-            if (screenWidth > 1200) {
-              // Desktop: 3 cards per row
-              cardWidth = (screenWidth - (spacing * 2)) / 3;
-            } else if (screenWidth > 800) {
-              // Tablet: 2 cards per row
-              cardWidth = (screenWidth - spacing) / 2;
-            } else {
-              // Mobile: 1 card per row
-              cardWidth = screenWidth;
-            }
-
-            // Build cards list
-            final List<Widget> cards = [];
-            for (int i = 0; i < itemCount; i++) {
-              final futsal = futsalProvider.myFutsals[i];
-              cards.add(
-                SizedBox(
-                  width: cardWidth,
-                  child: DashboardFutsalCard(
-                    futsal: futsal,
-                    onEdit: () => _navigateToAddFutsal(futsal),
-                    onDelete: () => _showDeleteDialog(futsal),
-                    onManageCourts: () => _navigateToCourtManagement(futsal),
-                    onViewBookings: () => _navigateToBookings(futsal),
-                    onViewReviews: () => _navigateToReviews(futsal),
-                    onToggleActive: () => _toggleActive(futsal),
-                  ),
-                ),
+                );
+              }
+              return Wrap(
+                spacing: spacing,
+                runSpacing: 16,
+                children: cards,
               );
-            }
+            },
+          ),
+        ],
+      ),
+    );
+  }
 
-            return Wrap(
-              spacing: spacing,
-              runSpacing: 16,
-              children: cards,
-            );
-          },
+  // ------------------------------------ My Grounds content (just the futsal list with management) ------------------------------------
+  Widget _buildMyGroundsContent() {
+    final futsalProvider = Provider.of<FutsalProvider>(context);
+    if (futsalProvider.myFutsals.isEmpty) {
+      return const Center(
+          child: Text('No futsals yet. Add one from the Dashboard.'));
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: futsalProvider.myFutsals.length,
+      itemBuilder: (ctx, index) {
+        final futsal = futsalProvider.myFutsals[index];
+        return DashboardFutsalCard(
+          futsal: futsal,
+          onEdit: () => _navigateToAddFutsal(futsal),
+          onDelete: () => _showDeleteDialog(futsal),
+          onManageCourts: () => _navigateToCourtManagement(futsal),
+          onViewBookings: () => _navigateToBookings(futsal),
+          onViewReviews: () => _navigateToReviews(futsal),
+          onToggleActive: () => _toggleActive(futsal),
+        );
+      },
+    );
+  }
+
+  // ------------------------------------ Helper methods (mostly unchanged) ------------------------------------
+  Future<void> _showLogoutConfirmation() async {
+    final bool? shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              style: TextButton.styleFrom(foregroundColor: Colors.grey),
+              child: const Text('CANCEL')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('LOGOUT')),
+        ],
+      ),
+    );
+
+    if (shouldLogout == true && mounted) {
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      await auth.logout();
+      if (mounted) Navigator.pushReplacementNamed(context, '/login');
+    }
+  }
+
+  Future<void> _navigateToAddFutsal([Futsal? futsalToEdit]) async {
+    final shouldRefresh = await Navigator.push(
+      context,
+      MaterialPageRoute(
+          builder: (_) =>
+              AddFutsalScreen(futsalToEdit: futsalToEdit?.toJson())),
+    );
+    if (shouldRefresh == true) _loadAllData();
+  }
+
+  void _navigateToCourtManagement(Futsal futsal) {
+    if (futsal.status != 'ACTIVE') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Courts can only be managed for active futsals'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3)),
+      );
+      return;
+    }
+    Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) => CourtManagementScreen(
+                futsalId: futsal.id, futsalName: futsal.name)));
+  }
+
+  void _navigateToBookings(Futsal futsal) {
+    if (futsal.status != 'ACTIVE') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Bookings are only available for active futsals'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3)),
+      );
+      return;
+    }
+    Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) =>
+                BookingsScreen(futsalId: futsal.id, futsalName: futsal.name)));
+  }
+
+  void _navigateToReviews(Futsal futsal) {
+    if (futsal.status != 'ACTIVE') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Reviews are only available for active futsals'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3)),
+      );
+      return;
+    }
+    Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) => OwnerReviewsScreen(
+                futsalId: futsal.id, futsalName: futsal.name)));
+  }
+
+  void _navigateToAnalytics(Futsal futsal) {
+    if (futsal.status != 'ACTIVE') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Analytics available for active futsals only'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3)),
+      );
+      return;
+    }
+    Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) =>
+                AnalyticsScreen(futsalId: futsal.id, futsalName: futsal.name)));
+  }
+
+  void _navigateToBlockedPlayers(Futsal futsal) {
+    Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) => BlockedPlayersScreen(
+                futsalId: futsal.id, futsalName: futsal.name)));
+  }
+
+  Future<void> _deleteFutsal(Futsal futsal) async {
+    final futsalProvider = Provider.of<FutsalProvider>(context, listen: false);
+    showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => const Center(child: CircularProgressIndicator()));
+    final response = await futsalProvider.deleteFutsal(futsal.id);
+    if (mounted) Navigator.pop(context);
+    if (response['status'] == 'success') {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(response['message']),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 3)));
+      _loadAllData();
+    } else {
+      String errorMessage = response['message'];
+      if (errorMessage.contains('bookings') ||
+          errorMessage.contains('favorites')) {
+        errorMessage =
+            'Cannot delete this futsal.\n\nIt has existing bookings or favorites.';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4)));
+    }
+  }
+
+  void _showDeleteDialog(Futsal futsal) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Futsal'),
+        content: Text('Are you sure you want to delete "${futsal.name}"?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('CANCEL')),
+          TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _deleteFutsal(futsal);
+              },
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('DELETE')),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _toggleActive(Futsal futsal) async {
+    final futsalProvider = Provider.of<FutsalProvider>(context, listen: false);
+    final response =
+        await futsalProvider.updateFutsal(futsal.id, {'toggleActive': true});
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(response['message']),
+        backgroundColor:
+            response['status'] == 'success' ? Colors.green : Colors.red));
+    if (response['status'] == 'success') _loadAllData();
+  }
+
+  void _showFutsalSelector() {
+    final futsalProvider = Provider.of<FutsalProvider>(context, listen: false);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Select Futsal'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: futsalProvider.myFutsals.map((futsal) {
+              return ListTile(
+                leading: const Icon(Icons.sports_soccer, color: Colors.green),
+                title: Text(futsal.name),
+                trailing: _selectedFutsal?.id == futsal.id
+                    ? const Icon(Icons.check_circle, color: Colors.green)
+                    : null,
+                onTap: () {
+                  setState(() => _selectedFutsal = futsal);
+                  Provider.of<DashboardProvider>(context, listen: false)
+                      .loadStatistics(futsal.id);
+                  Navigator.pop(ctx);
+                },
+              );
+            }).toList(),
+          ),
         ),
-      ],
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Close'))
+        ],
+      ),
     );
   }
 
   Widget _buildActiveFutsalCard(FutsalProvider futsalProvider) {
     final hasMultipleFutsals = futsalProvider.myFutsals.length > 1;
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Colors.green.shade50, Colors.green.shade100],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+            colors: [Colors.green.shade50, Colors.green.shade100],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.green.shade200),
       ),
@@ -662,37 +737,26 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.green.shade200,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                Icons.sports_soccer,
-                color: Colors.green.shade700,
-                size: 20,
-              ),
+                  color: Colors.green.shade200,
+                  borderRadius: BorderRadius.circular(10)),
+              child: Icon(Icons.sports_soccer,
+                  color: Colors.green.shade700, size: 20),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Active Futsal',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.green.shade700,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+                  Text('Active Futsal',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.green.shade700,
+                          fontWeight: FontWeight.w500)),
                   const SizedBox(height: 2),
-                  Text(
-                    _selectedFutsal?.name ?? 'None',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  Text(_selectedFutsal?.name ?? 'None',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 16),
+                      overflow: TextOverflow.ellipsis),
                 ],
               ),
             ),
@@ -701,25 +765,18 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.green.shade200,
-                  borderRadius: BorderRadius.circular(20),
-                ),
+                    color: Colors.green.shade200,
+                    borderRadius: BorderRadius.circular(20)),
                 child: Row(
                   children: [
-                    Text(
-                      'Switch',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.green.shade700,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
+                    Text('Switch',
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.green.shade700,
+                            fontWeight: FontWeight.w500)),
                     const SizedBox(width: 4),
-                    Icon(
-                      Icons.swap_vert,
-                      size: 16,
-                      color: Colors.green.shade700,
-                    ),
+                    Icon(Icons.swap_vert,
+                        size: 16, color: Colors.green.shade700),
                   ],
                 ),
               ),

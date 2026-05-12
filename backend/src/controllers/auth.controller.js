@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../index.js';
 import { sendOtpEmail, generateOtp } from '../config/email.js';
+import { logActivity } from '../utils/activityLogger.js';
 
 /**
  * Register a new user
@@ -10,7 +11,6 @@ export const register = async (req, res) => {
   try {
     const { email, password, fullName, phoneNumber, role } = req.body;
 
-    // Validate required fields
     if (!email || !password || !fullName) {
       return res.status(400).json({ 
         status: 'error',
@@ -18,7 +18,6 @@ export const register = async (req, res) => {
       });
     }
 
-    // Check if user exists
     const existingUser = await prisma.user.findUnique({
       where: { email }
     });
@@ -30,15 +29,12 @@ export const register = async (req, res) => {
       });
     }
 
-    // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Generate OTP
     const otp = generateOtp();
-    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
 
-    // Create user
     const user = await prisma.user.create({
       data: {
         email,
@@ -47,7 +43,7 @@ export const register = async (req, res) => {
         phoneNumber,
         role: role || 'PLAYER',
         isApproved: role === 'OWNER' ? false : true,
-         isEmailVerified: false,  // ← not verified yet
+        isEmailVerified: false,
         otp,
         otpExpiry,
       },
@@ -63,14 +59,22 @@ export const register = async (req, res) => {
       }
     });
 
-    //Send OTP email
     await sendOtpEmail(email, otp, 'verify');
+
+    // ✅ Log activity
+    await logActivity({
+      type: 'USER_REGISTER',
+      description: `New user registered: ${email}`,
+      userId: user.id,
+      category: 'User Added',
+      status: 'registered',
+    });
 
     res.status(201).json({
       status: 'success',
       message: 'Registration successful. Please check your email for the OTP.',
       user,
-      requiresVerification: true,  // ← Flutter uses this to navigate to OTP screen
+      requiresVerification: true,
     });
 
   } catch (error) {
@@ -81,7 +85,6 @@ export const register = async (req, res) => {
     });
   }
 };
-
 
 export const verifyEmail = async (req, res) => {
   try {
@@ -131,7 +134,6 @@ export const verifyEmail = async (req, res) => {
       });
     }
 
-    // Mark email as verified and clear OTP
     await prisma.user.update({
       where: { email },
       data: {
@@ -141,7 +143,6 @@ export const verifyEmail = async (req, res) => {
       }
     });
 
-    // Generate token so user is logged in immediately
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET,
@@ -213,7 +214,6 @@ export const forgotPassword = async (req, res) => {
 
     const user = await prisma.user.findUnique({ where: { email } });
 
-    // Always return success to prevent email enumeration
     if (!user) {
       return res.json({
         status: 'success',
@@ -240,7 +240,6 @@ export const forgotPassword = async (req, res) => {
     res.status(500).json({ status: 'error', message: 'Server error' });
   }
 };
-
 
 export const resetPassword = async (req, res) => {
   try {
@@ -338,7 +337,6 @@ export const login = async (req, res) => {
       });
     }
 
-    // ✅ ADD THIS - Check if user is blocked
     if (!user.isActive) {
       return res.status(403).json({ 
         status: 'error',
@@ -369,6 +367,15 @@ export const login = async (req, res) => {
     );
 
     const { password: _, otp: __, otpExpiry: ___, ...userWithoutSensitiveData } = user;
+
+    // ✅ Log activity
+    await logActivity({
+      type: 'USER_LOGIN',
+      description: `User ${user.email} logged in`,
+      userId: user.id,
+      category: 'User Login',
+      status: 'completed',
+    });
 
     res.json({
       status: 'success',

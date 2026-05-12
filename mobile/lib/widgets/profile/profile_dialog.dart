@@ -81,7 +81,7 @@ class ProfileDialog {
                   child: OutlinedButton(
                     onPressed: () => Navigator.pop(ctx),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.green,
+                      foregroundColor: Colors.red,
                       side: const BorderSide(color: Colors.green),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),

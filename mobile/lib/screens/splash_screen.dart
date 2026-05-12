@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../utils/route_utils.dart';
+import 'home_screen.dart';
+import 'owner/owner_dashboard.dart';
+import 'admin/admin_account.dart';
+import 'login_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -13,42 +18,71 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _checkAuth();
+    _navigateBasedOnAuth();
   }
 
-  Future<void> _checkAuth() async {
-    await Future.delayed(const Duration(seconds: 2));
-
+  Future<void> _navigateBasedOnAuth() async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     await auth.checkAuth();
 
+    await Future.delayed(const Duration(seconds: 2));
+
     if (!mounted) return;
 
-    // Debug logs
-    debugPrint('🔄 SplashScreen - Auth check completed');
-    debugPrint('   isAuthenticated: ${auth.isAuthenticated}');
-    debugPrint('   isAdmin: ${auth.isAdmin}');
-    debugPrint('   isOwner: ${auth.isOwner}');
-    debugPrint('   isPlayer: ${auth.isPlayer}');
-
     if (auth.isAuthenticated) {
+      final lastRoute = await getLastRoute();
+
+      if (lastRoute != null) {
+        switch (lastRoute) {
+          case '/home':
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const HomeScreen()),
+            );
+            return;
+          case '/owner/dashboard':
+            if (auth.isOwner) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const OwnerDashboard()),
+              );
+              return;
+            }
+            break;
+          case '/admin/dashboard':
+            if (auth.isAdmin) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const AdminAccountScreen()),
+              );
+              return;
+            }
+            break;
+        }
+      }
+
+      // Fallback to role‑based navigation
       if (auth.isAdmin) {
-        debugPrint('   ➡️ Navigating to Admin Dashboard');
-        Navigator.pushReplacementNamed(context, '/admin/dashboard');
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const AdminAccountScreen()),
+        );
       } else if (auth.isOwner) {
-        debugPrint('   ➡️ Navigating to Owner Dashboard');
-        Navigator.pushReplacementNamed(context, '/owner/dashboard');
-      } else if (auth.isPlayer) {
-        debugPrint('   ➡️ Navigating to Player Home');
-        Navigator.pushReplacementNamed(context, '/player/home');
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const OwnerDashboard()),
+        );
       } else {
-        debugPrint('   ⚠️ Unknown role, logging out');
-        await auth.logout();
-        Navigator.pushReplacementNamed(context, '/login');
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
       }
     } else {
-      debugPrint('   ➡️ Not authenticated, going to login');
-      Navigator.pushReplacementNamed(context, '/login');
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
     }
   }
 
@@ -67,11 +101,7 @@ class _SplashScreenState extends State<SplashScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                Icons.sports_soccer,
-                size: 100,
-                color: Colors.white,
-              ),
+              Icon(Icons.sports_soccer, size: 100, color: Colors.white),
               SizedBox(height: 20),
               Text(
                 'Futsal Booking',
@@ -82,9 +112,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 ),
               ),
               SizedBox(height: 20),
-              CircularProgressIndicator(
-                color: Colors.white,
-              ),
+              CircularProgressIndicator(color: Colors.white),
             ],
           ),
         ),

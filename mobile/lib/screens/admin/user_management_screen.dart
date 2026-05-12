@@ -34,7 +34,10 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
           Consumer<AdminProvider>(
             builder: (context, adminProvider, _) {
               final blockedCount = adminProvider.allUsers
-                  .where((u) => u['isActive'] == false)
+                  .where((u) =>
+                      (u['status'] == 'Banned' ||
+                          u['status'] == 'Suspended' ||
+                          u['isActive'] == false))
                   .length;
               return Padding(
                 padding: const EdgeInsets.only(right: 16),
@@ -67,41 +70,33 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          // Filter users
+          // Filter users by search, role, and status
           var users = adminProvider.allUsers.where((user) {
-            // Search filter
+            final query = _searchQuery.toLowerCase();
             final matchesSearch = _searchQuery.isEmpty ||
-                (user['fullName'] ?? '')
-                    .toLowerCase()
-                    .contains(_searchQuery.toLowerCase()) ||
-                (user['email'] ?? '')
-                    .toLowerCase()
-                    .contains(_searchQuery.toLowerCase());
+                (user['fullName'] ?? '').toLowerCase().contains(query) ||
+                (user['email'] ?? '').toLowerCase().contains(query) ||
+                (user['contact'] ?? '').toLowerCase().contains(query);
 
-            // Role filter
             final matchesRole =
                 _roleFilter == 'All' || user['role'] == _roleFilter;
-
-            // Status filter
-            final matchesStatus = _statusFilter == 'All' ||
-                (_statusFilter == 'Active' && user['isActive'] == true) ||
-                (_statusFilter == 'Blocked' && user['isActive'] == false);
+            final matchesStatus =
+                _statusFilter == 'All' || user['status'] == _statusFilter;
 
             return matchesSearch && matchesRole && matchesStatus;
           }).toList();
 
           return Column(
             children: [
-              // Search + filter bar
+              // Search and filter bar
               Container(
                 padding: const EdgeInsets.all(12),
                 color: Colors.white,
                 child: Column(
                   children: [
-                    // Search field
                     TextField(
                       decoration: InputDecoration(
-                        hintText: 'Search by name or email...',
+                        hintText: 'Search by name, email or contact...',
                         prefixIcon:
                             const Icon(Icons.search, color: Colors.green),
                         border: OutlineInputBorder(
@@ -120,30 +115,18 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                       onChanged: (v) => setState(() => _searchQuery = v),
                     ),
                     const SizedBox(height: 12),
-
-                    // ✅ Combined filter row - Role and Status side by side
                     Row(
                       children: [
-                        // Role filter
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                'Role',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey.shade600,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
+                              Text('Role', style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
                               const SizedBox(height: 6),
                               Container(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 4),
+                                padding: const EdgeInsets.symmetric(horizontal: 4),
                                 decoration: BoxDecoration(
-                                  border:
-                                      Border.all(color: Colors.grey.shade300),
+                                  border: Border.all(color: Colors.grey.shade300),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: DropdownButton<String>(
@@ -151,19 +134,14 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                   isExpanded: true,
                                   underline: const SizedBox(),
                                   items: const [
-                                    DropdownMenuItem(
-                                        value: 'All', child: Text('All Roles')),
-                                    DropdownMenuItem(
-                                        value: 'PLAYER', child: Text('Player')),
-                                    DropdownMenuItem(
-                                        value: 'OWNER', child: Text('Owner')),
-                                    DropdownMenuItem(
-                                        value: 'ADMIN', child: Text('Admin')),
+                                    DropdownMenuItem(value: 'All', child: Text('All Roles')),
+                                    DropdownMenuItem(value: 'Admin', child: Text('Admin')),
+                                    DropdownMenuItem(value: 'User', child: Text('User')),
+                                    DropdownMenuItem(value: 'Guest', child: Text('Guest')),
+                                    DropdownMenuItem(value: 'Moderator', child: Text('Moderator')),
                                   ],
                                   onChanged: (value) {
-                                    if (value != null) {
-                                      setState(() => _roleFilter = value);
-                                    }
+                                    if (value != null) setState(() => _roleFilter = value);
                                   },
                                 ),
                               ),
@@ -171,26 +149,16 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                           ),
                         ),
                         const SizedBox(width: 12),
-                        // Status filter
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                'Status',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey.shade600,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
+                              Text('Status', style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
                               const SizedBox(height: 6),
                               Container(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 4),
+                                padding: const EdgeInsets.symmetric(horizontal: 4),
                                 decoration: BoxDecoration(
-                                  border:
-                                      Border.all(color: Colors.grey.shade300),
+                                  border: Border.all(color: Colors.grey.shade300),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: DropdownButton<String>(
@@ -198,19 +166,14 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                   isExpanded: true,
                                   underline: const SizedBox(),
                                   items: const [
-                                    DropdownMenuItem(
-                                        value: 'All',
-                                        child: Text('All Status')),
-                                    DropdownMenuItem(
-                                        value: 'Active', child: Text('Active')),
-                                    DropdownMenuItem(
-                                        value: 'Blocked',
-                                        child: Text('Blocked')),
+                                    DropdownMenuItem(value: 'All', child: Text('All Status')),
+                                    DropdownMenuItem(value: 'Active', child: Text('Active')),
+                                    DropdownMenuItem(value: 'Inactive', child: Text('Inactive')),
+                                    DropdownMenuItem(value: 'Banned', child: Text('Banned')),
+                                    DropdownMenuItem(value: 'Suspended', child: Text('Suspended')),
                                   ],
                                   onChanged: (value) {
-                                    if (value != null) {
-                                      setState(() => _statusFilter = value);
-                                    }
+                                    if (value != null) setState(() => _statusFilter = value);
                                   },
                                 ),
                               ),
@@ -219,11 +182,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                         ),
                       ],
                     ),
-
-                    // Clear filters button (only show when filters are active)
-                    if (_roleFilter != 'All' ||
-                        _statusFilter != 'All' ||
-                        _searchQuery.isNotEmpty)
+                    if (_roleFilter != 'All' || _statusFilter != 'All' || _searchQuery.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 12),
                         child: Align(
@@ -243,327 +202,267 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                   ],
                 ),
               ),
-
-              // User count
               Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Row(
                   children: [
-                    Text(
-                      '${users.length} users',
-                      style:
-                          TextStyle(color: Colors.grey.shade600, fontSize: 13),
-                    ),
+                    Text('${users.length} users', style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
                   ],
                 ),
               ),
-
-              // User list
               Expanded(
                 child: users.isEmpty
                     ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(
-                              _statusFilter == 'Blocked'
-                                  ? Icons.block
-                                  : Icons.people_outline,
-                              size: 64,
-                              color: Colors.grey.shade300,
-                            ),
+                            Icon(Icons.people_outline, size: 64, color: Colors.grey.shade300),
                             const SizedBox(height: 16),
-                            Text(
-                              _statusFilter == 'Blocked'
-                                  ? 'No blocked users found'
-                                  : 'No users found',
-                              style: TextStyle(color: Colors.grey.shade600),
-                            ),
+                            Text('No users found', style: TextStyle(color: Colors.grey.shade600)),
                           ],
                         ),
                       )
                     : RefreshIndicator(
                         onRefresh: () => adminProvider.loadAllUsers(),
-                        child: ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          itemCount: users.length,
-                          itemBuilder: (_, index) {
-                            final user = users[index];
-                            final isOwner = user['role'] == 'OWNER';
-                            final isAdmin = user['role'] == 'ADMIN';
-                            final isApproved = user['isApproved'] ?? false;
-                            final isActive = user['isActive'] ?? true;
-
-                            return Card(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: Row(
-                                  children: [
-                                    // Avatar
-                                    CircleAvatar(
-                                      radius: 22,
-                                      backgroundColor: !isActive
-                                          ? Colors.grey.shade300
-                                          : isAdmin
-                                              ? Colors.red.shade100
-                                              : isOwner
-                                                  ? Colors.orange.shade100
-                                                  : Colors.green.shade100,
-                                      child: Text(
-                                        (user['fullName'] ?? 'U')[0]
-                                            .toUpperCase(),
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          color: !isActive
-                                              ? Colors.grey.shade600
-                                              : isAdmin
-                                                  ? Colors.red
-                                                  : isOwner
-                                                      ? Colors.orange
-                                                      : Colors.green,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-
-                                    // Info
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Wrap(
-                                            spacing: 4,
-                                            runSpacing: 4,
-                                            crossAxisAlignment:
-                                                WrapCrossAlignment.center,
-                                            children: [
-                                              Text(
-                                                user['fullName'] ?? 'User',
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 15,
-                                                  color: !isActive
-                                                      ? Colors.grey.shade600
-                                                      : null,
-                                                ),
-                                              ),
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                        horizontal: 6,
-                                                        vertical: 2),
-                                                decoration: BoxDecoration(
-                                                  color: !isActive
-                                                      ? Colors.grey.shade200
-                                                      : isAdmin
-                                                          ? Colors.red.shade50
-                                                          : isOwner
-                                                              ? Colors.orange
-                                                                  .shade50
-                                                              : Colors.green
-                                                                  .shade50,
-                                                  borderRadius:
-                                                      BorderRadius.circular(4),
-                                                ),
-                                                child: Text(
-                                                  user['role'] ?? 'PLAYER',
-                                                  style: TextStyle(
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: !isActive
-                                                        ? Colors.grey.shade600
-                                                        : isAdmin
-                                                            ? Colors.red
-                                                            : isOwner
-                                                                ? Colors.orange
-                                                                : Colors.green,
-                                                  ),
-                                                ),
-                                              ),
-                                              if (isOwner && !isApproved)
-                                                Container(
-                                                  padding: const EdgeInsets
-                                                      .symmetric(
-                                                      horizontal: 6,
-                                                      vertical: 2),
-                                                  decoration: BoxDecoration(
-                                                    color:
-                                                        Colors.orange.shade100,
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            4),
-                                                  ),
-                                                  child: Text(
-                                                    'Pending',
-                                                    style: TextStyle(
-                                                      fontSize: 10,
-                                                      color: Colors
-                                                          .orange.shade800,
-                                                    ),
-                                                  ),
-                                                ),
-                                              if (!isActive)
-                                                Container(
-                                                  padding: const EdgeInsets
-                                                      .symmetric(
-                                                      horizontal: 6,
-                                                      vertical: 2),
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.red.shade100,
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            4),
-                                                  ),
-                                                  child: Text(
-                                                    'Blocked',
-                                                    style: TextStyle(
-                                                      fontSize: 10,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      color:
-                                                          Colors.red.shade700,
-                                                    ),
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            user['email'] ?? '',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: !isActive
-                                                  ? Colors.grey.shade500
-                                                  : Colors.grey.shade600,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-
-                                    // Actions
-                                    if (!isAdmin)
-                                      Column(
-                                        children: [
-                                          if (isOwner && !isApproved)
-                                            IconButton(
-                                              icon: const Icon(Icons.check,
-                                                  color: Colors.green,
-                                                  size: 20),
-                                              tooltip: 'Approve Owner',
-                                              onPressed: () async {
-                                                final result =
-                                                    await adminProvider
-                                                        .approveOwner(
-                                                            user['id']);
-                                                if (mounted) {
-                                                  ScaffoldMessenger.of(context)
-                                                      .showSnackBar(SnackBar(
-                                                    content:
-                                                        Text(result['message']),
-                                                    backgroundColor:
-                                                        result['status'] ==
-                                                                'success'
-                                                            ? Colors.green
-                                                            : Colors.red,
-                                                  ));
-                                                }
-                                              },
-                                            ),
-                                          IconButton(
-                                            icon: Icon(
-                                              isActive
-                                                  ? Icons.block
-                                                  : Icons.check_circle,
-                                              color: isActive
-                                                  ? Colors.red
-                                                  : Colors.green,
-                                              size: 20,
-                                            ),
-                                            tooltip: isActive
-                                                ? 'Block User'
-                                                : 'Unblock User',
-                                            onPressed: () async {
-                                              final confirm =
-                                                  await showDialog<bool>(
-                                                context: context,
-                                                builder: (ctx) => AlertDialog(
-                                                  title: Text(
-                                                    isActive
-                                                        ? 'Block User'
-                                                        : 'Unblock User',
-                                                    style: TextStyle(
-                                                      color: isActive
-                                                          ? Colors.red
-                                                          : Colors.green,
-                                                    ),
-                                                  ),
-                                                  content: Text(
-                                                    isActive
-                                                        ? 'Are you sure you want to block ${user['fullName']}?\n\nThey will not be able to login to the app.'
-                                                        : 'Are you sure you want to unblock ${user['fullName']}?\n\nThey will regain access to the app.',
-                                                  ),
-                                                  actions: [
-                                                    TextButton(
-                                                      onPressed: () =>
-                                                          Navigator.pop(
-                                                              ctx, false),
-                                                      child:
-                                                          const Text('CANCEL'),
-                                                    ),
-                                                    TextButton(
-                                                      onPressed: () =>
-                                                          Navigator.pop(
-                                                              ctx, true),
-                                                      style:
-                                                          TextButton.styleFrom(
-                                                        foregroundColor:
-                                                            isActive
-                                                                ? Colors.red
-                                                                : Colors.green,
-                                                      ),
-                                                      child: Text(isActive
-                                                          ? 'BLOCK'
-                                                          : 'UNBLOCK'),
-                                                    ),
-                                                  ],
-                                                ),
-                                              );
-
-                                              if (confirm == true) {
-                                                final result =
-                                                    await adminProvider
-                                                        .toggleUserStatus(
-                                                            user['id'],
-                                                            !isActive);
-                                                if (mounted) {
-                                                  ScaffoldMessenger.of(context)
-                                                      .showSnackBar(
-                                                    SnackBar(
-                                                      content: Text(
-                                                          result['message']),
-                                                      backgroundColor:
-                                                          result['status'] ==
-                                                                  'success'
-                                                              ? Colors.green
-                                                              : Colors.red,
-                                                      behavior: SnackBarBehavior
-                                                          .floating,
-                                                    ),
-                                                  );
-                                                }
-                                              }
-                                            },
-                                          ),
-                                        ],
-                                      ),
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            return SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                                child: DataTable(
+                                  columnSpacing: 0,
+                                  horizontalMargin: 0,
+                                  headingRowColor: WidgetStateProperty.all(Colors.grey.shade100),
+                                  dataRowMinHeight: 56,
+                                  dataRowMaxHeight: 64,
+                                  columns: const [
+                                    DataColumn(label: Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('User', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)))),
+                                    DataColumn(label: Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Email', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)))),
+                                    DataColumn(label: Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Contact', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)))),
+                                    DataColumn(label: Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Role', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)))),
+                                    DataColumn(label: Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Status', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)))),
+                                    DataColumn(label: Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Joined Date', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)))),
+                                    DataColumn(label: Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Last Active', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)))),
+                                    DataColumn(label: Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)))),
                                   ],
+                                  rows: List<DataRow>.generate(users.length, (index) {
+                                    final user = users[index];
+                                    final fullName = user['fullName'] ?? 'Unknown';
+                                    final email = user['email'] ?? '';
+                                    final contact = user['contact'] ?? '';
+                                    final role = user['role'] ?? 'User';
+                                    final status = user['status'] ?? 'Active';
+                                    final joinedDate = user['joinedDate'] ?? '';
+                                    final lastActive = user['lastActive'] ?? '';
+                                    final isAdmin = role == 'Admin';
+                                    final isOwner = role == 'Owner';
+                                    final isApproved = user['isApproved'] ?? false;
+                                    final isActive = user['isActive'] ?? true;
+                                    final userId = user['id'];
+
+                                    Color statusColor;
+                                    switch (status) {
+                                      case 'Active':    statusColor = Colors.green; break;
+                                      case 'Inactive':  statusColor = Colors.grey; break;
+                                      case 'Banned':    statusColor = Colors.red; break;
+                                      case 'Suspended': statusColor = Colors.orange; break;
+                                      default:          statusColor = Colors.grey;
+                                    }
+
+                                    return DataRow(
+                                      color: WidgetStateProperty.resolveWith(
+                                          (states) => index.isEven ? Colors.grey.shade50 : Colors.white),
+                                      cells: [
+                                        // User
+                                        DataCell(
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                CircleAvatar(
+                                                  radius: 16,
+                                                  backgroundColor: isAdmin ? Colors.red.shade100 : isOwner ? Colors.orange.shade100 : Colors.green.shade100,
+                                                  child: Text(fullName[0].toUpperCase(), style: TextStyle(fontWeight: FontWeight.bold, color: isAdmin ? Colors.red : isOwner ? Colors.orange : Colors.green)),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Flexible(child: Text(fullName, overflow: TextOverflow.ellipsis)),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                        // Email
+                                        DataCell(Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), child: Text(email, overflow: TextOverflow.ellipsis))),
+                                        // Contact
+                                        DataCell(Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), child: Text(contact.isEmpty ? '—' : contact, overflow: TextOverflow.ellipsis))),
+                                        // Role
+                                        DataCell(
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: isAdmin ? Colors.red.shade50 : isOwner ? Colors.orange.shade50 : Colors.green.shade50,
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: Text(role, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isAdmin ? Colors.red : isOwner ? Colors.orange : Colors.green)),
+                                            ),
+                                          ),
+                                        ),
+                                        // Status
+                                        DataCell(
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: statusColor.withValues(alpha: 0.1),
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: Text(status, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: statusColor)),
+                                            ),
+                                          ),
+                                        ),
+                                        // Joined Date
+                                        DataCell(Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), child: Text(joinedDate))),
+                                        // Last Active
+                                        DataCell(Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), child: Text(lastActive))),
+                                        // Actions
+                                        DataCell(
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                IconButton(
+                                                  icon: const Icon(Icons.edit, size: 18),
+                                                  tooltip: 'Edit',
+                                                  onPressed: () {
+                                                    ScaffoldMessenger.of(context).showSnackBar(
+                                                      SnackBar(content: Text('Edit $fullName – coming soon')),
+                                                    );
+                                                  },
+                                                ),
+                                                IconButton(
+                                                  icon: const Icon(Icons.delete, size: 18, color: Colors.red),
+                                                  tooltip: 'Delete',
+                                                  onPressed: () async {
+                                                    final confirm = await showDialog<bool>(
+                                                      context: context,
+                                                      builder: (ctx) => AlertDialog(
+                                                        title: const Text('Delete User'),
+                                                        content: Text('Delete $fullName permanently? This cannot be undone.'),
+                                                        actions: [
+                                                          TextButton(
+                                                            onPressed: () => Navigator.pop(ctx, false),
+                                                            child: const Text('CANCEL'),
+                                                          ),
+                                                          TextButton(
+                                                            onPressed: () => Navigator.pop(ctx, true),
+                                                            style: TextButton.styleFrom(foregroundColor: Colors.red),
+                                                            child: const Text('DELETE'),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    );
+                                                    if (confirm == true) {
+                                                      try {
+                                                        final result = await adminProvider.deleteUser(userId);
+                                                        if (mounted) {
+                                                          ScaffoldMessenger.of(context).showSnackBar(
+                                                            SnackBar(
+                                                              content: Text(result['message'] ?? 'User deleted successfully'),
+                                                              backgroundColor: Colors.green,
+                                                            ),
+                                                          );
+                                                          // Refresh the list
+                                                          adminProvider.loadAllUsers();
+                                                        }
+                                                      } catch (e) {
+                                                        if (mounted) {
+                                                          ScaffoldMessenger.of(context).showSnackBar(
+                                                            SnackBar(content: Text('Failed to delete user'), backgroundColor: Colors.red),
+                                                          );
+                                                        }
+                                                      }
+                                                    }
+                                                  },
+                                                ),
+                                                // Block / Unblock
+                                                IconButton(
+                                                  icon: Icon(
+                                                    isActive ? Icons.block : Icons.check_circle,
+                                                    size: 18,
+                                                    color: isActive ? Colors.red : Colors.green,
+                                                  ),
+                                                  tooltip: isActive ? 'Block User' : 'Unblock User',
+                                                  onPressed: () async {
+                                                    final confirm = await showDialog<bool>(
+                                                      context: context,
+                                                      builder: (ctx) => AlertDialog(
+                                                        title: Text(
+                                                          isActive ? 'Block User' : 'Unblock User',
+                                                          style: TextStyle(color: isActive ? Colors.red : Colors.green),
+                                                        ),
+                                                        content: Text(
+                                                          isActive
+                                                              ? 'Block $fullName? They will be unable to log in.'
+                                                              : 'Unblock $fullName? They will regain access.',
+                                                        ),
+                                                        actions: [
+                                                          TextButton(
+                                                            onPressed: () => Navigator.pop(ctx, false),
+                                                            child: const Text('CANCEL'),
+                                                          ),
+                                                          TextButton(
+                                                            onPressed: () => Navigator.pop(ctx, true),
+                                                            style: TextButton.styleFrom(foregroundColor: isActive ? Colors.red : Colors.green),
+                                                            child: Text(isActive ? 'BLOCK' : 'UNBLOCK'),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    );
+                                                    if (confirm == true) {
+                                                      final result = await adminProvider.toggleUserStatus(userId, !isActive);
+                                                      if (mounted) {
+                                                        ScaffoldMessenger.of(context).showSnackBar(
+                                                          SnackBar(
+                                                            content: Text(result['message']),
+                                                            backgroundColor: result['status'] == 'success' ? Colors.green : Colors.red,
+                                                          ),
+                                                        );
+                                                        // Refresh list to reflect changes
+                                                        adminProvider.loadAllUsers();
+                                                      }
+                                                    }
+                                                  },
+                                                ),
+                                                // Approve owner (if pending)
+                                                if (isOwner && !isApproved)
+                                                  IconButton(
+                                                    icon: const Icon(Icons.check, size: 18, color: Colors.green),
+                                                    tooltip: 'Approve Owner',
+                                                    onPressed: () async {
+                                                      final result = await adminProvider.approveOwner(userId);
+                                                      if (mounted) {
+                                                        ScaffoldMessenger.of(context).showSnackBar(
+                                                          SnackBar(
+                                                            content: Text(result['message']),
+                                                            backgroundColor: result['status'] == 'success' ? Colors.green : Colors.red,
+                                                          ),
+                                                        );
+                                                        adminProvider.loadAllUsers();
+                                                      }
+                                                    },
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  }),
                                 ),
                               ),
                             );

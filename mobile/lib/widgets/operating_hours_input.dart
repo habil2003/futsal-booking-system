@@ -51,6 +51,22 @@ class _OperatingHoursInputState extends State<OperatingHoursInput> {
     widget.onChanged(_hours);
   }
 
+  // Convert 24‑hour string to AM/PM for display
+  String _toAmPm(String time24) {
+    final parts = time24.split(':');
+    if (parts.length != 2) return time24;
+    final hour = int.tryParse(parts[0]);
+    final minute = int.tryParse(parts[1]);
+    if (hour == null || minute == null) return time24;
+    final period = hour >= 12 ? 'PM' : 'AM';
+    final hour12 = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+    if (minute == 0) {
+      return '$hour12 $period';
+    } else {
+      return '$hour12:${minute.toString().padLeft(2, '0')} $period';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -138,6 +154,7 @@ class _OperatingHoursInputState extends State<OperatingHoursInput> {
         );
         if (picked != null) {
           setState(() {
+            // Store in 24‑hour format
             _hours[day]![type] = _formatTime(picked);
           });
           _notifyChange();
@@ -153,8 +170,9 @@ class _OperatingHoursInputState extends State<OperatingHoursInput> {
           children: [
             Icon(Icons.access_time, size: 16, color: Colors.grey.shade600),
             const SizedBox(width: 8),
+            // ✅ Display in AM/PM format
             Text(
-              initialValue,
+              _toAmPm(initialValue),
               style: const TextStyle(fontSize: 14),
             ),
           ],

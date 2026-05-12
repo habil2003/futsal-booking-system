@@ -191,6 +191,31 @@ class ApiService {
     }
   }
 
+
+  // ADD ADS Dynamically
+  static Future<List<dynamic>> getActiveAds() async {
+  try {
+    final response = await getList('ads/active');
+    return response;
+  } catch (e) {
+    debugPrint('Error fetching ads: $e');
+    return [];
+  }
+}
+
+// Create a new advertisement (Admin only)
+static Future<Map<String, dynamic>> createAd(Map<String, dynamic> adData) async {
+  try {
+    debugPrint('📍 API: Creating ad');
+    debugPrint('📤 Data: $adData');
+    final response = await post('ads', adData);
+    return response;
+  } catch (e) {
+    debugPrint('❌ Create ad error: $e');
+    return {'status': 'error', 'message': e.toString()};
+  }
+}
+
   // ============================================
   // LIST METHODS (for endpoints that return arrays)
   // ============================================

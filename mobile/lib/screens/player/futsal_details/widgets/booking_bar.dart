@@ -1,4 +1,3 @@
-// lib/screens/player/futsal_details/widgets/booking_bar.dart
 import 'package:flutter/material.dart';
 import 'slot_helpers.dart';
 
@@ -19,6 +18,7 @@ class BookingBar extends StatelessWidget {
     if (selectedSlot == null) return const SizedBox.shrink();
 
     final price = SlotHelpers.getSlotPrice(selectedSlot!);
+    final time = selectedSlot!['startTime'] ?? '';
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -40,38 +40,20 @@ class BookingBar extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Selected Slot',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-                  ),
+                  Text('Selected Slot', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                  const SizedBox(height: 4),
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
                           color: Colors.green.shade50,
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        child: Text(
-                          selectedSlot!['startTime'],
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green.shade700,
-                          ),
-                        ),
+                        child: Text(time, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade700)),
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        'रू $price',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green.shade700,
-                        ),
-                      ),
+                      Text('रू $price', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green.shade700)),
                     ],
                   ),
                 ],
@@ -83,23 +65,11 @@ class BookingBar extends StatelessWidget {
                 backgroundColor: Colors.green,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
               child: isProcessing
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
-                      ),
-                    )
-                  : const Text(
-                      'Continue',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Text('Continue', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             ),
           ],
         ),

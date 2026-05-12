@@ -1,5 +1,6 @@
 import { prisma } from "../index.js";
 import axios from "axios";
+import { logActivity } from "../utils/activityLogger.js";   // 🆕 import
 
 /**
  * Create a new booking
@@ -9,136 +10,129 @@ export const createBooking = async (req, res) => {
     const { slotId, duration = 1, paymentMethod = "COD" } = req.body;
 
     if (!slotId) {
-      return res
-        .status(400)
-        .json({ status: "error", message: "Slot ID is required" });
+      return res.status(400).json({ status: "error", message: "Slot ID is required" });
     }
 
-    const result = await prisma.$transaction(async (tx) => {
-      // 1. Find the starting slot
-      const startSlot = await tx.timeSlot.findUnique({
-        where: { id: parseInt(slotId) },
-        include: { court: { include: { futsal: true } } },
-      });
-
-      if (!startSlot) throw new Error("Slot not found");
-      if (
-        startSlot.status !== "LOCKED" ||
-        !startSlot.lockedUntil ||
-        startSlot.lockedUntil < new Date()
-      ) {
-        throw new Error("Slot lock expired");
-      }
-
-      const futsalId = startSlot.court.futsalId;
-      const isBlocked = await tx.block.findFirst({
-        where: {
-          playerId: req.user.id,
-          futsalId: futsalId,
-        },
-      });
-
-      if (isBlocked) {
-        // Release the lock so slot becomes available again
-        await tx.timeSlot.update({
+    const result = await prisma.$transaction(
+      async (tx) => {
+        // 1. Find the starting slot
+        const startSlot = await tx.timeSlot.findUnique({
           where: { id: parseInt(slotId) },
-          data: { status: "AVAILABLE", lockedUntil: null },
-        });
-        throw new Error("You are blocked from booking at this futsal");
-      }
-
-      // 2. Find consecutive slots if duration > 1
-      let allSlots = [startSlot];
-
-      if (duration > 1) {
-        // Parse start hour from startTime e.g. "14:00"
-        const startHour = parseInt(startSlot.startTime.split(":")[0]);
-
-        const consecutiveSlots = await tx.timeSlot.findMany({
-          where: {
-            courtId: startSlot.courtId,
-            date: startSlot.date,
-            startTime: {
-              in: Array.from(
-                { length: duration - 1 },
-                (_, i) => `${String(startHour + i + 1).padStart(2, "0")}:00`,
-              ),
-            },
-            status: "AVAILABLE", // consecutive slots must still be available
-          },
-          orderBy: { startTime: "asc" },
+          include: { court: { include: { futsal: true } } },
         });
 
-        if (consecutiveSlots.length < duration - 1) {
-          throw new Error(
-            "Not enough consecutive slots available for requested duration",
-          );
+        if (!startSlot) throw new Error("Slot not found");
+        if (
+          startSlot.status !== "LOCKED" ||
+          !startSlot.lockedUntil ||
+          startSlot.lockedUntil < new Date()
+        ) {
+          throw new Error("Slot lock expired");
         }
 
-        allSlots = [startSlot, ...consecutiveSlots];
+        const futsalId = startSlot.court.futsalId;
+        const isBlocked = await tx.block.findFirst({
+          where: { playerId: req.user.id, futsalId },
+        });
 
-        // Lock all consecutive slots
-        await tx.timeSlot.updateMany({
-          where: { id: { in: consecutiveSlots.map((s) => s.id) } },
-          data: {
-            status: "LOCKED",
-            lockedUntil: new Date(Date.now() + 5 * 60000),
+        if (isBlocked) {
+          await tx.timeSlot.update({
+            where: { id: parseInt(slotId) },
+            data: { status: "AVAILABLE", lockedUntil: null },
+          });
+          throw new Error("You are blocked from booking at this futsal");
+        }
+
+        // 2. Find consecutive slots if duration > 1
+        let allSlots = [startSlot];
+        if (duration > 1) {
+          const startHour = parseInt(startSlot.startTime.split(":")[0]);
+          const consecutiveSlots = await tx.timeSlot.findMany({
+            where: {
+              courtId: startSlot.courtId,
+              date: startSlot.date,
+              startTime: {
+                in: Array.from({ length: duration - 1 }, (_, i) =>
+                  `${String(startHour + i + 1).padStart(2, "0")}:00`
+                ),
+              },
+              status: "AVAILABLE",
+            },
+            orderBy: { startTime: "asc" },
+          });
+
+          if (consecutiveSlots.length < duration - 1) {
+            throw new Error("Not enough consecutive slots available");
+          }
+          allSlots = [startSlot, ...consecutiveSlots];
+
+          await tx.timeSlot.updateMany({
+            where: { id: { in: consecutiveSlots.map((s) => s.id) } },
+            data: {
+              status: "LOCKED",
+              lockedUntil: new Date(Date.now() + 5 * 60000),
+            },
+          });
+        }
+
+        // 3. Check existing bookings
+        const activeBooking = await tx.booking.findFirst({
+          where: {
+            slotId: { in: allSlots.map((s) => s.id) },
+            status: { in: ["PENDING", "CONFIRMED"] },
           },
         });
+        if (activeBooking) throw new Error("One or more slots already booked");
+
+        // 4. Calculate total
+        const totalPrice = allSlots.reduce((sum, s) => sum + s.price, 0);
+        const groupId = `GRP_${req.user.id}_${Date.now()}`;
+
+        // 5. Create bookings
+        const bookings = await Promise.all(
+          allSlots.map((slot) =>
+            tx.booking.create({
+              data: {
+                userId: req.user.id,
+                slotId: slot.id,
+                totalPrice: slot.price,
+                duration,
+                paymentMethod,
+                groupId,
+                status: "PENDING",
+              },
+              include: { slot: { include: { court: { include: { futsal: true } } } } },
+            })
+          )
+        );
+
+        // 6. Mark slots as BOOKED
+        await tx.timeSlot.updateMany({
+          where: { id: { in: allSlots.map((s) => s.id) } },
+          data: { status: "BOOKED", lockedUntil: null },
+        });
+
+        return { bookings, groupId, totalPrice, primaryBooking: bookings[0] };
+      },
+      {
+        maxWait: 15000,
+        timeout: 20000,
       }
+    );
 
-      // 3. Check no active booking exists on any of these slots
-      const activeBooking = await tx.booking.findFirst({
-        where: {
-          slotId: { in: allSlots.map((s) => s.id) },
-          status: { in: ["PENDING", "CONFIRMED"] },
-        },
-      });
-      if (activeBooking) throw new Error("One or more slots already booked");
-
-      // 4. Calculate total price
-      const totalPrice = allSlots.reduce((sum, s) => sum + s.price, 0);
-
-      // 5. Group ID ties multi-slot bookings together
-      const groupId = `GRP_${req.user.id}_${Date.now()}`;
-
-      // 6. Create one booking per slot
-      const bookings = await Promise.all(
-        allSlots.map((slot) =>
-          tx.booking.create({
-            data: {
-              userId: req.user.id,
-              slotId: slot.id,
-              totalPrice: slot.price,
-              duration: duration,
-              paymentMethod: paymentMethod,
-              groupId: groupId,
-              status: "PENDING",
-            },
-            include: {
-              slot: { include: { court: { include: { futsal: true } } } },
-            },
-          }),
-        ),
-      );
-
-      // 7. Mark all slots as BOOKED
-      await tx.timeSlot.updateMany({
-        where: { id: { in: allSlots.map((s) => s.id) } },
-        data: { status: "BOOKED", lockedUntil: null },
-      });
-
-      return {
-        bookings,
-        groupId,
-        totalPrice,
-        primaryBooking: bookings[0],
-      };
+    // ✅ Log activity
+    await logActivity({
+      type: 'BOOKING_CREATED',
+      description: `Booking #${result.primaryBooking.id} created`,
+      userId: req.user.id,
+      category: 'Booking',
+      status: 'pending',
+      extraMeta: { bookingId: result.primaryBooking.id, amount: result.totalPrice },
     });
 
     res.status(201).json({
       status: "success",
-      booking: result.primaryBooking, // ✅ keeps existing frontend shape
+      booking: result.primaryBooking,
       bookingId: result.primaryBooking.id,
       groupId: result.groupId,
       totalPrice: result.totalPrice,
@@ -146,7 +140,7 @@ export const createBooking = async (req, res) => {
       expiresIn: 300,
     });
   } catch (error) {
-    console.error("❌ CREATE BOOKING ERROR:", error); // add this
+    console.error("❌ CREATE BOOKING ERROR:", error);
     res.status(400).json({ status: "error", message: error.message });
   }
 };
@@ -204,35 +198,23 @@ export const getBookingById = async (req, res) => {
 
 /**
  * Callback endpoint for Khalti to redirect to after payment
- * @route GET /api/bookings/payments/callback
  */
 export const paymentCallback = async (req, res) => {
   try {
     const { pidx, status, booking_id, purchase_order_id } = req.query;
 
-    console.log("🔄 Payment callback received:", {
-      pidx,
-      status,
-      booking_id,
-      purchase_order_id,
-    });
+    console.log("🔄 Payment callback received:", { pidx, status, booking_id });
 
     if (!pidx) {
-      console.error("❌ No pidx in callback");
       const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-      return res.redirect(
-        `${frontendUrl}/payment-status?status=error&message=No payment ID received`,
-      );
+      return res.redirect(`${frontendUrl}/booking-history?payment=error&message=No payment ID`);
     }
 
-    // Use correct lookup URL
     const khaltiLookupUrl =
       process.env.NODE_ENV === "production"
         ? "https://khalti.com/api/v2/epayment/lookup/"
         : "https://dev.khalti.com/api/v2/epayment/lookup/";
 
-    // Verify the payment with Khalti
-    console.log("🔄 Looking up payment status with Khalti API...");
     const resp = await axios.post(
       khaltiLookupUrl,
       { pidx },
@@ -244,20 +226,11 @@ export const paymentCallback = async (req, res) => {
       },
     );
 
-    console.log("📡 Khalti lookup response:", {
-      status: resp.data.status,
-      total_amount: resp.data.total_amount,
-      transaction_id: resp.data.transaction_id,
-    });
-
     const paymentStatus = resp.data.status?.toLowerCase();
-    const isSuccess =
-      paymentStatus === "completed" || paymentStatus === "success";
-
+    const isSuccess = paymentStatus === "completed" || paymentStatus === "success";
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
 
     if (isSuccess) {
-      // Find the payment record
       const payment = await prisma.payment.findFirst({
         where: { transactionId: pidx },
         include: { booking: true },
@@ -266,7 +239,6 @@ export const paymentCallback = async (req, res) => {
       if (payment && payment.status !== "COMPLETED") {
         console.log("✅ Payment successful, updating records...");
 
-        // Find all bookings in the same group
         const allGroupBookings = payment.booking.groupId
           ? await prisma.booking.findMany({
               where: { groupId: payment.booking.groupId },
@@ -293,17 +265,21 @@ export const paymentCallback = async (req, res) => {
           }),
         ]);
 
-        console.log("✅ All records updated successfully");
+        // ✅ Log completed booking
+        await logActivity({
+          type: 'BOOKING_COMPLETED',
+          description: `Booking #${payment.booking.id} confirmed via Khalti`,
+          userId: payment.booking.userId,
+          category: 'Booking',
+          status: 'completed',
+          extraMeta: { bookingId: payment.booking.id },
+        });
       }
 
-      return res.redirect(
-        `${frontendUrl}/payment-status?status=success&booking_id=${booking_id}`,
-      );
+      return res.redirect(`${frontendUrl}/booking-history?payment=success`);
     } else {
-      // Payment failed or pending
       console.log("❌ Payment not completed, status:", paymentStatus);
 
-      // Update payment as failed if it exists
       const payment = await prisma.payment.findFirst({
         where: { transactionId: pidx },
         include: { booking: true },
@@ -326,21 +302,12 @@ export const paymentCallback = async (req, res) => {
         ]);
       }
 
-      return res.redirect(
-        `${frontendUrl}/payment-status?status=failed&booking_id=${booking_id}`,
-      );
+      return res.redirect(`${frontendUrl}/booking-history?payment=failed`);
     }
   } catch (error) {
-    console.error("❌ Callback error:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-    });
-
+    console.error("❌ Callback error:", error);
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-    return res.redirect(
-      `${frontendUrl}/payment-status?status=error&message=${encodeURIComponent(error.message)}`,
-    );
+    return res.redirect(`${frontendUrl}/booking-history?payment=error`);
   }
 };
 
@@ -679,9 +646,9 @@ export const updatePaymentStatus = async (req, res) => {
   }
 };
 
+
 /**
  * User cancels booking
- * @route DELETE /api/bookings/:id
  */
 export const userCancelBooking = async (req, res) => {
   try {
@@ -692,13 +659,10 @@ export const userCancelBooking = async (req, res) => {
     });
 
     if (!booking)
-      return res
-        .status(404)
-        .json({ status: "error", message: "Booking not found" });
+      return res.status(404).json({ status: "error", message: "Booking not found" });
     if (booking.userId !== req.user.id)
       return res.status(403).json({ status: "error", message: "Unauthorized" });
 
-    // Find all bookings in same group
     const groupBookings = booking.groupId
       ? await prisma.booking.findMany({ where: { groupId: booking.groupId } })
       : [booking];
@@ -710,8 +674,18 @@ export const userCancelBooking = async (req, res) => {
       });
       await tx.timeSlot.updateMany({
         where: { id: { in: groupBookings.map((b) => b.slotId) } },
-        data: { status: "AVAILABLE", lockedUntil: null }, // ✅ frees all slots
+        data: { status: "AVAILABLE", lockedUntil: null },
       });
+    });
+
+    // ✅ Log cancellation
+    await logActivity({
+      type: 'BOOKING_CANCELLED',
+      description: `Booking #${booking.id} cancelled by user`,
+      userId: booking.userId,
+      category: 'Booking',
+      status: 'cancelled',
+      extraMeta: { bookingId: booking.id },
     });
 
     res.json({ status: "success", message: "Booking cancelled successfully" });
@@ -722,7 +696,6 @@ export const userCancelBooking = async (req, res) => {
 
 /**
  * Owner checks in a customer
- * @route PUT /api/bookings/:bookingId/checkin
  */
 export const checkInBooking = async (req, res) => {
   try {
@@ -730,32 +703,57 @@ export const checkInBooking = async (req, res) => {
 
     const booking = await prisma.booking.findUnique({
       where: { id: parseInt(bookingId) },
-      include: {
-        slot: { include: { court: { include: { futsal: true } } } },
-      },
+      include: { slot: { include: { court: { include: { futsal: true } } } } },
     });
 
-    if (!booking)
-      return res
-        .status(404)
-        .json({ status: "error", message: "Booking not found" });
+    if (!booking) {
+      return res.status(404).json({ status: "error", message: "Booking not found" });
+    }
 
-    // Verify owner owns this futsal
-    if (booking.slot.court.futsal.ownerId !== req.user.id)
+    if (booking.slot.court.futsal.ownerId !== req.user.id) {
       return res.status(403).json({ status: "error", message: "Unauthorized" });
+    }
 
-    if (booking.status === "CANCELLED")
-      return res.status(400).json({
-        status: "error",
-        message: "Cannot check in a cancelled booking",
-      });
+    if (booking.status === "CANCELLED") {
+      return res.status(400).json({ status: "error", message: "Cannot check in a cancelled booking" });
+    }
+    if (booking.checkInTime) {
+      return res
+        .status(400)
+        .json({ status: "error", message: "Already checked in" });
+    }
 
+const isKhalti = booking.paymentMethod === "KHALTI";
+    const isPaid = booking.payment?.status === "COMPLETED";
+
+    console.log("🔵 isKhalti:", isKhalti, "isPaid:", isPaid);
+
+    let newStatus;
+    if (isKhalti && isPaid) {
+      newStatus = "COMPLETED";
+      console.log("🔵 Khalti paid booking - marking as COMPLETED");
+    } else {
+      newStatus = "CONFIRMED";
+      console.log("🔵 COD or unpaid Khalti - marking as CONFIRMED");
+    }
+
+    // Update booking
     const updated = await prisma.booking.update({
       where: { id: parseInt(bookingId) },
       data: {
-        status: "CONFIRMED",
+        status: newStatus,
         checkInTime: new Date(),
       },
+    });
+
+    // ✅ Log check‑in completion
+    await logActivity({
+      type: 'BOOKING_COMPLETED',
+      description: `Booking #${booking.id} checked in by owner`,
+      userId: booking.userId,     // the player who booked
+      category: 'Booking',
+      status: 'completed',
+      extraMeta: { bookingId: booking.id },
     });
 
     res.json({
@@ -782,24 +780,19 @@ export const confirmCodPayment = async (req, res) => {
     });
 
     if (!booking)
-      return res
-        .status(404)
-        .json({ status: "error", message: "Booking not found" });
+      return res.status(404).json({ status: "error", message: "Booking not found" });
 
     if (booking.slot.court.futsal.ownerId !== req.user.id)
       return res.status(403).json({ status: "error", message: "Unauthorized" });
 
-    // Check if already completed
     if (booking.status === "COMPLETED") {
-      return res.status(400).json({ 
-        status: "error", 
-        message: "Booking already completed" 
+      return res.status(400).json({
+        status: "error",
+        message: "Booking already completed",
       });
     }
 
-    // Update payment and booking in a transaction
     await prisma.$transaction(async (tx) => {
-      // Create or update payment record
       if (booking.payment) {
         await tx.payment.update({
           where: { bookingId: booking.id },
@@ -817,19 +810,28 @@ export const confirmCodPayment = async (req, res) => {
         });
       }
 
-      // ALSO mark booking as COMPLETED (no separate complete step needed)
       await tx.booking.update({
         where: { id: parseInt(bookingId) },
-        data: { 
+        data: {
           status: "COMPLETED",
           checkOutTime: new Date(),
         },
       });
     });
 
-    res.json({ 
-      status: "success", 
-      message: "Payment confirmed and booking completed" 
+    // ✅ Log COD completion
+    await logActivity({
+      type: 'BOOKING_COMPLETED',
+      description: `Booking #${booking.id} completed via COD`,
+      userId: booking.userId,
+      category: 'Booking',
+      status: 'completed',
+      extraMeta: { bookingId: booking.id },
+    });
+
+    res.json({
+      status: "success",
+      message: "Payment confirmed and booking completed",
     });
   } catch (error) {
     console.error("COD confirm error:", error);

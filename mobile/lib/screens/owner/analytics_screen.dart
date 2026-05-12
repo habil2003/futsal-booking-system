@@ -18,20 +18,38 @@ class AnalyticsScreen extends StatefulWidget {
   State<AnalyticsScreen> createState() => _AnalyticsScreenState();
 }
 
-class _AnalyticsScreenState extends State<AnalyticsScreen> {
+class _AnalyticsScreenState extends State<AnalyticsScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  final List<String> _tabs = [
+    'Revenue Overview',
+    'Payment History',
+    'Pending Payments',
+    'Transactions',
+    'Online Payments',
+    'Refunds',
+  ];
+
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: _tabs.length, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<DashboardProvider>(context, listen: false)
           .loadStatistics(widget.futsalId);
     });
   }
 
-  // Day labels for weekly chart
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  // Day labels for weekly chart (same as before)
   List<String> get _dayLabels {
     final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    final today = DateTime.now().weekday; // 1=Mon, 7=Sun
+    final today = DateTime.now().weekday;
     return List.generate(7, (i) {
       final dayIndex = (today - 6 + i) % 7;
       return days[dayIndex];
@@ -48,6 +66,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         elevation: 0,
+        bottom: TabBar(
+          controller: _tabController,
+          isScrollable: true,
+          tabs: _tabs.map((t) => Tab(text: t)).toList(),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
@@ -59,39 +82,48 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           ),
         ],
       ),
-      body: provider.isLoading
-          ? const Center(child: CircularProgressIndicator(color: Colors.green))
-          : RefreshIndicator(
-              onRefresh: () => provider.loadStatistics(widget.futsalId),
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  // Summary Cards Row
-                  _buildSummaryCards(provider),
-
-                  const SizedBox(height: 24),
-
-                  // Weekly Revenue Chart
-                  _buildWeeklyRevenueChart(provider),
-
-                  const SizedBox(height: 24),
-
-                  // Peak Hours Chart
-                  _buildPeakHoursChart(provider),
-
-                  const SizedBox(height: 24),
-
-                  // Revenue breakdown
-                  _buildRevenueBreakdown(provider),
-                ],
-              ),
-            ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _buildRevenueOverview(provider),   // existing charts
+          _buildPlaceholder('Payment History', Icons.payment),
+          _buildPlaceholder('Pending Payments', Icons.pending_actions),
+          _buildPlaceholder('Transactions', Icons.receipt_long),
+          _buildPlaceholder('Online Payments', Icons.wifi),
+          _buildPlaceholder('Refunds', Icons.undo),
+        ],
+      ),
     );
   }
 
-  // ============================================
-  // SUMMARY CARDS
-  // ============================================
+  // -----------------------------------------------
+  // REVENUE OVERVIEW (existing content)
+  // -----------------------------------------------
+  Widget _buildRevenueOverview(DashboardProvider provider) {
+    if (provider.isLoading) {
+      return const Center(child: CircularProgressIndicator(color: Colors.green));
+    }
+
+    return RefreshIndicator(
+      onRefresh: () => provider.loadStatistics(widget.futsalId),
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _buildSummaryCards(provider),
+          const SizedBox(height: 24),
+          _buildWeeklyRevenueChart(provider),
+          const SizedBox(height: 24),
+          _buildPeakHoursChart(provider),
+          const SizedBox(height: 24),
+          _buildRevenueBreakdown(provider),
+        ],
+      ),
+    );
+  }
+
+  // -----------------------------------------------
+  // SUMMARY CARDS (Total Revenue, Daily Avg, Today's Revenue, Today's Bookings)
+  // -----------------------------------------------
   Widget _buildSummaryCards(DashboardProvider provider) {
     final totalWeekly = provider.weeklyRevenue.fold(0.0, (a, b) => a + b);
     final avgDaily = provider.weeklyRevenue.isEmpty
@@ -195,9 +227,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     );
   }
 
-  // ============================================
-  // WEEKLY REVENUE BAR CHART
-  // ============================================
+  // -----------------------------------------------
+  // WEEKLY REVENUE BAR CHART (unchanged)
+  // -----------------------------------------------
   Widget _buildWeeklyRevenueChart(DashboardProvider provider) {
     final revenue = provider.weeklyRevenue;
 
@@ -317,7 +349,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                       BarChartRodData(
                         toY: revenue[index],
                         color: index == revenue.length - 1
-                            ? Colors.green // today highlighted
+                            ? Colors.green
                             : Colors.green.shade200,
                         width: 24,
                         borderRadius: const BorderRadius.vertical(
@@ -335,9 +367,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     );
   }
 
-  // ============================================
-  // PEAK HOURS BAR CHART
-  // ============================================
+  // -----------------------------------------------
+  // PEAK HOURS BAR CHART (unchanged)
+  // -----------------------------------------------
   Widget _buildPeakHoursChart(DashboardProvider provider) {
     final peakHours = provider.peakHours;
 
@@ -345,7 +377,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       return _buildEmptyChart('Peak Hours', 'No booking data available');
     }
 
-    // Sort by hour
     final sortedEntries = peakHours.entries.toList()
       ..sort((a, b) => a.key.compareTo(b.key));
 
@@ -459,9 +490,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     barRods: [
                       BarChartRodData(
                         toY: sortedEntries[index].value.toDouble(),
-                        color: isPeak
-                            ? Colors.orange // peak bar highlighted
-                            : Colors.orange.shade200,
+                        color: isPeak ? Colors.orange : Colors.orange.shade200,
                         width: 20,
                         borderRadius: const BorderRadius.vertical(
                           top: Radius.circular(6),
@@ -478,9 +507,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     );
   }
 
-  // ============================================
-  // REVENUE BREAKDOWN TABLE
-  // ============================================
+  // -----------------------------------------------
+  // REVENUE BREAKDOWN TABLE (unchanged)
+  // -----------------------------------------------
   Widget _buildRevenueBreakdown(DashboardProvider provider) {
     final revenue = provider.weeklyRevenue;
     final labels = _dayLabels;
@@ -566,9 +595,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     );
   }
 
-  // ============================================
-  // EMPTY STATE
-  // ============================================
+  // -----------------------------------------------
+  // EMPTY CHART
+  // -----------------------------------------------
   Widget _buildEmptyChart(String title, String message) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -604,6 +633,30 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             ),
           ),
           const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+
+  // -----------------------------------------------
+  // PLACEHOLDER FOR FUTURE TABS
+  // -----------------------------------------------
+  Widget _buildPlaceholder(String title, IconData icon) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 64, color: Colors.grey.shade400),
+          const SizedBox(height: 16),
+          Text(
+            '$title',
+            style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Coming soon',
+            style: TextStyle(color: Colors.grey),
+          ),
         ],
       ),
     );

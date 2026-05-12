@@ -167,10 +167,10 @@ class FutsalCard extends StatelessWidget {
             // Content Section - Reduced padding
             Padding(
               padding: EdgeInsets.fromLTRB(
-                isDesktop ? 20 : 16,  // left
-                isDesktop ? 16 : 12,  // top - REDUCED
-                isDesktop ? 20 : 16,  // right
-                isDesktop ? 16 : 12,  // bottom - REDUCED
+                isDesktop ? 20 : 16, // left
+                isDesktop ? 16 : 12, // top - REDUCED
+                isDesktop ? 20 : 16, // right
+                isDesktop ? 16 : 12, // bottom - REDUCED
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min, // Prevents extra space
@@ -194,39 +194,39 @@ class FutsalCard extends StatelessWidget {
                       if (courtTypes.isNotEmpty)
                         Wrap(
                           spacing: 4,
-                          children: courtTypes.map((type) => Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6, 
-                              vertical: 2
-                            ),
-                            decoration: BoxDecoration(
-                              color: type == 'indoor'
-                                  ? Colors.blue.shade50
-                                  : Colors.green.shade50,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: type == 'indoor'
-                                    ? Colors.blue.shade200
-                                    : Colors.green.shade200,
-                              ),
-                            ),
-                            child: Text(
-                              type == 'indoor' ? 'Indoor' : 'Outdoor',
-                              style: TextStyle(
-                                fontSize: Responsive.caption(context),
-                                color: type == 'indoor'
-                                    ? Colors.blue.shade700
-                                    : Colors.green.shade700,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          )).toList(),
+                          children: courtTypes
+                              .map((type) => Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: type == 'indoor'
+                                          ? Colors.blue.shade50
+                                          : Colors.green.shade50,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: type == 'indoor'
+                                            ? Colors.blue.shade200
+                                            : Colors.green.shade200,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      type == 'indoor' ? 'Indoor' : 'Outdoor',
+                                      style: TextStyle(
+                                        fontSize: Responsive.caption(context),
+                                        color: type == 'indoor'
+                                            ? Colors.blue.shade700
+                                            : Colors.green.shade700,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ))
+                              .toList(),
                         ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 6), // REDUCED from 8
-                  
+
                   // Location with distance
                   Row(
                     children: [
@@ -236,7 +236,7 @@ class FutsalCard extends StatelessWidget {
                         color: Colors.grey.shade500,
                       ),
                       const SizedBox(width: 4),
-                      Expanded(
+                      Flexible(
                         child: Text(
                           futsal.address,
                           style: TextStyle(
@@ -250,12 +250,13 @@ class FutsalCard extends StatelessWidget {
                       if (futsal.distance != null)
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 6,  // REDUCED from 8
-                            vertical: 2,    // REDUCED from 3
+                            horizontal: 6, // REDUCED from 8
+                            vertical: 2, // REDUCED from 3
                           ),
                           decoration: BoxDecoration(
                             color: Colors.blue.shade50,
-                            borderRadius: BorderRadius.circular(10), // REDUCED from 12
+                            borderRadius:
+                                BorderRadius.circular(10), // REDUCED from 12
                             border: Border.all(color: Colors.blue.shade200),
                           ),
                           child: Row(
@@ -280,22 +281,23 @@ class FutsalCard extends StatelessWidget {
                         ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 6), // REDUCED from 8
-                  
+
                   // Amenities
                   if (amenities.isNotEmpty)
                     SizedBox(
                       height: isDesktop ? 32 : 28, // REDUCED from 40/32
                       child: ListView.builder(
                         scrollDirection: Axis.horizontal,
-                        itemCount: isDesktop 
-                            ? amenities.take(4).length 
+                        itemCount: isDesktop
+                            ? amenities.take(4).length
                             : amenities.take(3).length,
                         itemBuilder: (context, index) {
                           final amenity = amenities[index];
                           return Padding(
-                            padding: const EdgeInsets.only(right: 6), // REDUCED from 8
+                            padding: const EdgeInsets.only(
+                                right: 6), // REDUCED from 8
                             child: _buildAmenityChip(
                               _getAmenityIcon(amenity),
                               amenity.length > (isDesktop ? 20 : 15)
@@ -307,9 +309,9 @@ class FutsalCard extends StatelessWidget {
                         },
                       ),
                     ),
-                  
+
                   const SizedBox(height: 8), // REDUCED from 12
-                  
+
                   // Price and Book Button
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -373,11 +375,12 @@ class FutsalCard extends StatelessWidget {
                           backgroundColor: Colors.green,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8), // REDUCED from 10
+                            borderRadius:
+                                BorderRadius.circular(8), // REDUCED from 10
                           ),
                           padding: EdgeInsets.symmetric(
                             horizontal: isDesktop ? 20 : 16, // REDUCED
-                            vertical: isDesktop ? 10 : 8,    // REDUCED
+                            vertical: isDesktop ? 10 : 8, // REDUCED
                           ),
                           minimumSize: Size.zero, // Allows button to shrink
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -436,7 +439,8 @@ class FutsalCard extends StatelessWidget {
 
   Widget _buildAmenityChip(IconData icon, String label, BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), // REDUCED
+      padding:
+          const EdgeInsets.symmetric(horizontal: 6, vertical: 3), // REDUCED
       decoration: BoxDecoration(
         color: Colors.grey.shade100,
         borderRadius: BorderRadius.circular(8), // REDUCED from 12
@@ -444,7 +448,8 @@ class FutsalCard extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 10, color: Colors.grey.shade700), // REDUCED from 12/14
+          Icon(icon,
+              size: 10, color: Colors.grey.shade700), // REDUCED from 12/14
           const SizedBox(width: 3), // REDUCED from 4
           Text(
             label,

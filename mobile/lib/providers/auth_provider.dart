@@ -15,7 +15,7 @@ class AuthProvider extends ChangeNotifier {
   bool get isAuthenticated => _token != null;
   bool get isOwner => _user?.role == 'OWNER';
   bool get isPlayer => _user?.role == 'PLAYER';
-  bool get isAdmin => _user?.role == 'ADMIN'; // Added admin check
+  bool get isAdmin => _user?.role == 'ADMIN';
   Map<String, dynamic> _adminProfile = {};
   Map<String, dynamic> get adminProfile => _adminProfile;
 
@@ -28,9 +28,7 @@ class AuthProvider extends ChangeNotifier {
 
       debugPrint('📦 AuthProvider login response: $response');
 
-      // 1. Check if login was successful (Verified User)
       if (response['status'] == 'success') {
-        // Extract user and token (Same as your previous logic)
         if (response.containsKey('user')) {
           _user = User.fromJson(response['user']);
         } else if (response.containsKey('data') &&
@@ -49,12 +47,8 @@ class AuthProvider extends ChangeNotifier {
 
           debugPrint('👤 User Logged In: ${_user!.role}');
         }
-      }
-      // 2. Handle Unverified User (Security Gate)
-      else if (response['requiresVerification'] == true) {
+      } else if (response['requiresVerification'] == true) {
         debugPrint('⚠️ User needs email verification');
-        // हामी यहाँ केही पनि Save गर्दैनौँ (No token, No user)
-        // सिधै Response फिर्ता पठाउँछौँ ताकि UI ले थाहा पाओस्
       }
 
       _isLoading = false;
@@ -86,14 +80,12 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // Navigate based on user role
   Future<void> navigateBasedOnRole(BuildContext context) async {
     if (!isAuthenticated) {
       Navigator.pushReplacementNamed(context, '/login');
       return;
     }
 
-    // Navigate based on role
     if (isAdmin) {
       debugPrint('🚀 Navigating to Admin Dashboard');
       Navigator.pushReplacementNamed(context, '/admin/dashboard');
@@ -154,7 +146,7 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-// Update current user data (call after profile update)
+  // Update current user data (call after profile update)
   void updateUser(Map<String, dynamic> userData) {
     if (_user != null) {
       _user = User.fromJson({
@@ -162,13 +154,25 @@ class AuthProvider extends ChangeNotifier {
         ...userData,
       });
       notifyListeners();
-
-      // Also update stored user in SharedPreferences
       _saveUserToStorage();
     }
   }
 
-// Helper to save user to storage
+  // Refresh user data from server (call after profile update)
+  Future<void> refreshUser() async {
+    try {
+      final response = await ApiService.get('users/me');
+      if (response['status'] == 'success') {
+        _user = User.fromJson(response['user']);
+        await _saveUserToStorage();
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Error refreshing user: $e');
+    }
+  }
+
+  // Helper to save user to storage
   Future<void> _saveUserToStorage() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('user', jsonEncode(_user!.toJson()));
