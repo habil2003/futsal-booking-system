@@ -8,10 +8,11 @@ import 'providers/dashboard_provider.dart';
 import 'providers/court_provider.dart';
 import 'providers/booking_provider.dart';
 import 'providers/admin_provider.dart';
+import 'providers/admin_analytics_provider.dart';
 import 'providers/tournament_provider.dart';
 import 'providers/review_provider.dart';
 import 'providers/favorite_provider.dart';
-import 'providers/block_provider.dart'; 
+import 'providers/block_provider.dart';
 import 'providers/settings_provider.dart';
 
 // Screens
@@ -46,6 +47,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => CourtProvider()),
         ChangeNotifierProvider(create: (_) => BookingProvider()),
         ChangeNotifierProvider(create: (_) => AdminProvider()),
+        ChangeNotifierProvider(create: (_) => AdminAnalyticsProvider()),
         ChangeNotifierProvider(create: (_) => TournamentProvider()),
         ChangeNotifierProvider(create: (_) => ReviewProvider()),
         ChangeNotifierProvider(create: (_) => FavoriteProvider()),
@@ -64,13 +66,13 @@ class MyApp extends StatelessWidget {
         // home: const LoginScreen(),
         // home: const OwnerDashboard(),
         // home: const PlayerHomeScreen(),
-        
+
         routes: {
-           '/home': (ctx) => const HomeScreen(),
+          '/home': (ctx) => const HomeScreen(),
           '/login': (ctx) => const LoginScreen(),
           '/player/home': (ctx) => const PlayerHomeScreen(),
           '/owner/dashboard': (ctx) => const OwnerDashboard(),
-          '/admin/dashboard': (ctx) =>  AdminDashboard(),
+          '/admin/dashboard': (ctx) => AdminDashboard(),
           '/payment-verify': (ctx) => const PaymentVerifyPage(),
           "/admin/futsal-approvals": (ctx) => const FutsalApprovalScreen(),
           "/admin/users": (ctx) => const AdminUsersScreen(),

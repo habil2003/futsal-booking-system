@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
-import '../../providers/admin_provider.dart';
+import '../../providers/admin_analytics_provider.dart';
 
 class AdminAnalyticsScreen extends StatefulWidget {
   const AdminAnalyticsScreen({super.key});
@@ -11,107 +11,65 @@ class AdminAnalyticsScreen extends StatefulWidget {
 }
 
 class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
+  final Map<String, bool> _expandedSections = {
+    'Booking Analytics': true,
+    'Revenue Analytics': true,
+    'Ground Performance': true,
+    'User Analytics': true,
+    'Time Slot Analysis': true,
+    'Tournament Analytics': true,
+  };
+
+  // Separate selected ranges for each chart
+  ChartRange _bookingSelectedRange = ChartRange.week;
+  ChartRange _revenueSelectedRange = ChartRange.week;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<AdminProvider>(context, listen: false).loadAdminAnalytics();
-    });
-  }
-
-  List<String> get _dayLabels {
-    final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    final today = DateTime.now().weekday;
-    return List.generate(7, (i) {
-      final dayIndex = (today - 6 + i) % 7;
-      return days[dayIndex];
+      final provider =
+          Provider.of<AdminAnalyticsProvider>(context, listen: false);
+      provider.loadAllAnalytics();
+      // Preload the initial ranges
+      provider.loadBookingsForRange(ChartRange.week);
+      provider.loadRevenueForRange(ChartRange.week);
     });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Platform Analytics'),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () => Provider.of<AdminProvider>(context, listen: false)
-                .loadAdminAnalytics(),
-          ),
-        ],
-      ),
-      body: Consumer<AdminProvider>(
-        builder: (context, adminProvider, _) {
-          if (adminProvider.isLoading) {
+      backgroundColor: Colors.grey.shade50,
+      body: Consumer<AdminAnalyticsProvider>(
+        builder: (context, provider, _) {
+          if (provider.isLoading && provider.revenueByRange.isEmpty) {
             return const Center(
                 child: CircularProgressIndicator(color: Colors.green));
           }
-
-          final analytics = adminProvider.adminAnalytics;
-
-          if (analytics.isEmpty) {
-            return Center(
+          return RefreshIndicator(
+            onRefresh: () => provider.loadAllAnalytics(),
+            color: Colors.green,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.analytics_outlined,
-                      size: 64, color: Colors.grey.shade300),
-                  const SizedBox(height: 16),
-                  Text('No analytics data available',
-                      style: TextStyle(color: Colors.grey.shade600)),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => adminProvider.loadAdminAnalytics(),
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white),
-                    child: const Text('Retry'),
-                  ),
+                  _buildHeader(provider),
+                  const SizedBox(height: 24),
+                  _buildBookingSection(provider),
+                  const SizedBox(height: 20),
+                  _buildRevenueSection(provider),
+                  const SizedBox(height: 20),
+                  _buildGroundPerformanceSection(provider),
+                  const SizedBox(height: 20),
+                  _buildUserSection(provider),
+                  const SizedBox(height: 20),
+                  _buildTimeSlotSection(provider),
+                  const SizedBox(height: 20),
+                  _buildTournamentSection(provider),
                 ],
               ),
-            );
-          }
-
-          final weeklyRevenue = List<double>.from(
-            (analytics['weeklyRevenue'] as List? ?? [])
-                .map((v) => (v as num).toDouble()),
-          );
-
-          final bookingsByStatus = analytics['bookingsByStatus'] as List? ?? [];
-          final totalBookings = analytics['totalBookings'] ?? 0;
-          final totalRevenue =
-              (analytics['totalRevenue'] as num?)?.toDouble() ?? 0;
-          final activeUsers = analytics['activeUsers'] ?? 0;
-
-          return RefreshIndicator(
-            onRefresh: () => adminProvider.loadAdminAnalytics(),
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                // Summary cards
-                _buildSummaryCards(totalBookings, totalRevenue, activeUsers),
-
-                const SizedBox(height: 24),
-
-                // Weekly revenue chart
-                _buildWeeklyRevenueChart(weeklyRevenue),
-
-                const SizedBox(height: 24),
-
-                // Bookings by status
-                _buildBookingsByStatus(bookingsByStatus, totalBookings),
-
-                const SizedBox(height: 24),
-
-                // Daily breakdown
-                _buildDailyBreakdown(weeklyRevenue),
-
-                const SizedBox(height: 24),
-              ],
             ),
           );
         },
@@ -119,181 +77,180 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
     );
   }
 
-  // ============================================
-  // SUMMARY CARDS
-  // ============================================
-  Widget _buildSummaryCards(
-      int totalBookings, double totalRevenue, int activeUsers) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final cardWidth = (constraints.maxWidth - 24) / 2;
-        return Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            _buildSummaryCard(
-              width: cardWidth,
-              label: 'Total Bookings',
-              value: totalBookings.toString(),
-              icon: Icons.book_online,
-              color: Colors.green,
-            ),
-            _buildSummaryCard(
-              width: cardWidth,
-              label: 'Total Revenue',
-              value: 'रू ${totalRevenue.toStringAsFixed(0)}',
-              icon: Icons.currency_rupee,
-              color: Colors.blue,
-            ),
-            _buildSummaryCard(
-              width: cardWidth,
-              label: 'Active Users',
-              value: activeUsers.toString(),
-              icon: Icons.people,
-              color: Colors.orange,
-            ),
-            _buildSummaryCard(
-              width: cardWidth,
-              label: 'Avg per Booking',
-              value: totalBookings > 0
-                  ? 'रू ${(totalRevenue / totalBookings).toStringAsFixed(0)}'
-                  : 'रू 0',
-              icon: Icons.trending_up,
-              color: Colors.purple,
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildSummaryCard({
-    required double width,
-    required String label,
-    required String value,
-    required IconData icon,
-    required Color color,
-  }) {
-    return SizedBox(
-      width: width,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
+  Widget _buildHeader(AdminAnalyticsProvider provider) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-            ),
+            const Text('Advanced Analytics',
+                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
+            Text('Daily, weekly & monthly trends',
+                style: TextStyle(color: Colors.grey.shade600)),
           ],
         ),
-      ),
+        IconButton(
+          icon: const Icon(Icons.refresh_rounded, color: Colors.green),
+          onPressed: () => provider.loadAllAnalytics(),
+        ),
+      ],
     );
   }
 
-  // ============================================
-  // WEEKLY REVENUE CHART
-  // ============================================
-  Widget _buildWeeklyRevenueChart(List<double> revenue) {
-    if (revenue.isEmpty || revenue.every((v) => v == 0)) {
-      return _buildEmptyChart('Weekly Revenue', 'No revenue this week');
-    }
+  // ============================================================
+  // Booking Analytics Section
+  // ============================================================
+  Widget _buildBookingSection(AdminAnalyticsProvider provider) {
+    final expanded = _expandedSections['Booking Analytics']!;
+    final spots = provider.bookingsByRange[_bookingSelectedRange] ?? [];
+    final labels = provider.bookingLabels[_bookingSelectedRange] ?? [];
 
-    final maxRevenue = revenue.reduce((a, b) => a > b ? a : b);
-    final labels = _dayLabels;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+    return _buildCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Weekly Revenue',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
-          Text('Platform-wide last 7 days',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-          const SizedBox(height: 20),
+          _buildSectionHeader('📊 Booking Analytics',
+              expanded: expanded,
+              onToggle: () => _toggleSection('Booking Analytics')),
+          if (expanded) ...[
+            const SizedBox(height: 16),
+            _buildChartWithRangeSelector(
+              title: 'Bookings Trend',
+              spots: spots,
+              labels: labels,
+              selectedRange: _bookingSelectedRange,
+              onRangeChanged: (range) async {
+                setState(() => _bookingSelectedRange = range);
+                await provider.loadBookingsForRange(range);
+              },
+              valueFormatter: (v) => v.toInt().toString(),
+              color: Colors.blue,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // Revenue Analytics Section
+  // ============================================================
+  Widget _buildRevenueSection(AdminAnalyticsProvider provider) {
+    final expanded = _expandedSections['Revenue Analytics']!;
+    final spots = provider.revenueByRange[_revenueSelectedRange] ?? [];
+    final labels = provider.revenueLabels[_revenueSelectedRange] ?? [];
+
+    return _buildCard(
+      child: Column(
+        children: [
+          _buildSectionHeader('💰 Revenue Analytics',
+              expanded: expanded,
+              onToggle: () => _toggleSection('Revenue Analytics')),
+          if (expanded) ...[
+            const SizedBox(height: 16),
+            _buildChartWithRangeSelector(
+              title: 'Revenue Trend',
+              spots: spots,
+              labels: labels,
+              selectedRange: _revenueSelectedRange,
+              onRangeChanged: (range) async {
+                setState(() => _revenueSelectedRange = range);
+                await provider.loadRevenueForRange(range);
+              },
+              valueFormatter: (v) => 'रू ${v.toStringAsFixed(0)}',
+              color: Colors.green,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // Reusable chart with custom range buttons (replaces SegmentedButton)
+  Widget _buildChartWithRangeSelector({
+    required String title,
+    required List<FlSpot> spots,
+    required List<String> labels,
+    required ChartRange selectedRange,
+    required Function(ChartRange) onRangeChanged,
+    required String Function(double) valueFormatter,
+    required Color color,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(title,
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const Spacer(),
+            Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildRangeButton('Week', ChartRange.week, selectedRange,
+                      color, onRangeChanged),
+                  _buildRangeButton('Month', ChartRange.month, selectedRange,
+                      color, onRangeChanged),
+                  _buildRangeButton('Year', ChartRange.year, selectedRange,
+                      color, onRangeChanged),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (spots.isEmpty)
+          const Center(
+              child: Padding(
+                  padding: EdgeInsets.all(40),
+                  child: Text('No data available')))
+        else
           SizedBox(
-            height: 200,
-            child: BarChart(
-              BarChartData(
-                alignment: BarChartAlignment.spaceAround,
-                maxY: maxRevenue * 1.2,
-                barTouchData: BarTouchData(
-                  enabled: true,
-                  touchTooltipData: BarTouchTooltipData(
-                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                      return BarTooltipItem(
-                        'रू ${rod.toY.toStringAsFixed(0)}',
-                        const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      );
-                    },
+            height: 260,
+            child: LineChart(
+              LineChartData(
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: spots,
+                    color: color,
+                    barWidth: 3,
+                    isCurved: true,
+                    dotData: FlDotData(show: spots.length <= 31),
+                    belowBarData:
+                        BarAreaData(show: true, color: color.withOpacity(0.1)),
                   ),
-                ),
+                ],
                 titlesData: FlTitlesData(
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      getTitlesWidget: (value, meta) {
-                        final index = value.toInt();
-                        if (index < 0 || index >= labels.length) {
-                          return const SizedBox.shrink();
-                        }
-                        return Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(labels[index],
-                              style: TextStyle(
-                                  fontSize: 11, color: Colors.grey.shade600)),
-                        );
-                      },
-                    ),
-                  ),
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
-                      reservedSize: 48,
+                      reservedSize: 50,
                       getTitlesWidget: (value, meta) => Text(
-                        'रू${value.toInt()}',
-                        style: TextStyle(
-                            fontSize: 10, color: Colors.grey.shade500),
-                      ),
+                          valueFormatter(value),
+                          style: const TextStyle(fontSize: 10)),
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      interval: _calculateInterval(labels.length),
+                      getTitlesWidget: (value, meta) {
+                        int index = value.toInt();
+                        if (index < 0 || index >= labels.length)
+                          return const SizedBox.shrink();
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(labels[index],
+                              style: const TextStyle(fontSize: 10)),
+                        );
+                      },
                     ),
                   ),
                   topTitles: const AxisTitles(
@@ -301,287 +258,296 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
                   rightTitles: const AxisTitles(
                       sideTitles: SideTitles(showTitles: false)),
                 ),
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: false,
-                  getDrawingHorizontalLine: (value) => FlLine(
-                    color: Colors.grey.shade200,
-                    strokeWidth: 1,
+                gridData: const FlGridData(show: true, drawVerticalLine: false),
+                borderData: FlBorderData(show: false),
+                lineTouchData: LineTouchData(
+                  enabled: true,
+                  touchTooltipData: LineTouchTooltipData(
+                    getTooltipItems: (touchedSpots) {
+                      return touchedSpots.map((spot) {
+                        return LineTooltipItem(
+                            valueFormatter(spot.y),
+                            const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold));
+                      }).toList();
+                    },
                   ),
                 ),
-                borderData: FlBorderData(show: false),
-                barGroups: List.generate(revenue.length, (index) {
-                  return BarChartGroupData(
-                    x: index,
-                    barRods: [
-                      BarChartRodData(
-                        toY: revenue[index],
-                        color: index == revenue.length - 1
-                            ? Colors.green
-                            : Colors.green.shade200,
-                        width: 24,
-                        borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(6)),
-                      ),
-                    ],
-                  );
-                }),
               ),
             ),
           ),
+      ],
+    );
+  }
+
+  Widget _buildRangeButton(String label, ChartRange value, ChartRange selected,
+      Color color, Function(ChartRange) onPressed) {
+    final isSelected = selected == value;
+    return GestureDetector(
+      onTap: () => onPressed(value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? color : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.white : Colors.grey.shade700,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+      ),
+    );
+  }
+
+  double _calculateInterval(int length) {
+    if (length <= 10) return 1;
+    if (length <= 30) return length / 7;
+    return length / 10;
+  }
+
+  // ============================================================
+  // Ground Performance Section (Bordered tables, left aligned)
+  // ============================================================
+  Widget _buildGroundPerformanceSection(AdminAnalyticsProvider provider) {
+    final expanded = _expandedSections['Ground Performance']!;
+    return _buildCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionHeader('⚽ Ground Performance',
+              expanded: expanded,
+              onToggle: () => _toggleSection('Ground Performance')),
+          if (expanded) ...[
+            const SizedBox(height: 16),
+            const Text('Most Booked Grounds',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            _buildBorderedTable(provider.groundBookingRank, 'Bookings'),
+            const SizedBox(height: 20),
+            const Text('Highest Revenue Grounds',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            _buildBorderedTable(provider.groundRevenueRank, 'Revenue',
+                isRevenue: true),
+          ],
         ],
       ),
     );
   }
 
-  // ============================================
-  // BOOKINGS BY STATUS PIE CHART
-  // ============================================
-  Widget _buildBookingsByStatus(
-      List<dynamic> bookingsByStatus, int totalBookings) {
-    if (bookingsByStatus.isEmpty) {
-      return _buildEmptyChart(
-          'Bookings by Status', 'No booking data available');
+  // ============================================================
+  // User Analytics Section (Bordered table, left aligned)
+  // ============================================================
+  Widget _buildUserSection(AdminAnalyticsProvider provider) {
+    final expanded = _expandedSections['User Analytics']!;
+    return _buildCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionHeader('👥 User Analytics',
+              expanded: expanded,
+              onToggle: () => _toggleSection('User Analytics')),
+          if (expanded) ...[
+            const SizedBox(height: 16),
+            _buildStatsBox('Total Users', provider.totalUsers.toString(),
+                Icons.people, Colors.purple),
+            const SizedBox(height: 20),
+            const Text('🏆 Top Players (by bookings)',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            _buildBorderedTable(provider.topPlayers, 'Bookings'),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // Generic bordered table with left alignment
+  Widget _buildBorderedTable(List<Map<String, dynamic>> data, String metric,
+      {bool isRevenue = false}) {
+    if (data.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(16),
+        child: Text('No data available'),
+      );
     }
 
-    final statusColors = {
-      'CONFIRMED': Colors.green,
-      'COMPLETED': Colors.blue,
-      'CANCELLED': Colors.red,
-      'PENDING': Colors.orange,
-    };
-
-    final sections = bookingsByStatus.map((item) {
-      final status = item['status'] as String;
-      final count = (item['_count']['status'] as int).toDouble();
-      final color = statusColors[status] ?? Colors.grey;
-      final percent = totalBookings > 0 ? count / totalBookings * 100 : 0.0;
-
-      return PieChartSectionData(
-        value: count,
-        color: color,
-        // Only show title if section is large enough
-        title: percent >= 10 ? '${count.toInt()}' : '',
-        radius: 60, // ← reduced from 80
-        titleStyle: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          color: Colors.white,
-        ),
-        // Add badge position to avoid overlap
-        titlePositionPercentageOffset: 0.6,
-      );
-    }).toList();
-
     return Container(
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(8),
       ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: DataTable(
+          columnSpacing: 20,
+          border: TableBorder.all(color: Colors.grey.shade300),
+          columns: [
+            DataColumn(
+              label: Text(metric == 'Bookings' ? 'Player' : 'Ground',
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            DataColumn(
+              label: Text(metric,
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+          rows: data.map((item) {
+            final name = isRevenue
+                ? (item['name'] ?? 'Unknown')
+                : (item['name'] ?? item['fullName'] ?? 'Unknown');
+            final value = isRevenue
+                ? 'रू ${(item['revenue'] as num).toStringAsFixed(0)}'
+                : '${item['bookingCount']}';
+            return DataRow(cells: [
+              DataCell(Text(name,
+                  style: const TextStyle(fontWeight: FontWeight.w500))),
+              DataCell(Text(value, textAlign: TextAlign.left)),
+            ]);
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // Time Slot Analysis (Peak Hours Bar Chart)
+  // ============================================================
+  Widget _buildTimeSlotSection(AdminAnalyticsProvider provider) {
+    final expanded = _expandedSections['Time Slot Analysis']!;
+    final peakData = provider.peakHoursData;
+    return _buildCard(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Bookings by Status',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
-          Text('Total: $totalBookings bookings',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              // Pie chart
-              SizedBox(
-                height: 140,
-                width: 140,
-                child: PieChart(
-                  PieChartData(
-                    sections: sections,
-                    centerSpaceRadius: 25,
-                    sectionsSpace: 2,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 24),
-              // Legend
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: bookingsByStatus.map((item) {
-                    final status = item['status'] as String;
-                    final count = item['_count']['status'] as int;
-                    final color = statusColors[status] ?? Colors.grey;
-                    final percent = totalBookings > 0
-                        ? (count / totalBookings * 100).toStringAsFixed(1)
-                        : '0';
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 12,
-                            height: 12,
-                            decoration: BoxDecoration(
-                              color: color,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              status,
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                          ),
-                          Text(
-                            '$percent%',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: color,
-                            ),
-                          ),
-                        ],
-                      ),
+          _buildSectionHeader('🕒 Peak Hours',
+              expanded: expanded,
+              onToggle: () => _toggleSection('Time Slot Analysis')),
+          if (expanded && peakData.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 250,
+              child: BarChart(
+                BarChartData(
+                  barGroups: peakData.entries.map((e) {
+                    return BarChartGroupData(
+                      x: e.key,
+                      barRods: [
+                        BarChartRodData(
+                            toY: e.value.toDouble(),
+                            color: Colors.orange,
+                            width: 20)
+                      ],
                     );
                   }).toList(),
+                  titlesData: FlTitlesData(
+                    leftTitles: AxisTitles(
+                        sideTitles:
+                            SideTitles(showTitles: true, reservedSize: 40)),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (value, meta) => Text(
+                            '${value.toInt()}:00',
+                            style: const TextStyle(fontSize: 10)),
+                      ),
+                    ),
+                    rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                  ),
+                  borderData: FlBorderData(show: false),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ],
       ),
     );
   }
 
-  // ============================================
-  // DAILY BREAKDOWN
-  // ============================================
-  Widget _buildDailyBreakdown(List<double> revenue) {
-    if (revenue.isEmpty) return const SizedBox.shrink();
-
-    final labels = _dayLabels;
-    final maxVal =
-        revenue.isEmpty ? 1.0 : revenue.reduce((a, b) => a > b ? a : b);
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+  // ============================================================
+  // Tournament Analytics Section
+  // ============================================================
+  Widget _buildTournamentSection(AdminAnalyticsProvider provider) {
+    final expanded = _expandedSections['Tournament Analytics']!;
+    return _buildCard(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Daily Revenue Breakdown',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
-          ...List.generate(revenue.length, (index) {
-            final isToday = index == revenue.length - 1;
-            final percent = maxVal > 0 ? revenue[index] / maxVal : 0.0;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 36,
-                    child: Text(
-                      labels[index],
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight:
-                            isToday ? FontWeight.bold : FontWeight.normal,
-                        color: isToday ? Colors.green : Colors.grey.shade700,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: percent,
-                        minHeight: 10,
-                        backgroundColor: Colors.grey.shade100,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          isToday ? Colors.green : Colors.green.shade300,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 80,
-                    child: Text(
-                      'रू ${revenue[index].toStringAsFixed(0)}',
-                      textAlign: TextAlign.right,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight:
-                            isToday ? FontWeight.bold : FontWeight.normal,
-                        color: isToday ? Colors.green : Colors.grey.shade700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
+          _buildSectionHeader('🏆 Tournament Rankings',
+              expanded: expanded,
+              onToggle: () => _toggleSection('Tournament Analytics')),
+          if (expanded) ...[
+            const SizedBox(height: 16),
+            if (provider.tournamentRank.isEmpty)
+              const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('No tournaments yet'))
+            else
+              _buildBorderedTable(provider.tournamentRank, 'Teams'),
+          ],
         ],
       ),
     );
   }
 
-  // ============================================
-  // EMPTY STATE
-  // ============================================
-  Widget _buildEmptyChart(String title, String message) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+  // ============================================================
+  // Helper Widgets
+  // ============================================================
+  Widget _buildCard({required Widget child}) {
+    return Card(
+      elevation: 2,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(padding: const EdgeInsets.all(16), child: child),
+    );
+  }
+
+  Widget _buildSectionHeader(String title,
+      {required bool expanded, required VoidCallback onToggle}) {
+    return InkWell(
+      onTap: onToggle,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        child: Row(children: [
+          Icon(expanded ? Icons.expand_less : Icons.expand_more,
+              color: Colors.green.shade700),
+          const SizedBox(width: 12),
           Text(title,
               style:
-                  const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 40),
-          Center(
-            child: Column(
-              children: [
-                Icon(Icons.bar_chart, size: 48, color: Colors.grey.shade300),
-                const SizedBox(height: 8),
-                Text(message, style: TextStyle(color: Colors.grey.shade500)),
-              ],
-            ),
-          ),
-          const SizedBox(height: 40),
-        ],
+                  const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        ]),
       ),
     );
   }
+
+  Widget _buildStatsBox(
+      String title, String value, IconData icon, Color color) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+            colors: [color.withOpacity(0.1), color.withOpacity(0.2)]),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(children: [
+        Icon(icon, color: color, size: 32),
+        const SizedBox(width: 16),
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title),
+          Text(value,
+              style: TextStyle(
+                  fontSize: 24, fontWeight: FontWeight.bold, color: color)),
+        ]),
+      ]),
+    );
+  }
+
+  void _toggleSection(String key) =>
+      setState(() => _expandedSections[key] = !_expandedSections[key]!);
 }

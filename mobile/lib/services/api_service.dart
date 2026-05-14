@@ -191,30 +191,31 @@ class ApiService {
     }
   }
 
-
-  // ADD ADS Dynamically
+  // ============================================
+  // ADS METHODS
+  // ============================================
   static Future<List<dynamic>> getActiveAds() async {
-  try {
-    final response = await getList('ads/active');
-    return response;
-  } catch (e) {
-    debugPrint('Error fetching ads: $e');
-    return [];
+    try {
+      final response = await getList('ads/active');
+      return response;
+    } catch (e) {
+      debugPrint('Error fetching ads: $e');
+      return [];
+    }
   }
-}
 
-// Create a new advertisement (Admin only)
-static Future<Map<String, dynamic>> createAd(Map<String, dynamic> adData) async {
-  try {
-    debugPrint('📍 API: Creating ad');
-    debugPrint('📤 Data: $adData');
-    final response = await post('ads', adData);
-    return response;
-  } catch (e) {
-    debugPrint('❌ Create ad error: $e');
-    return {'status': 'error', 'message': e.toString()};
+  static Future<Map<String, dynamic>> createAd(
+      Map<String, dynamic> adData) async {
+    try {
+      debugPrint('📍 API: Creating ad');
+      debugPrint('📤 Data: $adData');
+      final response = await post('ads', adData);
+      return response;
+    } catch (e) {
+      debugPrint('❌ Create ad error: $e');
+      return {'status': 'error', 'message': e.toString()};
+    }
   }
-}
 
   // ============================================
   // LIST METHODS (for endpoints that return arrays)
@@ -237,7 +238,6 @@ static Future<Map<String, dynamic>> createAd(Map<String, dynamic> adData) async 
 
     if (response.statusCode == 200) {
       final dynamic jsonResponse = json.decode(response.body);
-      // Handle different response formats
       if (jsonResponse is List) {
         return jsonResponse;
       } else if (jsonResponse is Map && jsonResponse.containsKey('data')) {
@@ -354,8 +354,6 @@ static Future<Map<String, dynamic>> createAd(Map<String, dynamic> adData) async 
   // ============================================
   // BOOKING SPECIFIC METHODS - FOR PLAYERS
   // ============================================
-
-  // GET /api/bookings/my-bookings - Get current user's bookings
   static Future<Map<String, dynamic>> getMyBookings() async {
     try {
       final response = await get('bookings/my-bookings');
@@ -366,7 +364,6 @@ static Future<Map<String, dynamic>> createAd(Map<String, dynamic> adData) async 
     }
   }
 
-  // Add to ApiService class
   static Future<Map<String, dynamic>> lockSlot(int slotId) async {
     try {
       debugPrint('📍 API: Locking slot $slotId');
@@ -386,7 +383,6 @@ static Future<Map<String, dynamic>> createAd(Map<String, dynamic> adData) async 
     }
   }
 
-  // POST /api/bookings - Create a new booking
   static Future<Map<String, dynamic>> createBooking(
       Map<String, dynamic> bookingData) async {
     try {
@@ -407,22 +403,17 @@ static Future<Map<String, dynamic>> createAd(Map<String, dynamic> adData) async 
     }
   }
 
-  // Cancel booking (owner)
   static Future<Map<String, dynamic>> ownerCancelBooking(int bookingId) async {
     return await put('owner/bookings/$bookingId/cancel', {});
   }
 
-  // PUT /api/bookings/:id/cancel - Cancel a booking
-// Cancel booking (user)
   static Future<Map<String, dynamic>> cancelUserBooking(int bookingId) async {
     return await put('bookings/$bookingId/cancel', {});
   }
 
   // ============================================
-  // OWNER DASHBOARD METHODS - FOR OWNERS
+  // OWNER DASHBOARD METHODS
   // ============================================
-
-  // GET /api/owner/dashboard/stats?futsalId=:id
   static Future<Map<String, dynamic>> getDashboardStats(int futsalId) async {
     try {
       final response = await get('owner/dashboard/stats?futsalId=$futsalId');
@@ -438,7 +429,6 @@ static Future<Map<String, dynamic>> createAd(Map<String, dynamic> adData) async 
     }
   }
 
-  // GET /api/owner/dashboard/today-bookings?futsalId=:id
   static Future<List<dynamic>> getDashboardTodayBookings(int futsalId) async {
     try {
       final response =
@@ -450,7 +440,6 @@ static Future<Map<String, dynamic>> createAd(Map<String, dynamic> adData) async 
     }
   }
 
-  // GET /api/owner/dashboard/weekly-revenue?futsalId=:id
   static Future<List<dynamic>> getWeeklyRevenue(int futsalId) async {
     try {
       final response =
@@ -462,7 +451,6 @@ static Future<Map<String, dynamic>> createAd(Map<String, dynamic> adData) async 
     }
   }
 
-  // GET /api/owner/dashboard/peak-hours?futsalId=:id
   static Future<Map<String, dynamic>> getPeakHours(int futsalId) async {
     try {
       final response =
@@ -474,7 +462,6 @@ static Future<Map<String, dynamic>> createAd(Map<String, dynamic> adData) async 
     }
   }
 
-  // GET /api/owner/bookings/upcoming?futsalId=:id
   static Future<List<dynamic>> getOwnerUpcomingBookings(int futsalId) async {
     try {
       final response = await get('owner/bookings/upcoming?futsalId=$futsalId');
@@ -485,7 +472,6 @@ static Future<Map<String, dynamic>> createAd(Map<String, dynamic> adData) async 
     }
   }
 
-  // GET /api/owner/bookings/month?futsalId=:id&year=:year&month=:month
   static Future<List<dynamic>> getOwnerMonthBookings(
       int futsalId, int year, int month) async {
     try {
@@ -501,23 +487,18 @@ static Future<Map<String, dynamic>> createAd(Map<String, dynamic> adData) async 
   // ============================================
   // OWNER BOOKING ACTIONS
   // ============================================
-
-  // POST /api/owner/bookings/:id/check-in
   static Future<Map<String, dynamic>> checkInBooking(int bookingId) async {
     return await put('owner/bookings/$bookingId/checkin', {});
   }
 
-  // POST /api/owner/bookings/:id/complete
   static Future<Map<String, dynamic>> completeBooking(int bookingId) async {
     return await put('owner/bookings/$bookingId/complete', {});
   }
 
-// Confirm COD payment
   static Future<Map<String, dynamic>> confirmCodPayment(int bookingId) async {
     return await put('owner/bookings/$bookingId/cod-confirm', {});
   }
 
-  // PATCH /api/owner/bookings/:id/payment
   static Future<Map<String, dynamic>> updatePaymentStatus(
       int bookingId, String status) async {
     try {
@@ -531,353 +512,339 @@ static Future<Map<String, dynamic>> createAd(Map<String, dynamic> adData) async 
     }
   }
 
-  //For Admin Dashboard
-  Future<Map<String, dynamic>> getAdminDashboard() async {
-    final response = await get('/admin/dashboard');
+  // ============================================
+  // ADMIN METHODS
+  // ============================================
+  static Future<Map<String, dynamic>> getAdminDashboard() async {
+    final response = await get('admin/dashboard');
     return response;
   }
 
-  Future<Map<String, dynamic>> getAllUsers() async {
-    final response = await get('/admin/users');
+  static Future<Map<String, dynamic>> getAllUsers() async {
+    final response = await get('admin/users');
     return response;
   }
 
-  Future<Map<String, dynamic>> approveOwner(int userId) async {
-    final response = await patch('/admin/users/$userId/approve-owner', {});
+  static Future<Map<String, dynamic>> approveOwner(int userId) async {
+    final response = await patch('admin/users/$userId/approve-owner', {});
     return response;
   }
 
-  Future<Map<String, dynamic>> getPendingFutsals() async {
-    final response = await get('/admin/futsals/pending');
+  static Future<Map<String, dynamic>> getPendingFutsals() async {
+    final response = await get('admin/futsals/pending');
     return response;
   }
 
-  Future<Map<String, dynamic>> approveFutsal(int futsalId) async {
-    final response = await patch('/admin/futsals/$futsalId/approve', {});
+  static Future<Map<String, dynamic>> approveFutsal(int futsalId) async {
+    final response = await patch('admin/futsals/$futsalId/approve', {});
     return response;
   }
 
-  Future<Map<String, dynamic>> rejectFutsal(int futsalId) async {
-    final response = await patch('/admin/futsals/$futsalId/reject', {});
+  static Future<Map<String, dynamic>> rejectFutsal(int futsalId) async {
+    final response = await patch('admin/futsals/$futsalId/reject', {});
     return response;
   }
 
-  // Admin bookings
-static Future<Map<String, dynamic>> getAdminBookings({
-  String status = 'ALL',
-  String? from,
-  String? to,
-  int page = 1,
-}) async {
-  try {
-    String endpoint = 'admin/bookings?status=$status&page=$page';
-    if (from != null && to != null) {
-      endpoint += '&from=$from&to=$to';
+  static Future<Map<String, dynamic>> getAdminBookings({
+    String status = 'ALL',
+    String? from,
+    String? to,
+    int page = 1,
+  }) async {
+    try {
+      String endpoint = 'admin/bookings?status=$status&page=$page';
+      if (from != null && to != null) {
+        endpoint += '&from=$from&to=$to';
+      }
+      return await get(endpoint);
+    } catch (e) {
+      return {'bookings': [], 'total': 0};
     }
-    return await get(endpoint);
-  } catch (e) {
-    return {'bookings': [], 'total': 0};
   }
-}
 
-// Admin analytics
-static Future<Map<String, dynamic>> getAdminAnalytics() async {
-  try {
-    return await get('admin/analytics');
-  } catch (e) {
-    return {};
+  static Future<Map<String, dynamic>> getAdminAnalytics() async {
+    try {
+      return await get('admin/analytics');
+    } catch (e) {
+      return {};
+    }
   }
-}
 
   // ============================================
-// IMAGE UPLOAD
-// ============================================
-static Future<List<String>> uploadImages(List<XFile> imageFiles) async {
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
-
-    final uri = Uri.parse('$baseUrl/upload/images');
-    final request = http.MultipartRequest('POST', uri);
-
-    request.headers['Authorization'] = 'Bearer $token';
-
-    // Add each image file to the request
-    for (final imageFile in imageFiles) {
-      final bytes = await imageFile.readAsBytes();
-      final multipartFile = http.MultipartFile.fromBytes(
-        'images',                          // ← must match backend field name
-        bytes,
-        filename: imageFile.name,
-        contentType: MediaType('image', 'jpeg'),
-      );
-      request.files.add(multipartFile);
-    }
-
-    debugPrint('📤 Uploading ${imageFiles.length} image(s)...');
-    final streamedResponse = await request.send();
-    final response = await http.Response.fromStream(streamedResponse);
-
-    debugPrint('📥 Upload response: ${response.statusCode} - ${response.body}');
-
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      return List<String>.from(data['urls']);  // ← returns Cloudinary URLs
-    } else {
-      throw Exception('Upload failed: ${response.body}');
-    }
-  } catch (e) {
-    debugPrint('❌ Upload images error: $e');
-    return [];
-  }
-}
-
-static Future<Map<String, dynamic>> verifyEmail(
-    String email, String otp) async {
-  return await post('auth/verify-email', {'email': email, 'otp': otp});
-}
-
-static Future<Map<String, dynamic>> resendOtp(String email) async {
-  return await post('auth/resend-otp', {'email': email});
-}
-
-static Future<Map<String, dynamic>> forgotPassword(String email) async {
-  return await post('auth/forgot-password', {'email': email});
-}
-
-static Future<Map<String, dynamic>> resetPassword(
-    String email, String otp, String newPassword) async {
-  return await post('auth/reset-password', {
-    'email': email,
-    'otp': otp,
-    'newPassword': newPassword,
-  });
-}
-
-// ============================================
-// TOURNAMENT METHODS
-// ============================================
-
-// POST /api/tournaments
-static Future<Map<String, dynamic>> createTournament(Map<String, dynamic> tournamentData) async {
-  try {
-    debugPrint('📍 API: Creating tournament');
-    debugPrint('📤 Data: $tournamentData');
-    return await post('tournaments', tournamentData);
-  } catch (e) {
-    debugPrint('❌ Create tournament error: $e');
-    return {'status': 'error', 'message': e.toString()};
-  }
-}
-
-// GET /api/tournaments
-static Future<List<dynamic>> getAllTournaments() async {
-  try {
-    debugPrint('📍 API: Getting all tournaments');
-    final response = await get('tournaments');
-    return response['tournaments'] ?? [];
-  } catch (e) {
-    debugPrint('❌ Get all tournaments error: $e');
-    return [];
-  }
-}
-
-// GET /api/tournaments/my-tournaments
-static Future<List<dynamic>> getMyTournaments() async {
-  try {
-    debugPrint('📍 API: Getting my tournaments');
-    final response = await get('tournaments/my-tournaments');
-    return response['tournaments'] ?? [];
-  } catch (e) {
-    debugPrint('❌ Get my tournaments error: $e');
-    return [];
-  }
-}
-
-// GET /api/tournaments/:id
-static Future<Map<String, dynamic>> getTournamentById(int tournamentId) async {
-  try {
-    debugPrint('📍 API: Getting tournament by ID: $tournamentId');
-    return await get('tournaments/$tournamentId');
-  } catch (e) {
-    debugPrint('❌ Get tournament by ID error: $e');
-    return {'status': 'error', 'message': e.toString()};
-  }
-}
-
-// PUT /api/tournaments/:id
-static Future<Map<String, dynamic>> updateTournament(int tournamentId, Map<String, dynamic> tournamentData) async {
-  try {
-    debugPrint('📍 API: Updating tournament $tournamentId');
-    debugPrint('📤 Data: $tournamentData');
-    return await put('tournaments/$tournamentId', tournamentData);
-  } catch (e) {
-    debugPrint('❌ Update tournament error: $e');
-    return {'status': 'error', 'message': e.toString()};
-  }
-}
-
-// DELETE /api/tournaments/:id
-static Future<Map<String, dynamic>> deleteTournament(int tournamentId) async {
-  try {
-    debugPrint('📍 API: Deleting tournament $tournamentId');
-    return await delete('tournaments/$tournamentId');
-  } catch (e) {
-    debugPrint('❌ Delete tournament error: $e');
-    return {'status': 'error', 'message': e.toString()};
-  }
-}
-
-// PATCH /api/tournaments/:id/status
-static Future<Map<String, dynamic>> updateTournamentStatus(int tournamentId, String status) async {
-  try {
-    debugPrint('📍 API: Updating tournament $tournamentId status to $status');
-    return await patch('tournaments/$tournamentId/status', {'status': status});
-  } catch (e) {
-    debugPrint('❌ Update tournament status error: $e');
-    return {'status': 'error', 'message': e.toString()};
-  }
-}
-
-// ============================================
-// TEAM MANAGEMENT METHODS
-// ============================================
-
-// POST /api/tournaments/:tournamentId/teams
-static Future<Map<String, dynamic>> addTeam(int tournamentId, Map<String, dynamic> teamData) async {
-  try {
-    debugPrint('📍 API: Adding team to tournament $tournamentId');
-    debugPrint('📤 Data: $teamData');
-    return await post('tournaments/$tournamentId/teams', teamData);
-  } catch (e) {
-    debugPrint('❌ Add team error: $e');
-    return {'status': 'error', 'message': e.toString()};
-  }
-}
-
-// GET /api/tournaments/:tournamentId/teams
-static Future<List<dynamic>> getTeams(int tournamentId) async {
-  try {
-    debugPrint('📍 API: Getting teams for tournament $tournamentId');
-    final response = await get('tournaments/$tournamentId/teams');
-    return response['teams'] ?? [];
-  } catch (e) {
-    debugPrint('❌ Get teams error: $e');
-    return [];
-  }
-}
-
-// PUT /api/teams/:teamId
-static Future<Map<String, dynamic>> updateTeam(int teamId, Map<String, dynamic> teamData) async {
-  try {
-    debugPrint('📍 API: Updating team $teamId');
-    debugPrint('📤 Data: $teamData');
-    return await put('teams/$teamId', teamData);
-  } catch (e) {
-    debugPrint('❌ Update team error: $e');
-    return {'status': 'error', 'message': e.toString()};
-  }
-}
-
-// DELETE /api/teams/:teamId
-static Future<Map<String, dynamic>> deleteTeam(int teamId) async {
-  try {
-    debugPrint('📍 API: Deleting team $teamId');
-    return await delete('teams/$teamId');
-  } catch (e) {
-    debugPrint('❌ Delete team error: $e');
-    return {'status': 'error', 'message': e.toString()};
-  }
-}
-
-// ============================================
-// FIXTURE MANAGEMENT METHODS
-// ============================================
-
-// POST /api/tournaments/:tournamentId/generate-fixtures
-static Future<Map<String, dynamic>> generateFixtures(int tournamentId) async {
-  try {
-    debugPrint('📍 API: Generating fixtures for tournament $tournamentId');
-    return await post('tournaments/$tournamentId/generate-fixtures', {});
-  } catch (e) {
-    debugPrint('❌ Generate fixtures error: $e');
-    return {'status': 'error', 'message': e.toString()};
-  }
-}
-
-// GET /api/tournaments/:tournamentId/matches
-static Future<List<dynamic>> getMatches(int tournamentId) async {
-  try {
-    debugPrint('📍 API: Getting matches for tournament $tournamentId');
-    final response = await get('tournaments/$tournamentId/matches');
-    return response['matches'] ?? [];
-  } catch (e) {
-    debugPrint('❌ Get matches error: $e');
-    return [];
-  }
-}
-
-// PATCH /api/matches/:matchId/score
-// In api_service.dart - Update the updateMatchScore method
-
-static Future<Map<String, dynamic>> updateMatchScore(int matchId, Map<String, dynamic> scoreData) async {
-  try {
-    debugPrint('📍 API: Updating match $matchId score');
-    debugPrint('📤 Data: $scoreData');
-    
-    // Make sure the URL is correct - matches should be plural? Let's try both formats
-    final response = await patch('matches/$matchId/score', scoreData);
-    
-    debugPrint('📍 API Response: $response');
-    return response;
-  } catch (e) {
-    debugPrint('❌ Update match score error: $e');
-    
-    // Try alternative URL format if the first one fails
+  // IMAGE UPLOAD
+  // ============================================
+  static Future<List<String>> uploadImages(List<XFile> imageFiles) async {
     try {
-      debugPrint('📍 Trying alternative URL format: tournaments/matches/$matchId/score');
-      final response = await patch('tournaments/matches/$matchId/score', scoreData);
-      return response;
-    } catch (e2) {
-      debugPrint('❌ Alternative URL also failed: $e2');
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      final uri = Uri.parse('$baseUrl/upload/images');
+      final request = http.MultipartRequest('POST', uri);
+
+      request.headers['Authorization'] = 'Bearer $token';
+
+      for (final imageFile in imageFiles) {
+        final bytes = await imageFile.readAsBytes();
+        final multipartFile = http.MultipartFile.fromBytes(
+          'images',
+          bytes,
+          filename: imageFile.name,
+          contentType: MediaType('image', 'jpeg'),
+        );
+        request.files.add(multipartFile);
+      }
+
+      debugPrint('📤 Uploading ${imageFiles.length} image(s)...');
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      debugPrint(
+          '📥 Upload response: ${response.statusCode} - ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return List<String>.from(data['urls']);
+      } else {
+        throw Exception('Upload failed: ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('❌ Upload images error: $e');
+      return [];
+    }
+  }
+
+  // ============================================
+  // AUTH EXTRA (verify email, forgot password, etc.)
+  // ============================================
+  static Future<Map<String, dynamic>> verifyEmail(
+      String email, String otp) async {
+    return await post('auth/verify-email', {'email': email, 'otp': otp});
+  }
+
+  static Future<Map<String, dynamic>> resendOtp(String email) async {
+    return await post('auth/resend-otp', {'email': email});
+  }
+
+  static Future<Map<String, dynamic>> forgotPassword(String email) async {
+    return await post('auth/forgot-password', {'email': email});
+  }
+
+  static Future<Map<String, dynamic>> resetPassword(
+      String email, String otp, String newPassword) async {
+    return await post('auth/reset-password', {
+      'email': email,
+      'otp': otp,
+      'newPassword': newPassword,
+    });
+  }
+
+  // ============================================
+  // TOURNAMENT METHODS
+  // ============================================
+  static Future<Map<String, dynamic>> createTournament(
+      Map<String, dynamic> tournamentData) async {
+    try {
+      debugPrint('📍 API: Creating tournament');
+      debugPrint('📤 Data: $tournamentData');
+      return await post('tournaments', tournamentData);
+    } catch (e) {
+      debugPrint('❌ Create tournament error: $e');
       return {'status': 'error', 'message': e.toString()};
     }
   }
-}
 
-// PATCH /api/matches/:matchId/status
-static Future<Map<String, dynamic>> updateMatchStatus(int matchId, String status) async {
-  try {
-    debugPrint('📍 API: Updating match $matchId status to $status');
-    return await patch('matches/$matchId/status', {'status': status});
-  } catch (e) {
-    debugPrint('❌ Update match status error: $e');
-    return {'status': 'error', 'message': e.toString()};
+  static Future<List<dynamic>> getAllTournaments() async {
+    try {
+      debugPrint('📍 API: Getting all tournaments');
+      final response = await get('tournaments');
+      return response['tournaments'] ?? [];
+    } catch (e) {
+      debugPrint('❌ Get all tournaments error: $e');
+      return [];
+    }
   }
-}
 
-// ============================================
-// STATISTICS METHODS
-// ============================================
-
-// GET /api/tournaments/:tournamentId/standings
-static Future<List<dynamic>> getTournamentStandings(int tournamentId) async {
-  try {
-    debugPrint('📍 API: Getting standings for tournament $tournamentId');
-    final response = await get('tournaments/$tournamentId/standings');
-    return response['standings'] ?? [];
-  } catch (e) {
-    debugPrint('❌ Get tournament standings error: $e');
-    return [];
+  static Future<List<dynamic>> getMyTournaments() async {
+    try {
+      debugPrint('📍 API: Getting my tournaments');
+      final response = await get('tournaments/my-tournaments');
+      return response['tournaments'] ?? [];
+    } catch (e) {
+      debugPrint('❌ Get my tournaments error: $e');
+      return [];
+    }
   }
-}
 
-   // ============================================
-  // BLOCK METHODS
+  static Future<Map<String, dynamic>> getTournamentById(
+      int tournamentId) async {
+    try {
+      debugPrint('📍 API: Getting tournament by ID: $tournamentId');
+      return await get('tournaments/$tournamentId');
+    } catch (e) {
+      debugPrint('❌ Get tournament by ID error: $e');
+      return {'status': 'error', 'message': e.toString()};
+    }
+  }
+
+  static Future<Map<String, dynamic>> updateTournament(
+      int tournamentId, Map<String, dynamic> tournamentData) async {
+    try {
+      debugPrint('📍 API: Updating tournament $tournamentId');
+      debugPrint('📤 Data: $tournamentData');
+      return await put('tournaments/$tournamentId', tournamentData);
+    } catch (e) {
+      debugPrint('❌ Update tournament error: $e');
+      return {'status': 'error', 'message': e.toString()};
+    }
+  }
+
+  static Future<Map<String, dynamic>> deleteTournament(int tournamentId) async {
+    try {
+      debugPrint('📍 API: Deleting tournament $tournamentId');
+      return await delete('tournaments/$tournamentId');
+    } catch (e) {
+      debugPrint('❌ Delete tournament error: $e');
+      return {'status': 'error', 'message': e.toString()};
+    }
+  }
+
+  static Future<Map<String, dynamic>> updateTournamentStatus(
+      int tournamentId, String status) async {
+    try {
+      debugPrint('📍 API: Updating tournament $tournamentId status to $status');
+      return await patch(
+          'tournaments/$tournamentId/status', {'status': status});
+    } catch (e) {
+      debugPrint('❌ Update tournament status error: $e');
+      return {'status': 'error', 'message': e.toString()};
+    }
+  }
+
   // ============================================
+  // TEAM MANAGEMENT
+  // ============================================
+  static Future<Map<String, dynamic>> addTeam(
+      int tournamentId, Map<String, dynamic> teamData) async {
+    try {
+      debugPrint('📍 API: Adding team to tournament $tournamentId');
+      debugPrint('📤 Data: $teamData');
+      return await post('tournaments/$tournamentId/teams', teamData);
+    } catch (e) {
+      debugPrint('❌ Add team error: $e');
+      return {'status': 'error', 'message': e.toString()};
+    }
+  }
 
-  // GET /api/owner/blocks?futsalId=:futsalId - Get all blocked players for a specific futsal
-  static Future<Map<String, dynamic>> getBlockedPlayers({required int futsalId}) async {
+  static Future<List<dynamic>> getTeams(int tournamentId) async {
+    try {
+      debugPrint('📍 API: Getting teams for tournament $tournamentId');
+      final response = await get('tournaments/$tournamentId/teams');
+      return response['teams'] ?? [];
+    } catch (e) {
+      debugPrint('❌ Get teams error: $e');
+      return [];
+    }
+  }
+
+  static Future<Map<String, dynamic>> updateTeam(
+      int teamId, Map<String, dynamic> teamData) async {
+    try {
+      debugPrint('📍 API: Updating team $teamId');
+      debugPrint('📤 Data: $teamData');
+      return await put('teams/$teamId', teamData);
+    } catch (e) {
+      debugPrint('❌ Update team error: $e');
+      return {'status': 'error', 'message': e.toString()};
+    }
+  }
+
+  static Future<Map<String, dynamic>> deleteTeam(int teamId) async {
+    try {
+      debugPrint('📍 API: Deleting team $teamId');
+      return await delete('teams/$teamId');
+    } catch (e) {
+      debugPrint('❌ Delete team error: $e');
+      return {'status': 'error', 'message': e.toString()};
+    }
+  }
+
+  // ============================================
+  // FIXTURE MANAGEMENT
+  // ============================================
+  static Future<Map<String, dynamic>> generateFixtures(int tournamentId) async {
+    try {
+      debugPrint('📍 API: Generating fixtures for tournament $tournamentId');
+      return await post('tournaments/$tournamentId/generate-fixtures', {});
+    } catch (e) {
+      debugPrint('❌ Generate fixtures error: $e');
+      return {'status': 'error', 'message': e.toString()};
+    }
+  }
+
+  static Future<List<dynamic>> getMatches(int tournamentId) async {
+    try {
+      debugPrint('📍 API: Getting matches for tournament $tournamentId');
+      final response = await get('tournaments/$tournamentId/matches');
+      return response['matches'] ?? [];
+    } catch (e) {
+      debugPrint('❌ Get matches error: $e');
+      return [];
+    }
+  }
+
+  static Future<Map<String, dynamic>> updateMatchScore(
+      int matchId, Map<String, dynamic> scoreData) async {
+    try {
+      debugPrint('📍 API: Updating match $matchId score');
+      debugPrint('📤 Data: $scoreData');
+      final response = await patch('matches/$matchId/score', scoreData);
+      debugPrint('📍 API Response: $response');
+      return response;
+    } catch (e) {
+      debugPrint('❌ Update match score error: $e');
+      try {
+        debugPrint(
+            '📍 Trying alternative URL: tournaments/matches/$matchId/score');
+        final response =
+            await patch('tournaments/matches/$matchId/score', scoreData);
+        return response;
+      } catch (e2) {
+        debugPrint('❌ Alternative URL also failed: $e2');
+        return {'status': 'error', 'message': e.toString()};
+      }
+    }
+  }
+
+  static Future<Map<String, dynamic>> updateMatchStatus(
+      int matchId, String status) async {
+    try {
+      debugPrint('📍 API: Updating match $matchId status to $status');
+      return await patch('matches/$matchId/status', {'status': status});
+    } catch (e) {
+      debugPrint('❌ Update match status error: $e');
+      return {'status': 'error', 'message': e.toString()};
+    }
+  }
+
+  // ============================================
+  // STATISTICS METHODS
+  // ============================================
+  static Future<List<dynamic>> getTournamentStandings(int tournamentId) async {
+    try {
+      debugPrint('📍 API: Getting standings for tournament $tournamentId');
+      final response = await get('tournaments/$tournamentId/standings');
+      return response['standings'] ?? [];
+    } catch (e) {
+      debugPrint('❌ Get tournament standings error: $e');
+      return [];
+    }
+  }
+
+  // ============================================
+  // BLOCK METHODS (Owner blocks player)
+  // ============================================
+  static Future<Map<String, dynamic>> getBlockedPlayers(
+      {required int futsalId}) async {
     try {
       final response = await get('owner/blocks?futsalId=$futsalId');
       return response;
@@ -887,7 +854,6 @@ static Future<List<dynamic>> getTournamentStandings(int tournamentId) async {
     }
   }
 
-  // POST /api/owner/blocks - Block a player
   static Future<Map<String, dynamic>> blockPlayer({
     required int playerId,
     required int futsalId,
@@ -906,13 +872,13 @@ static Future<List<dynamic>> getTournamentStandings(int tournamentId) async {
     }
   }
 
-  // DELETE /api/owner/blocks/:playerId?futsalId=:futsalId - Unblock a player
   static Future<Map<String, dynamic>> unblockPlayer({
     required int playerId,
     required int futsalId,
   }) async {
     try {
-      final response = await delete('owner/blocks/$playerId?futsalId=$futsalId');
+      final response =
+          await delete('owner/blocks/$playerId?futsalId=$futsalId');
       return response;
     } catch (e) {
       debugPrint('❌ Unblock player error: $e');
@@ -920,13 +886,13 @@ static Future<List<dynamic>> getTournamentStandings(int tournamentId) async {
     }
   }
 
-  // GET /api/owner/blocks/check/:playerId?futsalId=:futsalId - Check if player is blocked
   static Future<Map<String, dynamic>> checkIsBlocked({
     required int playerId,
     required int futsalId,
   }) async {
     try {
-      final response = await get('owner/blocks/check/$playerId?futsalId=$futsalId');
+      final response =
+          await get('owner/blocks/check/$playerId?futsalId=$futsalId');
       return response;
     } catch (e) {
       debugPrint('❌ Check is blocked error: $e');
@@ -934,14 +900,17 @@ static Future<List<dynamic>> getTournamentStandings(int tournamentId) async {
     }
   }
 
-static Future<Map<String, dynamic>> updateAdminProfile(Map<String, dynamic> data) async {
-  return await put('admin/profile', data);
-}
+  // ============================================
+  // ADMIN PROFILE
+  // ============================================
+  static Future<Map<String, dynamic>> updateAdminProfile(
+      Map<String, dynamic> data) async {
+    return await put('admin/profile', data);
+  }
 
   // ============================================
-  // SYSTEM SETTINGS METHODS
+  // SYSTEM SETTINGS
   // ============================================
-
   static Future<Map<String, dynamic>> getSystemSettings() async {
     try {
       return await get('admin/settings');
@@ -951,7 +920,8 @@ static Future<Map<String, dynamic>> updateAdminProfile(Map<String, dynamic> data
     }
   }
 
-  static Future<Map<String, dynamic>> updateSystemSettings(Map<String, dynamic> data) async {
+  static Future<Map<String, dynamic>> updateSystemSettings(
+      Map<String, dynamic> data) async {
     try {
       return await put('admin/settings', data);
     } catch (e) {
@@ -960,4 +930,89 @@ static Future<Map<String, dynamic>> updateAdminProfile(Map<String, dynamic> data
     }
   }
 
+  // ============================================
+  // ANALYTICS ENDPOINTS (for admin analytics screen)
+  // ============================================
+  static Future<List<dynamic>> getRevenueOverTime(String range) async {
+    try {
+      final response =
+          await get('admin/analytics/revenue-over-time?range=$range');
+      return response['data'] ?? [];
+    } catch (e) {
+      debugPrint('❌ Revenue over time error: $e');
+      return [];
+    }
+  }
+
+  static Future<List<dynamic>> getBookingsOverTime(String range) async {
+    try {
+      final response =
+          await get('admin/analytics/bookings-over-time?range=$range');
+      return response['data'] ?? [];
+    } catch (e) {
+      debugPrint('❌ Bookings over time error: $e');
+      return [];
+    }
+  }
+
+  static Future<Map<String, dynamic>> getBookingStatusBreakdown() async {
+    try {
+      final response = await get('admin/analytics/booking-status-breakdown');
+      return response['data'] ?? {};
+    } catch (e) {
+      debugPrint('❌ Booking status breakdown error: $e');
+      return {};
+    }
+  }
+
+  static Future<List<dynamic>> getGroundsByBookingCount() async {
+    try {
+      final response = await get('admin/analytics/grounds/booking-rank');
+      return response['data'] ?? [];
+    } catch (e) {
+      debugPrint('❌ Grounds booking rank error: $e');
+      return [];
+    }
+  }
+
+  static Future<List<dynamic>> getGroundsByRevenue() async {
+    try {
+      final response = await get('admin/analytics/grounds/revenue-rank');
+      return response['data'] ?? [];
+    } catch (e) {
+      debugPrint('❌ Grounds revenue rank error: $e');
+      return [];
+    }
+  }
+
+  static Future<List<dynamic>> getTopPlayers({int limit = 10}) async {
+    try {
+      final response =
+          await get('admin/analytics/users/top-players?limit=$limit');
+      return response['data'] ?? [];
+    } catch (e) {
+      debugPrint('❌ Top players error: $e');
+      return [];
+    }
+  }
+
+  static Future<List<dynamic>> getAnalyticsPeakHours() async {
+    try {
+      final response = await get('admin/analytics/peak-hours');
+      return response['data'] ?? [];
+    } catch (e) {
+      debugPrint('❌ Peak hours analytics error: $e');
+      return [];
+    }
+  }
+
+  static Future<List<dynamic>> getTournamentRanking() async {
+    try {
+      final response = await get('admin/analytics/tournaments/rank');
+      return response['data'] ?? [];
+    } catch (e) {
+      debugPrint('❌ Tournament ranking error: $e');
+      return [];
+    }
+  }
 }
