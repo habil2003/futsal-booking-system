@@ -5,7 +5,7 @@ class StatsCard extends StatelessWidget {
   final int totalCourts;
   final int todayBookings;
   final double todayRevenue;
-  final int pendingApprovals;
+  final int activeBookings;
   final bool isLoading;
   final String? error;
   final VoidCallback onRetry;
@@ -15,7 +15,7 @@ class StatsCard extends StatelessWidget {
     required this.totalCourts,
     required this.todayBookings,
     required this.todayRevenue,
-    required this.pendingApprovals,
+    required this.activeBookings,
     required this.isLoading,
     this.error,
     required this.onRetry,
@@ -125,7 +125,7 @@ class StatsCard extends StatelessWidget {
           children: [
             Expanded(
               child: _buildStatItem(
-                icon: Icons.currency_rupee,
+                icon: Icons.payments,
                 value: 'रू $todayRevenue',
                 label: "Today's Revenue",
                 color: Colors.orange,
@@ -136,9 +136,9 @@ class StatsCard extends StatelessWidget {
             Expanded(
               child: _buildStatItem(
                 icon: Icons.hourglass_empty,
-                value: pendingApprovals.toString(),
-                label: 'Pending Approval',
-                color: Colors.purple,
+                value: activeBookings.toString(),
+                label: 'Active Bookings',
+                color: Colors.teal,
                 isMobile: true,
               ),
             ),
@@ -173,7 +173,7 @@ class StatsCard extends StatelessWidget {
         const SizedBox(width: 16),
         Expanded(
           child: _buildStatItem(
-            icon: Icons.currency_rupee,
+            icon: Icons.payments,
             value: 'रू $todayRevenue',
             label: "Today's Revenue",
             color: Colors.orange,
@@ -184,9 +184,9 @@ class StatsCard extends StatelessWidget {
         Expanded(
           child: _buildStatItem(
             icon: Icons.hourglass_empty,
-            value: pendingApprovals.toString(),
-            label: 'Pending Approval',
-            color: Colors.purple,
+            value: activeBookings.toString(),
+            label: 'Active Bookings',
+            color: Colors.teal,
             isMobile: false,
           ),
         ),
@@ -205,7 +205,7 @@ class StatsCard extends StatelessWidget {
     final valueFontSize = isMobile ? 16.0 : 18.0;
     final labelFontSize = isMobile ? 11.0 : 13.0;
     final padding = isMobile ? 12.0 : 16.0;
-    
+
     return Container(
       padding: EdgeInsets.all(padding),
       decoration: BoxDecoration(

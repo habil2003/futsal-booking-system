@@ -280,13 +280,12 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
       case 'Customers':
         if (_selectedFutsal != null)
           return CustomersScreen(
-              futsalId: _selectedFutsal!.id,
-              futsalName: _selectedFutsal!.name);
+              futsalId: _selectedFutsal!.id, futsalName: _selectedFutsal!.name);
         return const Center(child: Text('Select a futsal first'));
       case 'Notifications':
         return const Center(child: Text('Notifications coming soon'));
       case 'Settings':
-  return const OwnerSettingsScreen();
+        return const OwnerSettingsScreen();
       default:
         return _buildDashboardContent(futsalProvider, dashboardProvider);
     }
@@ -364,7 +363,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
             totalCourts: dashboardProvider.totalCourts,
             todayBookings: dashboardProvider.todayBookings,
             todayRevenue: dashboardProvider.todayRevenue,
-            pendingApprovals: dashboardProvider.pendingApprovals,
+            activeBookings: dashboardProvider.activeBookings, // Changed
             isLoading: dashboardProvider.isLoading,
             error: dashboardProvider.error,
             onRetry: _loadAllData,

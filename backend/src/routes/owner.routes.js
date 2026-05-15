@@ -5,7 +5,13 @@ import {
   getWeeklyRevenue,
   getPeakHours,
   getOwnerUpcomingBookings,
-  getMonthBookings
+  getMonthBookings,
+  getOwnerPastBookings,
+  getFutsalCustomers,
+  getRevenueSummary,
+  getPerformanceMetrics,
+  getMonthlyRevenue,
+  getPaymentBreakdown
 } from '../controllers/owner.controller.js';
 import {
   checkInBooking,
@@ -27,10 +33,19 @@ router.get('/dashboard/peak-hours', getPeakHours);
 // Bookings list
 router.get('/bookings/upcoming', getOwnerUpcomingBookings);
 router.get('/bookings/month', getMonthBookings);
+router.get('/bookings/past', getOwnerPastBookings);
+router.get('/customers', getFutsalCustomers);
 
 // ✅ Booking actions
 router.put('/bookings/:bookingId/checkin', checkInBooking);
 router.put('/bookings/:bookingId/cod-confirm', confirmCodPayment);
 router.put('/bookings/:bookingId/cancel', userCancelBooking);  // reuse same cancel logic
+
+
+// Analytics routes (add these with your other routes)
+router.get('/analytics/revenue-summary', getRevenueSummary);
+router.get('/analytics/performance-metrics', getPerformanceMetrics);
+router.get('/analytics/monthly-revenue', getMonthlyRevenue);
+router.get('/analytics/payment-breakdown', getPaymentBreakdown);
 
 export default router;

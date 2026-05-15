@@ -701,9 +701,13 @@ export const checkInBooking = async (req, res) => {
   try {
     const { bookingId } = req.params;
 
+    // ✅ FIX: Add 'payment' to the include
     const booking = await prisma.booking.findUnique({
       where: { id: parseInt(bookingId) },
-      include: { slot: { include: { court: { include: { futsal: true } } } } },
+      include: { 
+        slot: { include: { court: { include: { futsal: true } } } },
+        payment: true  // ← THIS WAS MISSING
+      },
     });
 
     if (!booking) {
@@ -717,16 +721,21 @@ export const checkInBooking = async (req, res) => {
     if (booking.status === "CANCELLED") {
       return res.status(400).json({ status: "error", message: "Cannot check in a cancelled booking" });
     }
+    
     if (booking.checkInTime) {
-      return res
-        .status(400)
-        .json({ status: "error", message: "Already checked in" });
+      return res.status(400).json({ status: "error", message: "Already checked in" });
     }
 
-const isKhalti = booking.paymentMethod === "KHALTI";
+    const isKhalti = booking.paymentMethod === "KHALTI";
     const isPaid = booking.payment?.status === "COMPLETED";
 
-    console.log("🔵 isKhalti:", isKhalti, "isPaid:", isPaid);
+    console.log("🔵 Booking Info:", { 
+      id: booking.id, 
+      paymentMethod: booking.paymentMethod, 
+      paymentStatus: booking.payment?.status,
+      isKhalti, 
+      isPaid 
+    });
 
     let newStatus;
     if (isKhalti && isPaid) {
@@ -746,11 +755,11 @@ const isKhalti = booking.paymentMethod === "KHALTI";
       },
     });
 
-    // ✅ Log check‑in completion
+    // ✅ Log check-in completion
     await logActivity({
       type: 'BOOKING_COMPLETED',
       description: `Booking #${booking.id} checked in by owner`,
-      userId: booking.userId,     // the player who booked
+      userId: booking.userId,
       category: 'Booking',
       status: 'completed',
       extraMeta: { bookingId: booking.id },

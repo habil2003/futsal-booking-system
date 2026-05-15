@@ -18,13 +18,11 @@ class CustomersScreen extends StatefulWidget {
 class _CustomersScreenState extends State<CustomersScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final List<String> _tabs = [
-    'Customer List',
-    'Frequent Players',
-    'Customer Profiles',
-  ];
-
-  List<Map<String, dynamic>> _allCustomers = [];
+  
+  List<Map<String, dynamic>> _customers = [];
+  List<Map<String, dynamic>> _frequentPlayers = [];
+  Map<String, dynamic> _stats = {};
+  
   bool _isLoading = true;
   String? _error;
 
@@ -34,7 +32,7 @@ class _CustomersScreenState extends State<CustomersScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: _tabs.length, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _fetchCustomers();
     _searchController.addListener(() => setState(() {}));
   }
@@ -53,52 +51,14 @@ class _CustomersScreenState extends State<CustomersScreen>
     });
 
     try {
-      // Fetch upcoming and last month bookings to gather customer data
-      final now = DateTime.now();
-      final upcoming =
-          await ApiService.getOwnerUpcomingBookings(widget.futsalId);
-
-      int year = now.month == 1 ? now.year - 1 : now.year;
-      int month = now.month == 1 ? 12 : now.month - 1;
-      final lastMonth =
-          await ApiService.getOwnerMonthBookings(widget.futsalId, year, month);
-
-      final allBookings = [...upcoming, ...lastMonth];
-
-      // Aggregate unique customers from bookings
-      final Map<String, Map<String, dynamic>> customerMap = {};
-      for (var booking in allBookings) {
-        final user = booking['user'];
-        if (user == null) continue;
-
-        final userId = user['id']?.toString() ?? '';
-        if (!customerMap.containsKey(userId)) {
-          customerMap[userId] = {
-            'id': userId,
-            'name': user['name'] ?? 'Unknown',
-            'email': user['email'] ?? '',
-            'phone': user['phone'] ?? '',
-            'totalBookings': 0,
-            'totalSpent': 0.0,
-            'lastBooking': '',
-            'status': 'Active', // you can enhance this from backend later
-          };
-        }
-
-        final data = customerMap[userId]!;
-        data['totalBookings'] = (data['totalBookings'] as int) + 1;
-        data['totalSpent'] = (data['totalSpent'] as double) +
-            (double.tryParse('${booking['totalAmount'] ?? 0}') ?? 0);
-
-        final bookingDate = booking['date'] ?? '';
-        if (bookingDate.toString().isNotEmpty &&
-            bookingDate.toString().compareTo(data['lastBooking'].toString()) > 0) {
-          data['lastBooking'] = bookingDate.toString();
-        }
-      }
-
-      _allCustomers = customerMap.values.toList();
-      setState(() => _isLoading = false);
+      final response = await ApiService.getFutsalCustomers(widget.futsalId);
+      
+      setState(() {
+        _customers = List<Map<String, dynamic>>.from(response['customers'] ?? []);
+        _frequentPlayers = List<Map<String, dynamic>>.from(response['frequentPlayers'] ?? []);
+        _stats = response['stats'] ?? {};
+        _isLoading = false;
+      });
     } catch (e) {
       setState(() {
         _error = 'Failed to load customers: $e';
@@ -108,12 +68,13 @@ class _CustomersScreenState extends State<CustomersScreen>
   }
 
   List<Map<String, dynamic>> get filteredCustomers {
-    return _allCustomers.where((c) {
-      if (_activeFilter != 'All' && c['status'] != _activeFilter) return false;
+    return _customers.where((c) {
+      if (_activeFilter == 'Blocked' && c['isBlocked'] != true) return false;
+      if (_activeFilter == 'Active' && c['isBlocked'] == true) return false;
       final query = _searchController.text.toLowerCase();
       return query.isEmpty ||
-          '${c['name']}'.toLowerCase().contains(query) ||
-          '${c['email']}'.toLowerCase().contains(query);
+          c['name'].toString().toLowerCase().contains(query) ||
+          c['email'].toString().toLowerCase().contains(query);
     }).toList();
   }
 
@@ -126,8 +87,11 @@ class _CustomersScreenState extends State<CustomersScreen>
         foregroundColor: Colors.white,
         bottom: TabBar(
           controller: _tabController,
-          isScrollable: true,
-          tabs: _tabs.map((t) => Tab(text: t)).toList(),
+          tabs: const [
+            Tab(text: 'Customer List'),
+            Tab(text: 'Frequent Players'),
+            Tab(text: 'Statistics'),
+          ],
         ),
       ),
       body: _isLoading
@@ -139,7 +103,7 @@ class _CustomersScreenState extends State<CustomersScreen>
                   children: [
                     _buildCustomerList(),
                     _buildFrequentPlayers(),
-                    _buildCustomerProfiles(),
+                    _buildStatistics(),
                   ],
                 ),
     );
@@ -187,7 +151,7 @@ class _CustomersScreenState extends State<CustomersScreen>
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
-                  children: ['All', 'Active', 'VIP', 'Banned']
+                  children: ['All', 'Active', 'Blocked']
                       .map((label) => Padding(
                             padding: const EdgeInsets.only(right: 8),
                             child: FilterChip(
@@ -218,10 +182,57 @@ class _CustomersScreenState extends State<CustomersScreen>
                           horizontal: 8, vertical: 4),
                       child: ListTile(
                         leading: CircleAvatar(
-                          child: Text(c['name']?[0] ?? '?')),
-                        title: Text(c['name']),
-                        subtitle: Text(
-                          '${c['email']}\nBookings: ${c['totalBookings']} | Spent: Rs. ${c['totalSpent']}',
+                          backgroundColor: c['isBlocked'] == true 
+                              ? Colors.red.shade100 
+                              : Colors.green.shade100,
+                          child: Text(
+                            c['name']?.substring(0, 1).toUpperCase() ?? '?',
+                            style: TextStyle(
+                              color: c['isBlocked'] == true ? Colors.red : Colors.green,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        title: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                c['name'] ?? 'Unknown',
+                                style: TextStyle(
+                                  decoration: c['isBlocked'] == true 
+                                      ? TextDecoration.lineThrough 
+                                      : null,
+                                ),
+                              ),
+                            ),
+                            if (c['isBlocked'] == true)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.shade100,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  'BLOCKED',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.red.shade700,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(c['email'] ?? 'No email'),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Bookings: ${c['totalBookings']} | Spent: ₹${c['totalSpent']}',
+                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                            ),
+                          ],
                         ),
                         isThreeLine: true,
                       ),
@@ -235,105 +246,221 @@ class _CustomersScreenState extends State<CustomersScreen>
 
   // ----- Frequent Players Tab -----
   Widget _buildFrequentPlayers() {
-    final sorted = List<Map<String, dynamic>>.from(_allCustomers)
-      ..sort((a, b) =>
-          (b['totalBookings'] as int).compareTo(a['totalBookings'] as int));
-    final top10 = sorted.take(10).toList();
-
-    return top10.isEmpty
-        ? const Center(child: Text('No data'))
-        : ListView.builder(
-            padding: const EdgeInsets.all(8),
-            itemCount: top10.length,
-            itemBuilder: (ctx, i) {
-              final c = top10[i];
-              return ListTile(
-                leading: CircleAvatar(child: Text('${i + 1}')),
-                title: Text(c['name']),
-                subtitle: Text(
-                    '${c['totalBookings']} bookings | Rs. ${c['totalSpent']}'),
-                trailing: const Icon(Icons.star, color: Colors.amber),
-              );
-            },
-          );
+    if (_frequentPlayers.isEmpty) {
+      return const Center(child: Text('No customer data yet'));
+    }
+    
+    return ListView.builder(
+      padding: const EdgeInsets.all(8),
+      itemCount: _frequentPlayers.length,
+      itemBuilder: (ctx, i) {
+        final c = _frequentPlayers[i];
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withOpacity(0.1),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: ListTile(
+            leading: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: i < 3 ? Colors.amber.shade100 : Colors.grey.shade200,
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  '${i + 1}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: i < 3 ? Colors.amber.shade700 : Colors.grey.shade600,
+                  ),
+                ),
+              ),
+            ),
+            title: Text(
+              c['name'] ?? 'Unknown',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: Text('${c['totalBookings']} bookings | ₹${c['totalSpent']} spent'),
+            trailing: i < 3 
+                ? const Icon(Icons.emoji_events, color: Colors.amber)
+                : null,
+          ),
+        );
+      },
+    );
   }
 
-  // ----- Customer Profiles Tab -----
-  Widget _buildCustomerProfiles() {
-    final customers = filteredCustomers;
-    return customers.isEmpty
-        ? const Center(child: Text('No customers'))
-        : ListView.builder(
-            padding: const EdgeInsets.all(8),
-            itemCount: customers.length,
-            itemBuilder: (ctx, i) {
-              final c = customers[i];
-              return Card(
-                margin:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+  // ----- Statistics Tab -----
+  Widget _buildStatistics() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          // Summary Cards
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  title: 'Total Customers',
+                  value: '${_stats['totalCustomers'] ?? 0}',
+                  icon: Icons.people,
+                  color: Colors.blue,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  title: 'Active Customers',
+                  value: '${_stats['activeCustomers'] ?? 0}',
+                  icon: Icons.person,
+                  color: Colors.green,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  title: 'Blocked Players',
+                  value: '${_stats['blockedCount'] ?? 0}',
+                  icon: Icons.block,
+                  color: Colors.red,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  title: 'Total Revenue',
+                  value: '₹${_stats['totalRevenue'] ?? 0}',
+                  icon: Icons.currency_rupee,
+                  color: Colors.orange,
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 24),
+          
+          // Top Customers List
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.1),
+                  blurRadius: 4,
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '🏆 Top Customers',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ...(_customers.take(5).map((c) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
                     children: [
-                      Row(
-                        children: [
-                          CircleAvatar(
-                            child: Text(c['name']?[0] ?? '?'),
-                            radius: 24,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(c['name'],
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16)),
-                                Text(c['email'] ?? '',
-                                    style: TextStyle(
-                                        color: Colors.grey.shade600)),
-                              ],
-                            ),
-                          ),
-                        ],
+                      CircleAvatar(
+                        radius: 16,
+                        backgroundColor: Colors.green.shade100,
+                        child: Text(
+                          '${c['name']?.substring(0, 1).toUpperCase() ?? '?'}',
+                          style: const TextStyle(fontSize: 12),
+                        ),
                       ),
-                      const Divider(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          _statColumn(
-                              'Bookings', '${c['totalBookings']}'),
-                          _statColumn(
-                              'Spent', 'Rs. ${c['totalSpent']}'),
-                          _statColumn(
-                            'Last Booking',
-                            c['lastBooking']
-                                    ?.toString()
-                                    .substring(0, 10) ??
-                                'N/A',
-                          ),
-                        ],
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              c['name'] ?? 'Unknown',
+                              style: const TextStyle(fontWeight: FontWeight.w500),
+                            ),
+                            Text(
+                              '${c['totalBookings']} bookings',
+                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        '₹${c['totalSpent']}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
-                ),
-              );
-            },
-          );
+                ))),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
-  Widget _statColumn(String label, String value) {
-    return Column(
-      children: [
-        Text(value,
-            style:
-                const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        Text(label,
-            style:
-                TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-      ],
+  Widget _buildStatCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 28),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            title,
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 }
