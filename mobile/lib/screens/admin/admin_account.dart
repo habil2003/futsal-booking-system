@@ -598,8 +598,8 @@ Widget _buildDrawerProfile() {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.logout, color: Colors.green),
-              title: const Text('Logout', style: TextStyle(color: Colors.green)),
+              leading: const Icon(Icons.logout, color: Colors.red),
+              title: const Text('Logout', style: TextStyle(color: Colors.red)),
               onTap: () {
                 Navigator.pop(ctx);
                 _showLogoutConfirmation(context, authProvider);
@@ -977,7 +977,6 @@ Widget _buildRecentActivity() {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
             ),
             onPressed: () async {
@@ -987,7 +986,7 @@ Widget _buildRecentActivity() {
                 Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
               }
             },
-            child: const Text('Logout'),
+            child: const Text('Logout',selectionColor: Colors.red),
           ),
         ],
       ),

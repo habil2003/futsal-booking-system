@@ -34,10 +34,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
           Consumer<AdminProvider>(
             builder: (context, adminProvider, _) {
               final blockedCount = adminProvider.allUsers
-                  .where((u) =>
-                      (u['status'] == 'Banned' ||
-                          u['status'] == 'Suspended' ||
-                          u['isActive'] == false))
+                  .where((u) => (u['status'] == 'Banned' ||
+                      u['status'] == 'Suspended' ||
+                      u['isActive'] == false))
                   .length;
               return Padding(
                 padding: const EdgeInsets.only(right: 16),
@@ -78,10 +77,15 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                 (user['email'] ?? '').toLowerCase().contains(query) ||
                 (user['contact'] ?? '').toLowerCase().contains(query);
 
-            final matchesRole =
-                _roleFilter == 'All' || user['role'] == _roleFilter;
-            final matchesStatus =
-                _statusFilter == 'All' || user['status'] == _statusFilter;
+            // Role filter (already working, but we add case‑insensitivity)
+            final role = (user['role'] ?? 'Player').toString().trim();
+            final matchesRole = _roleFilter == 'All' ||
+                role.toLowerCase() == _roleFilter.toLowerCase();
+
+            // Status filter – use same fallback as the display + case‑insensitive
+            final status = (user['status'] ?? 'Active').toString().trim();
+            final matchesStatus = _statusFilter == 'All' ||
+                status.toLowerCase() == _statusFilter.toLowerCase();
 
             return matchesSearch && matchesRole && matchesStatus;
           }).toList();
@@ -121,12 +125,18 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Role', style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
+                              Text('Role',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade600,
+                                      fontWeight: FontWeight.w500)),
                               const SizedBox(height: 6),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 4),
                                 decoration: BoxDecoration(
-                                  border: Border.all(color: Colors.grey.shade300),
+                                  border:
+                                      Border.all(color: Colors.grey.shade300),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: DropdownButton<String>(
@@ -134,14 +144,18 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                   isExpanded: true,
                                   underline: const SizedBox(),
                                   items: const [
-                                    DropdownMenuItem(value: 'All', child: Text('All Roles')),
-                                    DropdownMenuItem(value: 'Admin', child: Text('Admin')),
-                                    DropdownMenuItem(value: 'User', child: Text('User')),
-                                    DropdownMenuItem(value: 'Guest', child: Text('Guest')),
-                                    DropdownMenuItem(value: 'Moderator', child: Text('Moderator')),
+                                    DropdownMenuItem(
+                                        value: 'All', child: Text('All Roles')),
+                                    DropdownMenuItem(
+                                        value: 'Admin', child: Text('Admin')),
+                                    DropdownMenuItem(
+                                        value: 'Player', child: Text('Player')),
+                                    DropdownMenuItem(
+                                        value: 'Owner', child: Text('Owner')),
                                   ],
                                   onChanged: (value) {
-                                    if (value != null) setState(() => _roleFilter = value);
+                                    if (value != null)
+                                      setState(() => _roleFilter = value);
                                   },
                                 ),
                               ),
@@ -153,12 +167,18 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Status', style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
+                              Text('Status',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade600,
+                                      fontWeight: FontWeight.w500)),
                               const SizedBox(height: 6),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 4),
                                 decoration: BoxDecoration(
-                                  border: Border.all(color: Colors.grey.shade300),
+                                  border:
+                                      Border.all(color: Colors.grey.shade300),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: DropdownButton<String>(
@@ -166,14 +186,23 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                   isExpanded: true,
                                   underline: const SizedBox(),
                                   items: const [
-                                    DropdownMenuItem(value: 'All', child: Text('All Status')),
-                                    DropdownMenuItem(value: 'Active', child: Text('Active')),
-                                    DropdownMenuItem(value: 'Inactive', child: Text('Inactive')),
-                                    DropdownMenuItem(value: 'Banned', child: Text('Banned')),
-                                    DropdownMenuItem(value: 'Suspended', child: Text('Suspended')),
+                                    DropdownMenuItem(
+                                        value: 'All',
+                                        child: Text('All Status')),
+                                    DropdownMenuItem(
+                                        value: 'Active', child: Text('Active')),
+                                    DropdownMenuItem(
+                                        value: 'Inactive',
+                                        child: Text('Inactive')),
+                                    DropdownMenuItem(
+                                        value: 'Banned', child: Text('Banned')),
+                                    DropdownMenuItem(
+                                        value: 'Suspended',
+                                        child: Text('Suspended')),
                                   ],
                                   onChanged: (value) {
-                                    if (value != null) setState(() => _statusFilter = value);
+                                    if (value != null)
+                                      setState(() => _statusFilter = value);
                                   },
                                 ),
                               ),
@@ -182,7 +211,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                         ),
                       ],
                     ),
-                    if (_roleFilter != 'All' || _statusFilter != 'All' || _searchQuery.isNotEmpty)
+                    if (_roleFilter != 'All' ||
+                        _statusFilter != 'All' ||
+                        _searchQuery.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 12),
                         child: Align(
@@ -203,10 +234,13 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Row(
                   children: [
-                    Text('${users.length} users', style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+                    Text('${users.length} users',
+                        style: TextStyle(
+                            color: Colors.grey.shade600, fontSize: 13)),
                   ],
                 ),
               ),
@@ -216,9 +250,11 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.people_outline, size: 64, color: Colors.grey.shade300),
+                            Icon(Icons.people_outline,
+                                size: 64, color: Colors.grey.shade300),
                             const SizedBox(height: 16),
-                            Text('No users found', style: TextStyle(color: Colors.grey.shade600)),
+                            Text('No users found',
+                                style: TextStyle(color: Colors.grey.shade600)),
                           ],
                         ),
                       )
@@ -229,26 +265,86 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                             return SingleChildScrollView(
                               scrollDirection: Axis.horizontal,
                               child: ConstrainedBox(
-                                constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                                constraints: BoxConstraints(
+                                    minWidth: constraints.maxWidth),
                                 child: DataTable(
                                   columnSpacing: 0,
                                   horizontalMargin: 0,
-                                  headingRowColor: WidgetStateProperty.all(Colors.grey.shade100),
+                                  headingRowColor: WidgetStateProperty.all(
+                                      Colors.grey.shade100),
                                   dataRowMinHeight: 56,
                                   dataRowMaxHeight: 64,
                                   columns: const [
-                                    DataColumn(label: Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('User', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)))),
-                                    DataColumn(label: Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Email', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)))),
-                                    DataColumn(label: Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Contact', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)))),
-                                    DataColumn(label: Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Role', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)))),
-                                    DataColumn(label: Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Status', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)))),
-                                    DataColumn(label: Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Joined Date', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)))),
-                                    DataColumn(label: Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Last Active', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)))),
-                                    DataColumn(label: Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)))),
+                                    DataColumn(
+                                        label: Padding(
+                                            padding: EdgeInsets.symmetric(
+                                                horizontal: 12),
+                                            child: Text('User',
+                                                style: TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 13)))),
+                                    DataColumn(
+                                        label: Padding(
+                                            padding: EdgeInsets.symmetric(
+                                                horizontal: 12),
+                                            child: Text('Email',
+                                                style: TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 13)))),
+                                    DataColumn(
+                                        label: Padding(
+                                            padding: EdgeInsets.symmetric(
+                                                horizontal: 12),
+                                            child: Text('Contact',
+                                                style: TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 13)))),
+                                    DataColumn(
+                                        label: Padding(
+                                            padding: EdgeInsets.symmetric(
+                                                horizontal: 12),
+                                            child: Text('Role',
+                                                style: TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 13)))),
+                                    DataColumn(
+                                        label: Padding(
+                                            padding: EdgeInsets.symmetric(
+                                                horizontal: 12),
+                                            child: Text('Status',
+                                                style: TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 13)))),
+                                    DataColumn(
+                                        label: Padding(
+                                            padding: EdgeInsets.symmetric(
+                                                horizontal: 12),
+                                            child: Text('Joined Date',
+                                                style: TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 13)))),
+                                    DataColumn(
+                                        label: Padding(
+                                            padding: EdgeInsets.symmetric(
+                                                horizontal: 12),
+                                            child: Text('Last Active',
+                                                style: TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 13)))),
+                                    DataColumn(
+                                        label: Padding(
+                                            padding: EdgeInsets.symmetric(
+                                                horizontal: 12),
+                                            child: Text('Actions',
+                                                style: TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 13)))),
                                   ],
-                                  rows: List<DataRow>.generate(users.length, (index) {
+                                  rows: List<DataRow>.generate(users.length,
+                                      (index) {
                                     final user = users[index];
-                                    final fullName = user['fullName'] ?? 'Unknown';
+                                    final fullName =
+                                        user['fullName'] ?? 'Unknown';
                                     final email = user['email'] ?? '';
                                     final contact = user['contact'] ?? '';
                                     final role = user['role'] ?? 'User';
@@ -257,132 +353,248 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                     final lastActive = user['lastActive'] ?? '';
                                     final isAdmin = role == 'Admin';
                                     final isOwner = role == 'Owner';
-                                    final isApproved = user['isApproved'] ?? false;
+                                    final isApproved =
+                                        user['isApproved'] ?? false;
                                     final isActive = user['isActive'] ?? true;
                                     final userId = user['id'];
 
                                     Color statusColor;
                                     switch (status) {
-                                      case 'Active':    statusColor = Colors.green; break;
-                                      case 'Inactive':  statusColor = Colors.grey; break;
-                                      case 'Banned':    statusColor = Colors.red; break;
-                                      case 'Suspended': statusColor = Colors.orange; break;
-                                      default:          statusColor = Colors.grey;
+                                      case 'Active':
+                                        statusColor = Colors.green;
+                                        break;
+                                      case 'Inactive':
+                                        statusColor = Colors.grey;
+                                        break;
+                                      case 'Banned':
+                                        statusColor = Colors.red;
+                                        break;
+                                      case 'Suspended':
+                                        statusColor = Colors.orange;
+                                        break;
+                                      default:
+                                        statusColor = Colors.grey;
                                     }
 
                                     return DataRow(
                                       color: WidgetStateProperty.resolveWith(
-                                          (states) => index.isEven ? Colors.grey.shade50 : Colors.white),
+                                          (states) => index.isEven
+                                              ? Colors.grey.shade50
+                                              : Colors.white),
                                       cells: [
                                         // User
                                         DataCell(
                                           Padding(
-                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 12, vertical: 8),
                                             child: Row(
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
                                                 CircleAvatar(
                                                   radius: 16,
-                                                  backgroundColor: isAdmin ? Colors.red.shade100 : isOwner ? Colors.orange.shade100 : Colors.green.shade100,
-                                                  child: Text(fullName[0].toUpperCase(), style: TextStyle(fontWeight: FontWeight.bold, color: isAdmin ? Colors.red : isOwner ? Colors.orange : Colors.green)),
+                                                  backgroundColor: isAdmin
+                                                      ? Colors.red.shade100
+                                                      : isOwner
+                                                          ? Colors
+                                                              .orange.shade100
+                                                          : Colors
+                                                              .green.shade100,
+                                                  child: Text(
+                                                      fullName[0].toUpperCase(),
+                                                      style: TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          color: isAdmin
+                                                              ? Colors.red
+                                                              : isOwner
+                                                                  ? Colors
+                                                                      .orange
+                                                                  : Colors
+                                                                      .green)),
                                                 ),
                                                 const SizedBox(width: 8),
-                                                Flexible(child: Text(fullName, overflow: TextOverflow.ellipsis)),
+                                                Flexible(
+                                                    child: Text(fullName,
+                                                        overflow: TextOverflow
+                                                            .ellipsis)),
                                               ],
                                             ),
                                           ),
                                         ),
                                         // Email
-                                        DataCell(Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), child: Text(email, overflow: TextOverflow.ellipsis))),
+                                        DataCell(Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 12, vertical: 8),
+                                            child: Text(email,
+                                                overflow:
+                                                    TextOverflow.ellipsis))),
                                         // Contact
-                                        DataCell(Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), child: Text(contact.isEmpty ? '—' : contact, overflow: TextOverflow.ellipsis))),
+                                        DataCell(Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 12, vertical: 8),
+                                            child: Text(
+                                                contact.isEmpty ? '—' : contact,
+                                                overflow:
+                                                    TextOverflow.ellipsis))),
                                         // Role
                                         DataCell(
                                           Padding(
-                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 12, vertical: 8),
                                             child: Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 4),
                                               decoration: BoxDecoration(
-                                                color: isAdmin ? Colors.red.shade50 : isOwner ? Colors.orange.shade50 : Colors.green.shade50,
-                                                borderRadius: BorderRadius.circular(4),
+                                                color: isAdmin
+                                                    ? Colors.red.shade50
+                                                    : isOwner
+                                                        ? Colors.orange.shade50
+                                                        : Colors.green.shade50,
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
                                               ),
-                                              child: Text(role, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isAdmin ? Colors.red : isOwner ? Colors.orange : Colors.green)),
+                                              child: Text(role,
+                                                  style: TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: isAdmin
+                                                          ? Colors.red
+                                                          : isOwner
+                                                              ? Colors.orange
+                                                              : Colors.green)),
                                             ),
                                           ),
                                         ),
                                         // Status
                                         DataCell(
                                           Padding(
-                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 12, vertical: 8),
                                             child: Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 4),
                                               decoration: BoxDecoration(
-                                                color: statusColor.withValues(alpha: 0.1),
-                                                borderRadius: BorderRadius.circular(4),
+                                                color: statusColor.withValues(
+                                                    alpha: 0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
                                               ),
-                                              child: Text(status, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: statusColor)),
+                                              child: Text(status,
+                                                  style: TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: statusColor)),
                                             ),
                                           ),
                                         ),
                                         // Joined Date
-                                        DataCell(Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), child: Text(joinedDate))),
+                                        DataCell(Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 12, vertical: 8),
+                                            child: Text(joinedDate))),
                                         // Last Active
-                                        DataCell(Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), child: Text(lastActive))),
+                                        DataCell(Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 12, vertical: 8),
+                                            child: Text(lastActive))),
                                         // Actions
                                         DataCell(
                                           Padding(
-                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 12, vertical: 8),
                                             child: Row(
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
                                                 IconButton(
-                                                  icon: const Icon(Icons.edit, size: 18),
+                                                  icon: const Icon(Icons.edit,
+                                                      size: 18),
                                                   tooltip: 'Edit',
                                                   onPressed: () {
-                                                    ScaffoldMessenger.of(context).showSnackBar(
-                                                      SnackBar(content: Text('Edit $fullName – coming soon')),
+                                                    ScaffoldMessenger.of(
+                                                            context)
+                                                        .showSnackBar(
+                                                      SnackBar(
+                                                          content: Text(
+                                                              'Edit $fullName – coming soon')),
                                                     );
                                                   },
                                                 ),
                                                 IconButton(
-                                                  icon: const Icon(Icons.delete, size: 18, color: Colors.red),
+                                                  icon: const Icon(Icons.delete,
+                                                      size: 18,
+                                                      color: Colors.red),
                                                   tooltip: 'Delete',
                                                   onPressed: () async {
-                                                    final confirm = await showDialog<bool>(
+                                                    final confirm =
+                                                        await showDialog<bool>(
                                                       context: context,
-                                                      builder: (ctx) => AlertDialog(
-                                                        title: const Text('Delete User'),
-                                                        content: Text('Delete $fullName permanently? This cannot be undone.'),
+                                                      builder: (ctx) =>
+                                                          AlertDialog(
+                                                        title: const Text(
+                                                            'Delete User'),
+                                                        content: Text(
+                                                            'Delete $fullName permanently? This cannot be undone.'),
                                                         actions: [
                                                           TextButton(
-                                                            onPressed: () => Navigator.pop(ctx, false),
-                                                            child: const Text('CANCEL'),
+                                                            onPressed: () =>
+                                                                Navigator.pop(
+                                                                    ctx, false),
+                                                            child: const Text(
+                                                                'CANCEL'),
                                                           ),
                                                           TextButton(
-                                                            onPressed: () => Navigator.pop(ctx, true),
-                                                            style: TextButton.styleFrom(foregroundColor: Colors.red),
-                                                            child: const Text('DELETE'),
+                                                            onPressed: () =>
+                                                                Navigator.pop(
+                                                                    ctx, true),
+                                                            style: TextButton
+                                                                .styleFrom(
+                                                                    foregroundColor:
+                                                                        Colors
+                                                                            .red),
+                                                            child: const Text(
+                                                                'DELETE'),
                                                           ),
                                                         ],
                                                       ),
                                                     );
                                                     if (confirm == true) {
                                                       try {
-                                                        final result = await adminProvider.deleteUser(userId);
+                                                        final result =
+                                                            await adminProvider
+                                                                .deleteUser(
+                                                                    userId);
                                                         if (mounted) {
-                                                          ScaffoldMessenger.of(context).showSnackBar(
+                                                          ScaffoldMessenger.of(
+                                                                  context)
+                                                              .showSnackBar(
                                                             SnackBar(
-                                                              content: Text(result['message'] ?? 'User deleted successfully'),
-                                                              backgroundColor: Colors.green,
+                                                              content: Text(result[
+                                                                      'message'] ??
+                                                                  'User deleted successfully'),
+                                                              backgroundColor:
+                                                                  Colors.green,
                                                             ),
                                                           );
                                                           // Refresh the list
-                                                          adminProvider.loadAllUsers();
+                                                          adminProvider
+                                                              .loadAllUsers();
                                                         }
                                                       } catch (e) {
                                                         if (mounted) {
-                                                          ScaffoldMessenger.of(context).showSnackBar(
-                                                            SnackBar(content: Text('Failed to delete user'), backgroundColor: Colors.red),
+                                                          ScaffoldMessenger.of(
+                                                                  context)
+                                                              .showSnackBar(
+                                                            SnackBar(
+                                                                content: Text(
+                                                                    'Failed to delete user'),
+                                                                backgroundColor:
+                                                                    Colors.red),
                                                           );
                                                         }
                                                       }
@@ -392,18 +604,32 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                                 // Block / Unblock
                                                 IconButton(
                                                   icon: Icon(
-                                                    isActive ? Icons.block : Icons.check_circle,
+                                                    isActive
+                                                        ? Icons.block
+                                                        : Icons.check_circle,
                                                     size: 18,
-                                                    color: isActive ? Colors.red : Colors.green,
+                                                    color: isActive
+                                                        ? Colors.red
+                                                        : Colors.green,
                                                   ),
-                                                  tooltip: isActive ? 'Block User' : 'Unblock User',
+                                                  tooltip: isActive
+                                                      ? 'Block User'
+                                                      : 'Unblock User',
                                                   onPressed: () async {
-                                                    final confirm = await showDialog<bool>(
+                                                    final confirm =
+                                                        await showDialog<bool>(
                                                       context: context,
-                                                      builder: (ctx) => AlertDialog(
+                                                      builder: (ctx) =>
+                                                          AlertDialog(
                                                         title: Text(
-                                                          isActive ? 'Block User' : 'Unblock User',
-                                                          style: TextStyle(color: isActive ? Colors.red : Colors.green),
+                                                          isActive
+                                                              ? 'Block User'
+                                                              : 'Unblock User',
+                                                          style: TextStyle(
+                                                              color: isActive
+                                                                  ? Colors.red
+                                                                  : Colors
+                                                                      .green),
                                                         ),
                                                         content: Text(
                                                           isActive
@@ -412,28 +638,56 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                                         ),
                                                         actions: [
                                                           TextButton(
-                                                            onPressed: () => Navigator.pop(ctx, false),
-                                                            child: const Text('CANCEL'),
+                                                            onPressed: () =>
+                                                                Navigator.pop(
+                                                                    ctx, false),
+                                                            child: const Text(
+                                                                'CANCEL'),
                                                           ),
                                                           TextButton(
-                                                            onPressed: () => Navigator.pop(ctx, true),
-                                                            style: TextButton.styleFrom(foregroundColor: isActive ? Colors.red : Colors.green),
-                                                            child: Text(isActive ? 'BLOCK' : 'UNBLOCK'),
+                                                            onPressed: () =>
+                                                                Navigator.pop(
+                                                                    ctx, true),
+                                                            style: TextButton.styleFrom(
+                                                                foregroundColor:
+                                                                    isActive
+                                                                        ? Colors
+                                                                            .red
+                                                                        : Colors
+                                                                            .green),
+                                                            child: Text(isActive
+                                                                ? 'BLOCK'
+                                                                : 'UNBLOCK'),
                                                           ),
                                                         ],
                                                       ),
                                                     );
                                                     if (confirm == true) {
-                                                      final result = await adminProvider.toggleUserStatus(userId, !isActive);
+                                                      final result =
+                                                          await adminProvider
+                                                              .toggleUserStatus(
+                                                                  userId,
+                                                                  !isActive);
                                                       if (mounted) {
-                                                        ScaffoldMessenger.of(context).showSnackBar(
+                                                        ScaffoldMessenger.of(
+                                                                context)
+                                                            .showSnackBar(
                                                           SnackBar(
-                                                            content: Text(result['message']),
-                                                            backgroundColor: result['status'] == 'success' ? Colors.green : Colors.red,
+                                                            content: Text(
+                                                                result[
+                                                                    'message']),
+                                                            backgroundColor:
+                                                                result['status'] ==
+                                                                        'success'
+                                                                    ? Colors
+                                                                        .green
+                                                                    : Colors
+                                                                        .red,
                                                           ),
                                                         );
                                                         // Refresh list to reflect changes
-                                                        adminProvider.loadAllUsers();
+                                                        adminProvider
+                                                            .loadAllUsers();
                                                       }
                                                     }
                                                   },
@@ -441,18 +695,35 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                                 // Approve owner (if pending)
                                                 if (isOwner && !isApproved)
                                                   IconButton(
-                                                    icon: const Icon(Icons.check, size: 18, color: Colors.green),
+                                                    icon: const Icon(
+                                                        Icons.check,
+                                                        size: 18,
+                                                        color: Colors.green),
                                                     tooltip: 'Approve Owner',
                                                     onPressed: () async {
-                                                      final result = await adminProvider.approveOwner(userId);
+                                                      final result =
+                                                          await adminProvider
+                                                              .approveOwner(
+                                                                  userId);
                                                       if (mounted) {
-                                                        ScaffoldMessenger.of(context).showSnackBar(
+                                                        ScaffoldMessenger.of(
+                                                                context)
+                                                            .showSnackBar(
                                                           SnackBar(
-                                                            content: Text(result['message']),
-                                                            backgroundColor: result['status'] == 'success' ? Colors.green : Colors.red,
+                                                            content: Text(
+                                                                result[
+                                                                    'message']),
+                                                            backgroundColor:
+                                                                result['status'] ==
+                                                                        'success'
+                                                                    ? Colors
+                                                                        .green
+                                                                    : Colors
+                                                                        .red,
                                                           ),
                                                         );
-                                                        adminProvider.loadAllUsers();
+                                                        adminProvider
+                                                            .loadAllUsers();
                                                       }
                                                     },
                                                   ),
