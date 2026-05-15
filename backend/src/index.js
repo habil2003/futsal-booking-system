@@ -75,6 +75,7 @@ app.use('/api/ads', adRoutes);
 app.use('/api/admin/analytics', analyticsRoutes);    
 app.use('/api/tournaments', tournamentsRoutes); 
 
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ 

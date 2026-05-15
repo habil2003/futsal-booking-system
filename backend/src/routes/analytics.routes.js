@@ -1,31 +1,36 @@
-import express from 'express';
-import { authenticate, authorize } from '../middleware/auth.js';
+import express from "express";
+import { authenticate, authorize } from "../middleware/auth.js";
 import {
-  getBookingAnalytics,
-  getRevenueAnalytics,
-  getGroundPerformance,
-  getUserAnalytics,
-  getTimeSlotAnalytics,
-  getTournamentAnalytics,
-  getRevenueOverTime,        // ✅ add
-  getBookingsOverTime,       // ✅ add
-  getBookingStatusBreakdown, // ✅ add
-} from '../controllers/analytics.controller.js';
+  getRevenueOverTime,
+  getBookingsOverTime,
+  getBookingStatusBreakdown,
+  getGroundsByBookingCount,
+  getGroundsByRevenue,
+  getTopUsersByBookings,
+  getPeakHours,
+  getTournamentRanking,
+  getAdminAnalytics,
+} from "../controllers/analytics.controller.js";
 
 const router = express.Router();
 
-// All analytics routes are admin-only
+// All analytics routes require ADMIN role
 router.use(authenticate);
-router.use(authorize('ADMIN'));
+router.use(authorize("ADMIN"));
 
-router.get('/bookings', getBookingAnalytics);
-router.get('/revenue', getRevenueAnalytics);
-router.get('/grounds', getGroundPerformance);
-router.get('/users', getUserAnalytics);
-router.get('/timeslots', getTimeSlotAnalytics);
-router.get('/tournaments', getTournamentAnalytics);
-router.get('/revenue-over-time', getRevenueOverTime);
-router.get('/bookings-over-time', getBookingsOverTime);
-router.get('/booking-status-breakdown', getBookingStatusBreakdown);
+// Chart data
+router.get("/revenue-over-time", getRevenueOverTime);
+router.get("/bookings-over-time", getBookingsOverTime);
+
+// Breakdown & rankings
+router.get("/booking-status-breakdown", getBookingStatusBreakdown);
+router.get("/grounds/booking-rank", getGroundsByBookingCount);
+router.get("/grounds/revenue-rank", getGroundsByRevenue);
+router.get("/users/top-players", getTopUsersByBookings);
+router.get("/peak-hours", getPeakHours);
+router.get("/tournaments/rank", getTournamentRanking);
+
+// Optional summary
+router.get("/summary", getAdminAnalytics);
 
 export default router;

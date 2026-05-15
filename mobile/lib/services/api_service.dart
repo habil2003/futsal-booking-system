@@ -6,8 +6,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:http_parser/http_parser.dart';
 
 class ApiService {
-  // For Android emulator: http://10.0.2.2:5000/api
-  // For iOS simulator: http://localhost:5000/api
   static const String baseUrl = String.fromEnvironment(
     'API_URL',
     defaultValue: 'http://localhost:5000/api',
@@ -20,10 +18,7 @@ class ApiService {
   static Future<Map<String, dynamic>> get(String endpoint) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
-
     debugPrint('📍 GET: $baseUrl/$endpoint');
-    debugPrint('🔑 Token: ${token != null ? 'Present (${token.length} chars)' : 'NULL'}');
-
     final response = await http.get(
       Uri.parse('$baseUrl/$endpoint'),
       headers: {
@@ -31,9 +26,6 @@ class ApiService {
         'Authorization': 'Bearer $token',
       },
     );
-
-    debugPrint('📥 Response: ${response.statusCode} - ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}...');
-
     if (response.statusCode == 200) {
       return json.decode(response.body);
     } else {
@@ -44,10 +36,6 @@ class ApiService {
   static Future<Map<String, dynamic>> post(String endpoint, Map<String, dynamic> data) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
-
-    debugPrint('📍 POST: $baseUrl/$endpoint');
-    debugPrint('📤 Data: $data');
-
     final response = await http.post(
       Uri.parse('$baseUrl/$endpoint'),
       headers: {
@@ -56,7 +44,6 @@ class ApiService {
       },
       body: json.encode(data),
     );
-
     if (response.statusCode == 200 || response.statusCode == 201) {
       return json.decode(response.body);
     } else {
@@ -67,10 +54,6 @@ class ApiService {
   static Future<Map<String, dynamic>> put(String endpoint, Map<String, dynamic> data) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
-
-    debugPrint('📍 PUT: $baseUrl/$endpoint');
-    debugPrint('📤 Data: $data');
-
     final response = await http.put(
       Uri.parse('$baseUrl/$endpoint'),
       headers: {
@@ -79,9 +62,6 @@ class ApiService {
       },
       body: json.encode(data),
     );
-
-    debugPrint('📥 Response: ${response.statusCode}');
-
     if (response.statusCode == 200 || response.statusCode == 201) {
       return json.decode(response.body);
     } else {
@@ -92,9 +72,6 @@ class ApiService {
   static Future<Map<String, dynamic>> patch(String endpoint, Map<String, dynamic> data) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
-
-    debugPrint('📍 PATCH: $baseUrl/$endpoint');
-
     final response = await http.patch(
       Uri.parse('$baseUrl/$endpoint'),
       headers: {
@@ -103,7 +80,6 @@ class ApiService {
       },
       body: json.encode(data),
     );
-
     if (response.statusCode == 200) {
       return json.decode(response.body);
     } else {
@@ -114,9 +90,6 @@ class ApiService {
   static Future<Map<String, dynamic>> delete(String endpoint) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
-
-    debugPrint('📍 DELETE: $baseUrl/$endpoint');
-
     final response = await http.delete(
       Uri.parse('$baseUrl/$endpoint'),
       headers: {
@@ -124,7 +97,6 @@ class ApiService {
         'Authorization': 'Bearer $token',
       },
     );
-
     if (response.statusCode == 200 || response.statusCode == 204) {
       if (response.body.isNotEmpty) {
         return json.decode(response.body);
@@ -136,12 +108,13 @@ class ApiService {
     }
   }
 
+  // ============================================
+  // LIST METHODS
+  // ============================================
+  
   static Future<List<dynamic>> getList(String endpoint) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
-
-    debugPrint('📍 GET LIST: $baseUrl/$endpoint');
-
     final response = await http.get(
       Uri.parse('$baseUrl/$endpoint'),
       headers: {
@@ -149,7 +122,6 @@ class ApiService {
         'Authorization': 'Bearer $token',
       },
     );
-
     if (response.statusCode == 200) {
       final dynamic jsonResponse = json.decode(response.body);
       if (jsonResponse is List) {
@@ -170,6 +142,28 @@ class ApiService {
   }
 
   // ============================================
+  // ADS METHODS
+  // ============================================
+  
+  static Future<List<dynamic>> getActiveAds() async {
+    try {
+      final response = await getList('ads/active');
+      return response;
+    } catch (e) {
+      debugPrint('Error fetching ads: $e');
+      return [];
+    }
+  }
+
+  static Future<Map<String, dynamic>> createAd(Map<String, dynamic> adData) async {
+    try {
+      return await post('ads', adData);
+    } catch (e) {
+      return {'status': 'error', 'message': e.toString()};
+    }
+  }
+
+  // ============================================
   // AUTH METHODS
   // ============================================
   
@@ -179,16 +173,10 @@ class ApiService {
       headers: {'Content-Type': 'application/json'},
       body: json.encode({'email': email, 'password': password}),
     );
-
-    debugPrint('🔵 LOGIN Status: ${response.statusCode}');
-    
     try {
       return json.decode(response.body);
     } catch (e) {
-      return {
-        'status': 'error',
-        'message': 'Invalid response from server',
-      };
+      return {'status': 'error', 'message': 'Invalid response from server'};
     }
   }
 
@@ -229,11 +217,7 @@ class ApiService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token');
-
-      if (token == null) {
-        throw Exception('No authentication token found');
-      }
-
+      if (token == null) throw Exception('No authentication token found');
       final response = await http.get(
         Uri.parse('$baseUrl/futsals/my'),
         headers: {
@@ -241,7 +225,6 @@ class ApiService {
           'Authorization': 'Bearer $token',
         },
       );
-
       if (response.statusCode == 200) {
         final Map<String, dynamic> jsonResponse = json.decode(response.body);
         return jsonResponse['futsals'] ?? [];
@@ -249,7 +232,6 @@ class ApiService {
         throw Exception('Failed to load futsals');
       }
     } catch (e) {
-      debugPrint('❌ Get my futsals error: $e');
       throw Exception('Network error: $e');
     }
   }
@@ -258,11 +240,7 @@ class ApiService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token');
-
-      if (token == null) {
-        throw Exception('No authentication token found');
-      }
-
+      if (token == null) throw Exception('No authentication token found');
       final response = await http.post(
         Uri.parse('$baseUrl/futsals'),
         headers: {
@@ -271,16 +249,13 @@ class ApiService {
         },
         body: json.encode(futsalData),
       );
-
       final Map<String, dynamic> jsonResponse = json.decode(response.body);
-
       if (response.statusCode == 201 || response.statusCode == 200) {
         return jsonResponse;
       } else {
         throw Exception(jsonResponse['message'] ?? 'Failed to create futsal');
       }
     } catch (e) {
-      debugPrint('❌ Create futsal error: $e');
       throw Exception('Network error: $e');
     }
   }
@@ -293,7 +268,6 @@ class ApiService {
     try {
       return await getList('futsals/$futsalId/courts');
     } catch (e) {
-      debugPrint('❌ Get courts error: $e');
       return [];
     }
   }
@@ -326,7 +300,6 @@ class ApiService {
     try {
       return await get('bookings/my-bookings');
     } catch (e) {
-      debugPrint('❌ Get my bookings error: $e');
       return {'bookings': []};
     }
   }
@@ -335,7 +308,6 @@ class ApiService {
     try {
       return await post('bookings', bookingData);
     } catch (e) {
-      debugPrint('❌ Create booking error: $e');
       return {'status': 'error', 'message': e.toString()};
     }
   }
@@ -352,12 +324,7 @@ class ApiService {
     try {
       return await get('owner/dashboard/stats?futsalId=$futsalId');
     } catch (e) {
-      return {
-        'totalCourts': 0,
-        'todayBookings': 0,
-        'todayRevenue': 0,
-        'activeBookings': 0,
-      };
+      return {'totalCourts': 0, 'todayBookings': 0, 'todayRevenue': 0, 'activeBookings': 0};
     }
   }
 
@@ -374,7 +341,6 @@ class ApiService {
     try {
       final response = await get('owner/dashboard/weekly-revenue?futsalId=$futsalId');
       final revenueList = response['revenue'] ?? [0, 0, 0, 0, 0, 0, 0];
-      
       if (revenueList is List) {
         return revenueList.map((e) {
           if (e is int) return e.toDouble();
@@ -385,7 +351,6 @@ class ApiService {
       }
       return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
     } catch (e) {
-      debugPrint('❌ Get weekly revenue error: $e');
       return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
     }
   }
@@ -394,7 +359,6 @@ class ApiService {
     try {
       final response = await get('owner/dashboard/peak-hours?futsalId=$futsalId');
       final peakData = response['peakHours'] ?? {};
-      
       if (peakData is Map) {
         Map<String, int> result = {};
         peakData.forEach((key, value) {
@@ -410,7 +374,6 @@ class ApiService {
       }
       return {};
     } catch (e) {
-      debugPrint('❌ Get peak hours error: $e');
       return {};
     }
   }
@@ -445,7 +408,6 @@ class ApiService {
       }
       return [];
     } catch (e) {
-      debugPrint('❌ Get past bookings error: $e');
       return [];
     }
   }
@@ -483,7 +445,6 @@ class ApiService {
       final response = await get('owner/customers?futsalId=$futsalId');
       return response['data'] ?? {'customers': [], 'frequentPlayers': [], 'stats': {}};
     } catch (e) {
-      debugPrint('❌ Get customers error: $e');
       return {'customers': [], 'frequentPlayers': [], 'stats': {}};
     }
   }
@@ -496,7 +457,6 @@ class ApiService {
     try {
       return await get('owner/analytics/revenue-summary?futsalId=$futsalId');
     } catch (e) {
-      debugPrint('❌ Get revenue summary error: $e');
       return {'status': 'error', 'data': {}};
     }
   }
@@ -505,7 +465,6 @@ class ApiService {
     try {
       return await get('owner/analytics/performance-metrics?futsalId=$futsalId');
     } catch (e) {
-      debugPrint('❌ Get performance metrics error: $e');
       return {'status': 'error', 'data': {}};
     }
   }
@@ -514,7 +473,6 @@ class ApiService {
     try {
       return await get('owner/analytics/monthly-revenue?futsalId=$futsalId&months=$months');
     } catch (e) {
-      debugPrint('❌ Get monthly revenue error: $e');
       return {'status': 'error', 'data': []};
     }
   }
@@ -523,7 +481,6 @@ class ApiService {
     try {
       return await get('owner/analytics/payment-breakdown?futsalId=$futsalId');
     } catch (e) {
-      debugPrint('❌ Get payment breakdown error: $e');
       return {'status': 'error', 'data': {}};
     }
   }
@@ -636,7 +593,7 @@ class ApiService {
   }
 
   // ============================================
-  // SYSTEM SETTINGS METHODS
+  // SYSTEM SETTINGS
   // ============================================
   
   static Future<Map<String, dynamic>> getSystemSettings() async {
@@ -718,7 +675,7 @@ class ApiService {
   }
 
   // ============================================
-  // TEAM MANAGEMENT METHODS
+  // TEAM MANAGEMENT
   // ============================================
   
   static Future<Map<String, dynamic>> addTeam(int tournamentId, Map<String, dynamic> teamData) async {
@@ -755,7 +712,7 @@ class ApiService {
   }
 
   // ============================================
-  // FIXTURE MANAGEMENT METHODS
+  // FIXTURE MANAGEMENT
   // ============================================
   
   static Future<Map<String, dynamic>> generateFixtures(int tournamentId) async {
@@ -801,24 +758,78 @@ class ApiService {
   }
 
   // ============================================
-  // AD METHODS
+  // ADMIN ANALYTICS (GAURAV'S METHODS)
   // ============================================
   
-  static Future<List<dynamic>> getActiveAds() async {
+  static Future<List<dynamic>> getRevenueOverTimeAdmin(String range) async {
     try {
-      final response = await getList('ads/active');
-      return response;
+      final response = await get('admin/analytics/revenue-over-time?range=$range');
+      return response['data'] ?? [];
     } catch (e) {
-      debugPrint('Error fetching ads: $e');
       return [];
     }
   }
 
-  static Future<Map<String, dynamic>> createAd(Map<String, dynamic> adData) async {
+  static Future<List<dynamic>> getBookingsOverTimeAdmin(String range) async {
     try {
-      return await post('ads', adData);
+      final response = await get('admin/analytics/bookings-over-time?range=$range');
+      return response['data'] ?? [];
     } catch (e) {
-      return {'status': 'error', 'message': e.toString()};
+      return [];
+    }
+  }
+
+  static Future<Map<String, dynamic>> getBookingStatusBreakdownAdmin() async {
+    try {
+      final response = await get('admin/analytics/booking-status-breakdown');
+      return response['data'] ?? {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  static Future<List<dynamic>> getGroundsByBookingCount() async {
+    try {
+      final response = await get('admin/analytics/grounds/booking-rank');
+      return response['data'] ?? [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  static Future<List<dynamic>> getGroundsByRevenue() async {
+    try {
+      final response = await get('admin/analytics/grounds/revenue-rank');
+      return response['data'] ?? [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  static Future<List<dynamic>> getTopPlayers({int limit = 10}) async {
+    try {
+      final response = await get('admin/analytics/users/top-players?limit=$limit');
+      return response['data'] ?? [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  static Future<List<dynamic>> getAnalyticsPeakHours() async {
+    try {
+      final response = await get('admin/analytics/peak-hours');
+      return response['data'] ?? [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  static Future<List<dynamic>> getTournamentRanking() async {
+    try {
+      final response = await get('admin/analytics/tournaments/rank');
+      return response['data'] ?? [];
+    } catch (e) {
+      return [];
     }
   }
 
@@ -830,12 +841,9 @@ class ApiService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token');
-
       final uri = Uri.parse('$baseUrl/upload/images');
       final request = http.MultipartRequest('POST', uri);
-
       request.headers['Authorization'] = 'Bearer $token';
-
       for (final imageFile in imageFiles) {
         final bytes = await imageFile.readAsBytes();
         final multipartFile = http.MultipartFile.fromBytes(
@@ -846,10 +854,8 @@ class ApiService {
         );
         request.files.add(multipartFile);
       }
-
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
-
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         return List<String>.from(data['urls']);

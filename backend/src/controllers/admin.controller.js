@@ -205,15 +205,30 @@ export const approveFutsal = async (req, res, next) => {
  */
 export const rejectFutsal = async (req, res, next) => {
   try {
-    const futsalId = parseInt(req.params.id);
+    const futsalId = Number(req.params.id);
 
-    await prisma.futsal.delete({
-      where: { id: futsalId },
+    if (isNaN(futsalId)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid futsal ID',
+      });
+    }
+
+    const futsal = await prisma.futsal.update({
+      where: {
+        id: futsalId,
+      },
+
+      data: {
+        status: 'REJECTED',
+        isApproved: false,
+      },
     });
 
     res.json({
-      status: "success",
-      message: "Futsal rejected and removed",
+      status: 'success',
+      message: 'Futsal rejected successfully',
+      data: futsal,
     });
   } catch (error) {
     next(error);
