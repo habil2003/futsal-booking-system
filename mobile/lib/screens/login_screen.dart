@@ -15,7 +15,7 @@ import '../../services/api_service.dart';
 import '../screens/auth/otp_screen.dart';
 import '../screens/owner/owner_dashboard.dart';
 import '../screens/admin/admin_account.dart';
-import '../screens/home_screen.dart';
+import '../screens/player/home_screen.dart';
 
 class LoginScreenArguments {
   final String? email;
@@ -220,21 +220,30 @@ class _LoginScreenState extends State<LoginScreen>
 
       if (response['status'] == 'success') {
         if (_isLogin) {
-          await _handleRememberMe(_emailController.text.trim());
-          _passwordController.clear();
-          final auth = Provider.of<AuthProvider>(context, listen: false);
-          if (auth.isPlayer) {
-            if (Navigator.canPop(context)) {
-              Navigator.pop(context, true);
-            } else {
-              Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
-            }
-          } else if (auth.isOwner) {
-            Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const OwnerDashboard()), (route) => false);
-          } else if (auth.isAdmin) {
-            Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const AdminAccountScreen()), (route) => false);
-          }
-        } else {
+  await _handleRememberMe(_emailController.text.trim());
+  _passwordController.clear();
+  final auth = Provider.of<AuthProvider>(context, listen: false);
+
+  if (auth.isPlayer) {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const PlayerHomeScreen()),
+      (route) => false,
+    );
+  } else if (auth.isOwner) {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const OwnerDashboard()),
+      (route) => false,
+    );
+  } else if (auth.isAdmin) {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const AdminAccountScreen()),
+      (route) => false,
+    );
+  }
+} else {
           Navigator.push(context, MaterialPageRoute(builder: (_) => OtpScreen(email: _emailController.text.trim(), type: OtpScreenType.emailVerification)));
         }
       } else if (response['requiresVerification'] == true) {
@@ -275,7 +284,7 @@ class _LoginScreenState extends State<LoginScreen>
         leading: Padding(
           padding: const EdgeInsets.only(left: 8.0),
           child: InkWell(
-            onTap: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen())),
+            onTap: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const PlayerHomeScreen())),
             borderRadius: BorderRadius.circular(30),
             child: Row(
               mainAxisSize: MainAxisSize.min,

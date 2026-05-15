@@ -26,8 +26,7 @@ import 'screens/admin/user_management_screen.dart';
 import 'screens/admin/admin_all_futsals_screen.dart';
 import 'screens/admin/admin_bookings_screen.dart';
 import 'screens/admin/system_settings_screen.dart';
-import 'screens/admin/admin_analytics_screen.dart';
-import 'screens/home_screen.dart';
+// import 'screens/home_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -38,7 +37,7 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
+    return MultiProvider( 
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => FutsalProvider()),
@@ -66,7 +65,7 @@ class MyApp extends StatelessWidget {
         // home: const PlayerHomeScreen(),
         
         routes: {
-           '/home': (ctx) => const HomeScreen(),
+           '/home': (ctx) => const PlayerHomeScreen(),
           '/login': (ctx) => const LoginScreen(),
           '/player/home': (ctx) => const PlayerHomeScreen(),
           '/owner/dashboard': (ctx) => const OwnerDashboard(),
@@ -77,7 +76,6 @@ class MyApp extends StatelessWidget {
           '/admin/futsals': (context) => const AdminAllFutsalsScreen(),
           '/admin/bookings': (context) => const AdminBookingsScreen(),
           '/admin/settings': (context) => const SystemSettingsScreen(),
-          '/admin/analytics': (context) => const AdminAnalyticsScreen(),
         },
       ),
     );

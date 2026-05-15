@@ -6,6 +6,7 @@ import 'home_screen.dart';
 import 'owner/owner_dashboard.dart';
 import 'admin/admin_account.dart';
 import 'login_screen.dart';
+import './player/home_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -37,7 +38,7 @@ class _SplashScreenState extends State<SplashScreen> {
           case '/home':
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (_) => const HomeScreen()),
+              MaterialPageRoute(builder: (_) => const PlayerHomeScreen()),
             );
             return;
           case '/owner/dashboard':
@@ -75,7 +76,7 @@ class _SplashScreenState extends State<SplashScreen> {
       } else {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
+          MaterialPageRoute(builder: (_) => const PlayerHomeScreen()),
         );
       }
     } else {
