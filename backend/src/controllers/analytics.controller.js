@@ -1,49 +1,21 @@
-import { prisma } from '../index.js';
+import { prisma } from "../index.js";
 
-// ============================================
-// HELPER FUNCTIONS (YOURS + GAURAV'S)
-// ============================================
-
+// =====================================================
+// Helper: Generate empty range for charts
+// =====================================================
 const getDaysForRange = (range) => {
   switch (range) {
-    case 'week': return 7;
-    case 'month': return 30;
-    case 'year': return 365;
-    case 'all': return 365 * 5;
+    case "day": return 1;
+    case "week": return 7;
+    case "month": return 30;
+    case "year": return 365;
+    case "all": return 365 * 5;
     default: return 7;
   }
 };
 
-const formatDate = (date) => date.toISOString().slice(0, 10);
+const formatDate = (date) => date.toISOString().slice(0,10);
 
-// Your helper - for owner analytics
-const generateResultForRange = (range, startDate, data, type) => {
-  const result = [];
-  const now = new Date();
-  const days = Math.ceil((now - startDate) / (1000 * 60 * 60 * 24));
-
-  const dataMap = new Map();
-  data.forEach(item => {
-    const dateStr = item.bookingDate.toISOString().split('T')[0];
-    const value = type === 'revenue' ? item._sum.totalPrice : item._count.id;
-    if (dataMap.has(dateStr)) {
-      dataMap.set(dateStr, dataMap.get(dateStr) + value);
-    } else {
-      dataMap.set(dateStr, value);
-    }
-  });
-
-  for (let i = 0; i < days; i++) {
-    const date = new Date(startDate);
-    date.setDate(startDate.getDate() + i);
-    const dateStr = date.toISOString().split('T')[0];
-    const value = dataMap.get(dateStr) || 0;
-    result.push({ [type]: value });
-  }
-  return result;
-};
-
-// Gaurav's helper - for admin analytics
 const generateEmptyRange = (range, startDate) => {
   const result = [];
   if (range === "day") {
@@ -66,127 +38,153 @@ const generateEmptyRange = (range, startDate) => {
   return result;
 };
 
-// ============================================
-// OWNER ANALYTICS ENDPOINTS (YOUR CODE)
-// ============================================
-
+// =====================================================
+// REVENUE OVER TIME (for line/bar charts)
+// =====================================================
 export const getRevenueOverTime = async (req, res) => {
   try {
-    const { range = 'week' } = req.query;
+    const { range = "week" } = req.query;
     const days = getDaysForRange(range);
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
-    startDate.setHours(0, 0, 0, 0);
+    startDate.setHours(0,0,0,0);
 
-    const bookings = await prisma.booking.findMany({
-      where: {
-        bookingDate: { gte: startDate },
-        status: 'COMPLETED',
-      },
-      select: {
-        bookingDate: true,
-        totalPrice: true,
-      },
-    });
+    let revenueData = [];
 
-    const revenueMap = new Map();
-    bookings.forEach(booking => {
-      const dateStr = booking.bookingDate.toISOString().split('T')[0];
-      const currentSum = revenueMap.get(dateStr) || 0;
-      revenueMap.set(dateStr, currentSum + booking.totalPrice);
-    });
-
-    const result = [];
-    const now = new Date();
-    const totalDays = Math.ceil((now - startDate) / (1000 * 60 * 60 * 24));
-    
-    for (let i = 0; i < totalDays; i++) {
-      const date = new Date(startDate);
-      date.setDate(startDate.getDate() + i);
-      const dateStr = date.toISOString().split('T')[0];
-      const revenue = revenueMap.get(dateStr) || 0;
-      result.push({ revenue });
+    if (range === "day") {
+      revenueData = await prisma.$queryRaw`
+        SELECT EXTRACT(HOUR FROM b."bookingDate")::int AS hour,
+               COALESCE(SUM(b."totalPrice"),0)::float AS value
+        FROM "Booking" b
+        WHERE b."status" = 'COMPLETED' AND b."bookingDate" >= ${startDate}
+        GROUP BY hour ORDER BY hour ASC
+      `;
+      const result = generateEmptyRange(range, startDate);
+      revenueData.forEach(item => { result[item.hour].value = item.value; });
+      return res.json({ status: "success", data: result });
     }
 
-    res.json({ status: 'success', data: result });
+    if (range === "week" || range === "month") {
+      revenueData = await prisma.$queryRaw`
+        SELECT DATE(b."bookingDate") AS date,
+               COALESCE(SUM(b."totalPrice"),0)::float AS value
+        FROM "Booking" b
+        WHERE b."status" = 'COMPLETED' AND b."bookingDate" >= ${startDate}
+        GROUP BY DATE(b."bookingDate") ORDER BY date ASC
+      `;
+      const result = generateEmptyRange(range, startDate);
+      revenueData.forEach(item => {
+        const formatted = formatDate(item.date);
+        const found = result.find(r => r.label === formatted);
+        if (found) found.value = item.value;
+      });
+      return res.json({ status: "success", data: result });
+    }
+
+    // year / all => monthly
+    revenueData = await prisma.$queryRaw`
+      SELECT TO_CHAR(DATE_TRUNC('month', b."bookingDate"), 'YYYY-MM') AS month,
+             COALESCE(SUM(b."totalPrice"),0)::float AS value
+      FROM "Booking" b
+      WHERE b."status" = 'COMPLETED' AND b."bookingDate" >= ${startDate}
+      GROUP BY DATE_TRUNC('month', b."bookingDate") ORDER BY month ASC
+    `;
+    const result = generateEmptyRange(range, startDate);
+    revenueData.forEach(item => {
+      const found = result.find(r => r.label === item.month);
+      if (found) found.value = item.value;
+    });
+    res.json({ status: "success", data: result });
   } catch (error) {
-    console.error('Revenue over time error:', error);
-    res.status(500).json({ status: 'error', message: error.message });
+    console.error("Revenue over time error:", error);
+    res.status(500).json({ status: "error", message: error.message });
   }
 };
 
+// =====================================================
+// BOOKINGS OVER TIME
+// =====================================================
 export const getBookingsOverTime = async (req, res) => {
   try {
-    const { range = 'week' } = req.query;
+    const { range = "week" } = req.query;
     const days = getDaysForRange(range);
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
-    startDate.setHours(0, 0, 0, 0);
+    startDate.setHours(0,0,0,0);
 
-    const bookings = await prisma.booking.findMany({
-      where: {
-        bookingDate: { gte: startDate },
-      },
-      select: {
-        bookingDate: true,
-      },
-    });
+    let bookingData = [];
 
-    const countMap = new Map();
-    bookings.forEach(booking => {
-      const dateStr = booking.bookingDate.toISOString().split('T')[0];
-      const currentCount = countMap.get(dateStr) || 0;
-      countMap.set(dateStr, currentCount + 1);
-    });
-
-    const result = [];
-    const now = new Date();
-    const totalDays = Math.ceil((now - startDate) / (1000 * 60 * 60 * 24));
-    
-    for (let i = 0; i < totalDays; i++) {
-      const date = new Date(startDate);
-      date.setDate(startDate.getDate() + i);
-      const dateStr = date.toISOString().split('T')[0];
-      const count = countMap.get(dateStr) || 0;
-      result.push({ count });
+    if (range === "day") {
+      bookingData = await prisma.$queryRaw`
+        SELECT EXTRACT(HOUR FROM b."bookingDate")::int AS hour,
+               COUNT(*)::int AS value
+        FROM "Booking" b
+        WHERE b."bookingDate" >= ${startDate}
+        GROUP BY hour ORDER BY hour ASC
+      `;
+      const result = generateEmptyRange(range, startDate);
+      bookingData.forEach(item => { result[item.hour].value = item.value; });
+      return res.json({ status: "success", data: result });
     }
 
-    res.json({ status: 'success', data: result });
+    if (range === "week" || range === "month") {
+      bookingData = await prisma.$queryRaw`
+        SELECT DATE(b."bookingDate") AS date,
+               COUNT(*)::int AS value
+        FROM "Booking" b
+        WHERE b."bookingDate" >= ${startDate}
+        GROUP BY DATE(b."bookingDate") ORDER BY date ASC
+      `;
+      const result = generateEmptyRange(range, startDate);
+      bookingData.forEach(item => {
+        const formatted = formatDate(item.date);
+        const found = result.find(r => r.label === formatted);
+        if (found) found.value = item.value;
+      });
+      return res.json({ status: "success", data: result });
+    }
+
+    // year / all => monthly
+    bookingData = await prisma.$queryRaw`
+      SELECT TO_CHAR(DATE_TRUNC('month', b."bookingDate"), 'YYYY-MM') AS month,
+             COUNT(*)::int AS value
+      FROM "Booking" b
+      WHERE b."bookingDate" >= ${startDate}
+      GROUP BY DATE_TRUNC('month', b."bookingDate") ORDER BY month ASC
+    `;
+    const result = generateEmptyRange(range, startDate);
+    bookingData.forEach(item => {
+      const found = result.find(r => r.label === item.month);
+      if (found) found.value = item.value;
+    });
+    res.json({ status: "success", data: result });
   } catch (error) {
-    console.error('Bookings over time error:', error);
-    res.status(500).json({ status: 'error', message: error.message });
+    console.error("Bookings over time error:", error);
+    res.status(500).json({ status: "error", message: error.message });
   }
 };
 
+// =====================================================
+// BOOKING STATUS BREAKDOWN (for pie chart)
+// =====================================================
 export const getBookingStatusBreakdown = async (req, res) => {
   try {
     const statuses = await prisma.booking.groupBy({
-      by: ['status'],
+      by: ["status"],
       _count: { status: true },
     });
-
-    const result = {
-      CONFIRMED: 0,
-      COMPLETED: 0,
-      CANCELLED: 0,
-      PENDING: 0,
-    };
-
-    statuses.forEach(s => {
-      result[s.status] = s._count.status;
-    });
-
-    res.json({ status: 'success', data: result });
+    const result = { PENDING:0, CONFIRMED:0, COMPLETED:0, CANCELLED:0 };
+    statuses.forEach(s => { result[s.status] = s._count.status; });
+    res.json({ status: "success", data: result });
   } catch (error) {
-    console.error('Booking status breakdown error:', error);
-    res.status(500).json({ status: 'error', message: error.message });
+    console.error("Status breakdown error:", error);
+    res.status(500).json({ status: "error", message: error.message });
   }
 };
 
-// ============================================
-// GAURAV'S ADMIN ANALYTICS ENDPOINTS
-// ============================================
-
+// =====================================================
+// GROUNDS BY BOOKING COUNT
+// =====================================================
 export const getGroundsByBookingCount = async (req, res) => {
   try {
     const data = await prisma.$queryRaw`
@@ -204,6 +202,9 @@ export const getGroundsByBookingCount = async (req, res) => {
   }
 };
 
+// =====================================================
+// GROUNDS BY REVENUE
+// =====================================================
 export const getGroundsByRevenue = async (req, res) => {
   try {
     const data = await prisma.$queryRaw`
@@ -221,6 +222,9 @@ export const getGroundsByRevenue = async (req, res) => {
   }
 };
 
+// =====================================================
+// TOP PLAYERS (by completed bookings)
+// =====================================================
 export const getTopUsersByBookings = async (req, res) => {
   try {
     const limit = Number(req.query.limit) || 10;
@@ -238,6 +242,9 @@ export const getTopUsersByBookings = async (req, res) => {
   }
 };
 
+// =====================================================
+// PEAK HOURS (hour of day with most bookings)
+// =====================================================
 export const getPeakHours = async (req, res) => {
   try {
     const peakHours = await prisma.$queryRaw`
@@ -257,6 +264,9 @@ export const getPeakHours = async (req, res) => {
   }
 };
 
+// =====================================================
+// TOURNAMENT RANKING (by number of teams)
+// =====================================================
 export const getTournamentRanking = async (req, res) => {
   try {
     const tournaments = await prisma.tournament.findMany({
@@ -275,6 +285,9 @@ export const getTournamentRanking = async (req, res) => {
   }
 };
 
+// =====================================================
+// (Optional) Dashboard stats for analytics – if needed
+// =====================================================
 export const getAdminAnalytics = async (req, res) => {
   try {
     const totalBookings = await prisma.booking.count();
@@ -286,124 +299,11 @@ export const getAdminAnalytics = async (req, res) => {
     res.json({
       status: "success",
       totalBookings,
-      totalRevenue: totalRevenue._sum?.totalPrice || 0,
+      totalRevenue: totalRevenue._sum.totalPrice || 0,
       activeUsers,
     });
   } catch (error) {
     console.error("Admin analytics error:", error);
     res.status(500).json({ status: "error", message: error.message });
-  }
-};
-
-// ============================================
-// LEGACY/COMPATIBILITY FUNCTIONS (for existing routes)
-// ============================================
-
-export const getBookingAnalytics = async (req, res) => {
-  try {
-    const totalBookings = await prisma.booking.count({
-      where: { status: { in: ['PENDING', 'CONFIRMED', 'COMPLETED'] } },
-    });
-    res.json({
-      status: 'success',
-      data: {
-        bookingsOverTime: [],
-        peakHours: {},
-        mostBookedDays: [],
-        totalBookings,
-      },
-    });
-  } catch (error) {
-    console.error('Booking analytics error:', error);
-    res.status(500).json({ status: 'error', message: error.message });
-  }
-};
-
-export const getRevenueAnalytics = async (req, res) => {
-  try {
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const completedBookings = await prisma.booking.findMany({
-      where: {
-        status: 'COMPLETED',
-        bookingDate: { gte: thirtyDaysAgo },
-      },
-      select: { totalPrice: true },
-    });
-    const totalRevenue = completedBookings.reduce((sum, b) => sum + b.totalPrice, 0);
-    res.json({
-      status: 'success',
-      data: {
-        trends: [],
-        revenuePerGround: [],
-        paymentMethods: {},
-        totalRevenue,
-      },
-    });
-  } catch (error) {
-    console.error('Revenue analytics error:', error);
-    res.status(500).json({ status: 'error', message: error.message });
-  }
-};
-
-export const getUserAnalytics = async (req, res) => {
-  try {
-    const activeUsers = await prisma.user.count({ where: { isActive: true } });
-    const totalUsers = await prisma.user.count();
-    res.json({
-      status: 'success',
-      data: {
-        newUsers: 0,
-        activeUsers,
-        totalUsers,
-        topPlayers: [],
-      },
-    });
-  } catch (error) {
-    res.status(500).json({ status: 'error', message: error.message });
-  }
-};
-
-export const getGroundPerformance = async (req, res) => {
-  try {
-    res.json({
-      status: 'success',
-      data: {
-        popular: [],
-        leastUsed: [],
-        occupancyRate: 0,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({ status: 'error', message: error.message });
-  }
-};
-
-export const getTimeSlotAnalytics = async (req, res) => {
-  try {
-    res.json({
-      status: 'success',
-      data: {
-        peakSlots: [],
-        leastUsedSlots: [],
-      },
-    });
-  } catch (error) {
-    res.status(500).json({ status: 'error', message: error.message });
-  }
-};
-
-export const getTournamentAnalytics = async (req, res) => {
-  try {
-    res.json({
-      status: 'success',
-      data: {
-        count: 0,
-        participationRate: 0,
-        revenue: 0,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({ status: 'error', message: error.message });
   }
 };
