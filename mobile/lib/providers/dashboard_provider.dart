@@ -10,7 +10,7 @@ class DashboardProvider with ChangeNotifier {
   int totalCourts = 0;
   int todayBookings = 0;
   double todayRevenue = 0;
-  int pendingApprovals = 0;
+  int activeBookings = 0;  // Changed from pendingApprovals
   
   // Today's bookings list
   List<Booking> _todayBookingsList = [];
@@ -60,9 +60,9 @@ class DashboardProvider with ChangeNotifier {
       totalCourts = response['totalCourts'] ?? 0;
       todayBookings = response['todayBookings'] ?? 0;
       todayRevenue = (response['todayRevenue'] ?? 0).toDouble();
-      pendingApprovals = response['pendingApprovals'] ?? 0;
+      activeBookings = response['activeBookings'] ?? 0;  // Changed from pendingApprovals
       
-      debugPrint('📊 Stats: Courts=$totalCourts, Bookings=$todayBookings, Revenue=$todayRevenue');
+      debugPrint('📊 Stats: Courts=$totalCourts, Bookings=$todayBookings, Revenue=$todayRevenue, Active=$activeBookings');
     } catch (e) {
       debugPrint('📊 Stats Error: $e');
       // Don't rethrow, just use defaults
@@ -130,6 +130,7 @@ class DashboardProvider with ChangeNotifier {
       
       if (response['status'] == 'success') {
         await _loadTodayBookings(futsalId);
+        await _loadStats(futsalId);  // Refresh stats too
         notifyListeners();
       }
       
@@ -144,42 +145,19 @@ class DashboardProvider with ChangeNotifier {
   }
 
   // Cancel a booking (owner action)
-  // In dashboard_provider.dart, replace the cancelBooking method (around line 145-155) with:
-
-// Cancel a booking (owner action) - UPDATED to use correct ApiService method
-Future<Map<String, dynamic>> cancelBooking(int bookingId, int futsalId) async {
-  try {
-    // Use ApiService.cancelBooking which exists for owner actions
-    final response = await ApiService.cancelUserBooking(bookingId);
-    
-    if (response['status'] == 'success') {
-      await _loadTodayBookings(futsalId);
-      notifyListeners();
-    }
-    
-    return response;
-  } catch (e) {
-    debugPrint('❌ Cancel booking error: $e');
-    return {
-      'status': 'error',
-      'message': e.toString()
-    };
-  }
-}
-
-  // Complete a booking (owner action)
-  Future<Map<String, dynamic>> completeBooking(int bookingId, int futsalId) async {
+  Future<Map<String, dynamic>> cancelBooking(int bookingId, int futsalId) async {
     try {
-      final response = await ApiService.completeBooking(bookingId);
+      final response = await ApiService.cancelUserBooking(bookingId);
       
       if (response['status'] == 'success') {
         await _loadTodayBookings(futsalId);
+        await _loadStats(futsalId);  // Refresh stats too
         notifyListeners();
       }
       
       return response;
     } catch (e) {
-      debugPrint('❌ Complete booking error: $e');
+      debugPrint('❌ Cancel booking error: $e');
       return {
         'status': 'error',
         'message': e.toString()
@@ -187,19 +165,20 @@ Future<Map<String, dynamic>> cancelBooking(int bookingId, int futsalId) async {
     }
   }
 
-  // Update payment status (owner action)
-  Future<Map<String, dynamic>> updatePaymentStatus(int bookingId, String status, int futsalId) async {
+  // Mark as paid (owner action for COD)
+  Future<Map<String, dynamic>> markAsPaid(int bookingId, int futsalId) async {
     try {
-      final response = await ApiService.updatePaymentStatus(bookingId, status);
+      final response = await ApiService.updatePaymentStatus(bookingId, 'PAID');
       
       if (response['status'] == 'success') {
         await _loadTodayBookings(futsalId);
+        await _loadStats(futsalId);  // Refresh stats too
         notifyListeners();
       }
       
       return response;
     } catch (e) {
-      debugPrint('❌ Update payment error: $e');
+      debugPrint('❌ Mark as paid error: $e');
       return {
         'status': 'error',
         'message': e.toString()
@@ -212,7 +191,7 @@ Future<Map<String, dynamic>> cancelBooking(int bookingId, int futsalId) async {
     totalCourts = 0;
     todayBookings = 0;
     todayRevenue = 0;
-    pendingApprovals = 0;
+    activeBookings = 0;  // Changed from pendingApprovals
     _todayBookingsList = [];
     _weeklyRevenue = [];
     _peakHours = {};

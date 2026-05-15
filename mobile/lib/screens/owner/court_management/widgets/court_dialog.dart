@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'amenities_section.dart';
 
 class CourtDialog {
-  static final List<String> _courtTypes = ['indoor', 'outdoor'];
+  static final List<String> _courtTypes = ['5-A-Side', '6-A-Side'];
   static final List<String> _availableAmenities = [
     'Lights',
     'Roof',
@@ -22,14 +22,16 @@ class CourtDialog {
     double? initialPeakPrice,
     List<String>? initialAmenities,
   }) async {
-    final courtNumberController = TextEditingController(text: initialCourtNumber ?? '');
+    final courtNumberController =
+        TextEditingController(text: initialCourtNumber ?? '');
     final basePriceController = TextEditingController(
       text: initialBasePrice?.toString() ?? '',
     );
     final peakPriceController = TextEditingController(
       text: initialPeakPrice?.toString() ?? '',
     );
-    String selectedCourtType = initialCourtType ?? 'indoor';
+    String selectedCourtType =
+        _courtTypes.contains(initialCourtType) ? initialCourtType! : '5-A-Side';
     List<String> selectedAmenities = List.from(initialAmenities ?? []);
 
     return showDialog<Map<String, dynamic>>(
@@ -37,7 +39,8 @@ class CourtDialog {
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) {
           return AlertDialog(
-            title: Text(initialCourtNumber == null ? 'Add New Court' : 'Edit Court'),
+            title: Text(
+                initialCourtNumber == null ? 'Add New Court' : 'Edit Court'),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -118,7 +121,8 @@ class CourtDialog {
               ),
               ElevatedButton(
                 onPressed: () {
-                  if (courtNumberController.text.isEmpty || basePriceController.text.isEmpty) {
+                  if (courtNumberController.text.isEmpty ||
+                      basePriceController.text.isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Please fill all required fields'),
@@ -141,7 +145,8 @@ class CourtDialog {
                   backgroundColor: Colors.green,
                   foregroundColor: Colors.white,
                 ),
-                child: Text(initialCourtNumber == null ? 'ADD COURT' : 'UPDATE'),
+                child:
+                    Text(initialCourtNumber == null ? 'ADD COURT' : 'UPDATE'),
               ),
             ],
           );

@@ -24,7 +24,7 @@ class BookingCard extends StatelessWidget {
   Color _getStatusColor() {
     if (booking.isCancelled) return Colors.red;
     if (booking.isCompleted) return Colors.green;
-    if (booking.isCheckedIn) return Colors.blue;
+    if (booking.bookingStatus.toLowerCase() == 'confirmed') return Colors.teal;
     if (booking.isPending) return Colors.orange;
     return Colors.grey;
   }
@@ -32,9 +32,74 @@ class BookingCard extends StatelessWidget {
   IconData _getStatusIcon() {
     if (booking.isCancelled) return Icons.cancel;
     if (booking.isCompleted) return Icons.check_circle;
-    if (booking.isCheckedIn) return Icons.login;
+    if (booking.bookingStatus.toLowerCase() == 'confirmed') return Icons.check_circle_outline;
     if (booking.isPending) return Icons.hourglass_empty;
     return Icons.check_circle_outline;
+  }
+
+  // New method to build action buttons based on payment method and status
+  Widget _buildActionButtons() {
+    // Don't show buttons for cancelled or completed bookings
+    if (booking.isCancelled || booking.isCompleted) {
+      return const SizedBox.shrink();
+    }
+
+    // COD: PENDING → Show Check In button
+    if (booking.paymentMethod == 'COD' && booking.isPending) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.login, color: Colors.green, size: 20),
+            onPressed: onCheckIn,
+            tooltip: 'Check In',
+          ),
+          IconButton(
+            icon: const Icon(Icons.cancel, color: Colors.red, size: 20),
+            onPressed: onCancel,
+            tooltip: 'Cancel',
+          ),
+        ],
+      );
+    }
+
+    // COD: CONFIRMED → Show Mark as Paid button
+    if (booking.paymentMethod == 'COD' && 
+        booking.bookingStatus.toLowerCase() == 'confirmed') {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.payments, color: Colors.orange, size: 20),
+            onPressed: onMarkPaid,
+            tooltip: 'Mark as Paid',
+          ),
+        ],
+      );
+    }
+
+    // Khalti: CONFIRMED → Show Check In button (goes directly to COMPLETED)
+    if (booking.paymentMethod == 'KHALTI' && 
+        booking.bookingStatus.toLowerCase() == 'confirmed') {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.login, color: Colors.green, size: 20),
+            onPressed: onCheckIn,
+            tooltip: 'Check In',
+          ),
+          IconButton(
+            icon: const Icon(Icons.cancel, color: Colors.red, size: 20),
+            onPressed: onCancel,
+            tooltip: 'Cancel',
+          ),
+        ],
+      );
+    }
+
+    // Default: no buttons
+    return const SizedBox.shrink();
   }
 
   @override
@@ -72,42 +137,59 @@ class BookingCard extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                if (!booking.isCheckedIn && !booking.isCancelled && booking.isToday)
-                  Row(
-                    children: [
-                      if (!booking.isPaid)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.shade100,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            'UNPAID',
-                            style: TextStyle(
-                              fontSize: 8,
-                              color: Colors.orange.shade700,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      const SizedBox(width: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade100,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          'NOT CHECKED IN',
-                          style: TextStyle(
-                            fontSize: 8,
-                            color: Colors.blue.shade700,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                // Payment method badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: booking.paymentMethod == 'KHALTI' 
+                        ? Colors.purple.shade100 
+                        : Colors.blue.shade100,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    booking.paymentMethod,
+                    style: TextStyle(
+                      fontSize: 8,
+                      color: booking.paymentMethod == 'KHALTI' 
+                          ? Colors.purple.shade700 
+                          : Colors.blue.shade700,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                // Payment status badge
+                if (!booking.isPaid && booking.paymentMethod == 'COD')
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade100,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'UNPAID',
+                      style: TextStyle(
+                        fontSize: 8,
+                        color: Colors.orange.shade700,
+                        fontWeight: FontWeight.bold,
                       ),
-                    ],
+                    ),
+                  ),
+                if (booking.isPaid)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade100,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'PAID',
+                      style: TextStyle(
+                        fontSize: 8,
+                        color: Colors.green.shade700,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 SizedBox(
                   height: 28,
@@ -251,7 +333,7 @@ class BookingCard extends StatelessWidget {
                   ),
                 ),
 
-                // Price and actions
+                // Price and action buttons
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
@@ -264,37 +346,7 @@ class BookingCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 4),
-
-                    // Not checked in yet
-                    if (!booking.isCheckedIn && !booking.isCancelled && !booking.isCompleted)
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.login, color: Colors.green, size: 20),
-                            onPressed: onCheckIn,
-                            tooltip: 'Check In',
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.cancel, color: Colors.red, size: 20),
-                            onPressed: onCancel,
-                            tooltip: 'Cancel',
-                          ),
-                        ],
-                      ),
-
-                    // Checked in - Show only "Mark as Paid" button (Complete removed)
-                    if (booking.isCheckedIn && !booking.isCompleted && !booking.isCancelled)
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.payments, color: Colors.orange, size: 20),
-                            onPressed: onMarkPaid,
-                            tooltip: 'Mark as Paid',
-                          ),
-                        ],
-                      ),
+                    _buildActionButtons(),
                   ],
                 ),
               ],

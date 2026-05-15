@@ -35,16 +35,17 @@ export const getDashboardStats = async (req, res) => {
       where: { futsalId: parseInt(futsalId) },
     });
 
-    // Get today's bookings
+    // Get today's date range
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
+    // Get total today's bookings (all statuses for today)
     const todayBookings = await prisma.booking.count({
       where: {
         slot: {
-          date: { gte: today, lt: tomorrow }, // ← slot date only
+          date: { gte: today, lt: tomorrow },
           court: {
             futsalId: parseInt(futsalId),
           },
@@ -53,11 +54,11 @@ export const getDashboardStats = async (req, res) => {
       },
     });
 
-    // Get today's revenue
+    // Get today's revenue (only confirmed/completed)
     const todayRevenue = await prisma.booking.aggregate({
       where: {
         slot: {
-          date: { gte: today, lt: tomorrow }, // ← slot date only
+          date: { gte: today, lt: tomorrow },
           court: {
             futsalId: parseInt(futsalId),
           },
@@ -69,15 +70,25 @@ export const getDashboardStats = async (req, res) => {
       },
     });
 
-    // Get pending approvals (for futsal itself)
-    const pendingApprovals = futsal.isApproved ? 0 : 1;
+    // Get active bookings for today (need owner action: PENDING = need check-in, CONFIRMED = checked-in waiting)
+    const activeBookings = await prisma.booking.count({
+      where: {
+        slot: {
+          date: { gte: today, lt: tomorrow },
+          court: {
+            futsalId: parseInt(futsalId),
+          },
+        },
+        status: { in: ["PENDING", "CONFIRMED"] },
+      },
+    });
 
     res.json({
       status: "success",
       totalCourts,
       todayBookings,
       todayRevenue: todayRevenue._sum?.totalPrice || 0,
-      pendingApprovals,
+      activeBookings,  // Changed from pendingApprovals
     });
   } catch (error) {
     console.error("Get dashboard stats error:", error);
@@ -472,6 +483,537 @@ export const getMonthBookings = async (req, res) => {
     });
   } catch (error) {
     console.error("Get month bookings error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Server error: " + error.message,
+    });
+  }
+};
+
+export const getOwnerPastBookings = async (req, res) => {
+  try {
+    const { futsalId } = req.query;
+
+    if (!futsalId) {
+      return res.status(400).json({ status: "error", message: "Futsal ID required" });
+    }
+
+    // Verify ownership
+    const futsal = await prisma.futsal.findFirst({
+      where: { id: parseInt(futsalId), ownerId: req.user.id },
+    });
+
+    if (!futsal) {
+      return res.status(404).json({ status: "error", message: "Futsal not found" });
+    }
+
+    // ✅ REMOVE the date filter - just get all COMPLETED and CANCELLED bookings
+    const pastBookings = await prisma.booking.findMany({
+      where: {
+        slot: {
+          court: { futsalId: parseInt(futsalId) },
+        },
+        status: { in: ["COMPLETED", "CANCELLED"] },
+      },
+      include: {
+        user: { select: { id: true, fullName: true, phoneNumber: true } },
+        slot: { include: { court: { select: { courtNumber: true } } } },
+        payment: true,
+      },
+      orderBy: { slot: { date: "desc" } },
+    });
+
+    const formattedBookings = pastBookings.map((booking) => ({
+      id: booking.id,
+      userId: booking.userId,
+      customerName: booking.user.fullName,
+      customerPhone: booking.user.phoneNumber,
+      courtNumber: booking.slot.court.courtNumber,
+      date: booking.slot.date,
+      startTime: booking.slot.startTime,
+      endTime: booking.slot.endTime,
+      totalAmount: booking.totalPrice,
+      paymentMethod: booking.paymentMethod,
+      paymentStatus: booking.payment?.status ?? "PENDING",
+      status: booking.status,
+      checkInTime: booking.checkInTime,
+      checkOutTime: booking.checkOutTime,
+    }));
+
+    res.json({ status: "success", bookings: formattedBookings });
+  } catch (error) {
+    console.error("Get past bookings error:", error);
+    res.status(500).json({ status: "error", message: error.message });
+  }
+};
+
+/**
+ * Get all customers for a futsal (owner's customers)
+ * @route   GET /api/owner/customers?futsalId=:id
+ */
+export const getFutsalCustomers = async (req, res) => {
+  try {
+    const { futsalId } = req.query;
+
+    if (!futsalId) {
+      return res.status(400).json({
+        status: "error",
+        message: "Please provide futsal ID",
+      });
+    }
+
+    // Verify the futsal belongs to this owner
+    const futsal = await prisma.futsal.findFirst({
+      where: {
+        id: parseInt(futsalId),
+        ownerId: req.user.id,
+      },
+    });
+
+    if (!futsal) {
+      return res.status(404).json({
+        status: "error",
+        message: "Futsal not found or you do not have permission",
+      });
+    }
+
+    // Get all bookings for this futsal with user details
+    const bookings = await prisma.booking.findMany({
+      where: {
+        slot: {
+          court: {
+            futsalId: parseInt(futsalId),
+          },
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phoneNumber: true,
+          },
+        },
+        slot: {
+          select: {
+            date: true,
+          },
+        },
+      },
+      orderBy: {
+        bookingDate: 'desc',
+      },
+    });
+
+    // Get all blocked players for this futsal
+    const blockedPlayers = await prisma.block.findMany({
+      where: {
+        futsalId: parseInt(futsalId),
+      },
+      select: {
+        playerId: true,
+        reason: true,
+      },
+    });
+
+    const blockedPlayerIds = new Set(blockedPlayers.map(b => b.playerId));
+
+    // Aggregate customer data
+    const customerMap = new Map();
+
+    bookings.forEach(booking => {
+      if (!booking.user) return;
+
+      const userId = booking.user.id;
+      
+      if (!customerMap.has(userId)) {
+        customerMap.set(userId, {
+          id: userId,
+          name: booking.user.fullName,
+          email: booking.user.email,
+          phone: booking.user.phoneNumber,
+          totalBookings: 0,
+          totalSpent: 0,
+          lastBooking: null,
+          isBlocked: blockedPlayerIds.has(userId),
+          blockReason: blockedPlayers.find(b => b.playerId === userId)?.reason || null,
+        });
+      }
+
+      const customer = customerMap.get(userId);
+      customer.totalBookings++;
+      customer.totalSpent += booking.totalPrice;
+      
+      // Update last booking date
+      const bookingDate = booking.slot?.date || booking.bookingDate;
+      if (!customer.lastBooking || bookingDate > customer.lastBooking) {
+        customer.lastBooking = bookingDate;
+      }
+    });
+
+    // Convert map to array
+    const customers = Array.from(customerMap.values());
+
+    // Sort customers by totalBookings (most frequent first)
+    customers.sort((a, b) => b.totalBookings - a.totalBookings);
+
+    // Get top 10 frequent players
+    const frequentPlayers = customers.slice(0, 10);
+
+    // Calculate customer statistics
+    const totalCustomers = customers.length;
+    const activeCustomers = customers.filter(c => c.totalBookings > 1).length;
+    const totalRevenue = customers.reduce((sum, c) => sum + c.totalSpent, 0);
+
+    res.json({
+      status: "success",
+      data: {
+        customers,
+        frequentPlayers,
+        stats: {
+          totalCustomers,
+          activeCustomers,
+          totalRevenue,
+          blockedCount: blockedPlayerIds.size,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Get futsal customers error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Server error: " + error.message,
+    });
+  }
+};
+
+/**
+ * Get revenue summary for different periods
+ * @route   GET /api/owner/analytics/revenue-summary?futsalId=1
+ */
+export const getRevenueSummary = async (req, res) => {
+  try {
+    const { futsalId } = req.query;
+
+    if (!futsalId) {
+      return res.status(400).json({
+        status: "error",
+        message: "Please provide futsal ID",
+      });
+    }
+
+    // Verify ownership
+    const futsal = await prisma.futsal.findFirst({
+      where: {
+        id: parseInt(futsalId),
+        ownerId: req.user.id,
+      },
+    });
+
+    if (!futsal) {
+      return res.status(404).json({
+        status: "error",
+        message: "Futsal not found or you do not have permission",
+      });
+    }
+
+    // Date ranges
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const weekAgo = new Date(today);
+    weekAgo.setDate(today.getDate() - 7);
+    
+    const monthAgo = new Date(today);
+    monthAgo.setMonth(today.getMonth() - 1);
+    
+    const yearAgo = new Date(today);
+    yearAgo.setFullYear(today.getFullYear() - 1);
+
+    // Get all revenues in parallel
+    const [todayRevenue, weekRevenue, monthRevenue, yearRevenue, allTimeRevenue] = await Promise.all([
+      prisma.booking.aggregate({
+        where: {
+          slot: { court: { futsalId: parseInt(futsalId) } },
+          status: { in: ["CONFIRMED", "COMPLETED"] },
+          bookingDate: { gte: today },
+        },
+        _sum: { totalPrice: true },
+      }),
+      prisma.booking.aggregate({
+        where: {
+          slot: { court: { futsalId: parseInt(futsalId) } },
+          status: { in: ["CONFIRMED", "COMPLETED"] },
+          bookingDate: { gte: weekAgo },
+        },
+        _sum: { totalPrice: true },
+      }),
+      prisma.booking.aggregate({
+        where: {
+          slot: { court: { futsalId: parseInt(futsalId) } },
+          status: { in: ["CONFIRMED", "COMPLETED"] },
+          bookingDate: { gte: monthAgo },
+        },
+        _sum: { totalPrice: true },
+      }),
+      prisma.booking.aggregate({
+        where: {
+          slot: { court: { futsalId: parseInt(futsalId) } },
+          status: { in: ["CONFIRMED", "COMPLETED"] },
+          bookingDate: { gte: yearAgo },
+        },
+        _sum: { totalPrice: true },
+      }),
+      prisma.booking.aggregate({
+        where: {
+          slot: { court: { futsalId: parseInt(futsalId) } },
+          status: { in: ["CONFIRMED", "COMPLETED"] },
+        },
+        _sum: { totalPrice: true },
+      }),
+    ]);
+
+    res.json({
+      status: "success",
+      data: {
+        today: todayRevenue._sum?.totalPrice || 0,
+        thisWeek: weekRevenue._sum?.totalPrice || 0,
+        thisMonth: monthRevenue._sum?.totalPrice || 0,
+        thisYear: yearRevenue._sum?.totalPrice || 0,
+        allTime: allTimeRevenue._sum?.totalPrice || 0,
+      },
+    });
+  } catch (error) {
+    console.error("Get revenue summary error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Server error: " + error.message,
+    });
+  }
+};
+
+/**
+ * Get performance metrics like completion rate and average booking value
+ * @route   GET /api/owner/analytics/performance-metrics?futsalId=1
+ */
+export const getPerformanceMetrics = async (req, res) => {
+  try {
+    const { futsalId } = req.query;
+
+    if (!futsalId) {
+      return res.status(400).json({
+        status: "error",
+        message: "Please provide futsal ID",
+      });
+    }
+
+    // Verify ownership
+    const futsal = await prisma.futsal.findFirst({
+      where: {
+        id: parseInt(futsalId),
+        ownerId: req.user.id,
+      },
+    });
+
+    if (!futsal) {
+      return res.status(404).json({
+        status: "error",
+        message: "Futsal not found or you do not have permission",
+      });
+    }
+
+    // Get all bookings
+    const allBookings = await prisma.booking.findMany({
+      where: {
+        slot: { court: { futsalId: parseInt(futsalId) } },
+      },
+      select: {
+        status: true,
+        totalPrice: true,
+      },
+    });
+
+    const total = allBookings.length;
+    const completed = allBookings.filter(b => b.status === "COMPLETED").length;
+    const cancelled = allBookings.filter(b => b.status === "CANCELLED").length;
+    const confirmed = allBookings.filter(b => b.status === "CONFIRMED").length;
+    const pending = allBookings.filter(b => b.status === "PENDING").length;
+
+    const totalRevenue = allBookings
+      .filter(b => b.status === "COMPLETED" || b.status === "CONFIRMED")
+      .reduce((sum, b) => sum + b.totalPrice, 0);
+
+    const completedRevenue = allBookings
+      .filter(b => b.status === "COMPLETED")
+      .reduce((sum, b) => sum + b.totalPrice, 0);
+
+    res.json({
+      status: "success",
+      data: {
+        completionRate: total > 0 ? ((completed / total) * 100).toFixed(1) : 0,
+        cancellationRate: total > 0 ? ((cancelled / total) * 100).toFixed(1) : 0,
+        averageBookingValue: completed > 0 ? (completedRevenue / completed).toFixed(0) : 0,
+        totalBookings: total,
+        completedBookings: completed,
+        cancelledBookings: cancelled,
+        pendingBookings: pending,
+        confirmedBookings: confirmed,
+      },
+    });
+  } catch (error) {
+    console.error("Get performance metrics error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Server error: " + error.message,
+    });
+  }
+};
+
+/**
+ * Get monthly revenue breakdown for charts
+ * @route   GET /api/owner/analytics/monthly-revenue?futsalId=1&months=6
+ */
+export const getMonthlyRevenue = async (req, res) => {
+  try {
+    const { futsalId, months = 6 } = req.query;
+
+    if (!futsalId) {
+      return res.status(400).json({
+        status: "error",
+        message: "Please provide futsal ID",
+      });
+    }
+
+    // Verify ownership
+    const futsal = await prisma.futsal.findFirst({
+      where: {
+        id: parseInt(futsalId),
+        ownerId: req.user.id,
+      },
+    });
+
+    if (!futsal) {
+      return res.status(404).json({
+        status: "error",
+        message: "Futsal not found or you do not have permission",
+      });
+    }
+
+    const monthlyData = [];
+    const now = new Date();
+    const monthsCount = parseInt(months);
+
+    for (let i = monthsCount - 1; i >= 0; i--) {
+      const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+
+      const [revenue, bookingCount] = await Promise.all([
+        prisma.booking.aggregate({
+          where: {
+            slot: { court: { futsalId: parseInt(futsalId) } },
+            status: { in: ["CONFIRMED", "COMPLETED"] },
+            bookingDate: { gte: start, lt: end },
+          },
+          _sum: { totalPrice: true },
+        }),
+        prisma.booking.count({
+          where: {
+            slot: { court: { futsalId: parseInt(futsalId) } },
+            status: { in: ["CONFIRMED", "COMPLETED"] },
+            bookingDate: { gte: start, lt: end },
+          },
+        }),
+      ]);
+
+      monthlyData.push({
+        month: start.toLocaleString('default', { month: 'short' }),
+        year: start.getFullYear(),
+        revenue: revenue._sum?.totalPrice || 0,
+        bookings: bookingCount,
+      });
+    }
+
+    res.json({
+      status: "success",
+      data: monthlyData,
+    });
+  } catch (error) {
+    console.error("Get monthly revenue error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Server error: " + error.message,
+    });
+  }
+};
+
+/**
+ * Get revenue breakdown by payment method
+ * @route   GET /api/owner/analytics/payment-breakdown?futsalId=1
+ */
+export const getPaymentBreakdown = async (req, res) => {
+  try {
+    const { futsalId } = req.query;
+
+    if (!futsalId) {
+      return res.status(400).json({
+        status: "error",
+        message: "Please provide futsal ID",
+      });
+    }
+
+    // Verify ownership
+    const futsal = await prisma.futsal.findFirst({
+      where: {
+        id: parseInt(futsalId),
+        ownerId: req.user.id,
+      },
+    });
+
+    if (!futsal) {
+      return res.status(404).json({
+        status: "error",
+        message: "Futsal not found or you do not have permission",
+      });
+    }
+
+    const paymentBreakdown = await prisma.booking.groupBy({
+      by: ['paymentMethod'],
+      where: {
+        slot: { court: { futsalId: parseInt(futsalId) } },
+        status: { in: ["CONFIRMED", "COMPLETED"] },
+      },
+      _sum: { totalPrice: true },
+      _count: { id: true },
+    });
+
+    const result = {
+      COD: { revenue: 0, count: 0, percentage: 0 },
+      KHALTI: { revenue: 0, count: 0, percentage: 0 },
+    };
+
+    let totalRevenue = 0;
+    paymentBreakdown.forEach(item => {
+      result[item.paymentMethod].revenue = item._sum.totalPrice || 0;
+      result[item.paymentMethod].count = item._count.id || 0;
+      totalRevenue += item._sum.totalPrice || 0;
+    });
+
+    // Calculate percentages
+    if (totalRevenue > 0) {
+      result.COD.percentage = (result.COD.revenue / totalRevenue) * 100;
+      result.KHALTI.percentage = (result.KHALTI.revenue / totalRevenue) * 100;
+    }
+
+    res.json({
+      status: "success",
+      data: {
+        breakdown: result,
+        totalRevenue,
+      },
+    });
+  } catch (error) {
+    console.error("Get payment breakdown error:", error);
     res.status(500).json({
       status: "error",
       message: "Server error: " + error.message,

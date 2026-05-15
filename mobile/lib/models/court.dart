@@ -2,7 +2,7 @@ class Court {
   final int id;
   final int futsalId;
   final String courtNumber;
-  final String courtType; // indoor/outdoor
+  final String courtType; // 5-A-Side/6-A-Side
   final int basePrice;
   final int? peakPrice;
   final List<String> amenities;
@@ -29,11 +29,10 @@ class Court {
 
   factory Court.fromJson(Map<String, dynamic> json) {
   return Court(
-    // FIX: Handle both string and integer IDs
     id: json['id'] is String ? int.parse(json['id']) : (json['id'] ?? 0),
     futsalId: json['futsalId'] is String ? int.parse(json['futsalId']) : (json['futsalId'] ?? 0),
     courtNumber: json['courtNumber']?.toString() ?? '1',
-    courtType: json['courtType'] ?? 'indoor',
+    courtType: json['courtType'] ?? '5-A-Side',  // ✅ Changed default
     basePrice: json['basePrice'] ?? 0,
     peakPrice: json['peakPrice'],
     amenities: json['amenities'] != null 
@@ -70,7 +69,6 @@ class Court {
     };
   }
 
-  // Copy with method for easy updates
   Court copyWith({
     int? id,
     int? futsalId,
@@ -108,9 +106,9 @@ class Court {
   
   int get currentPrice => hasPeakPricing ? peakPrice! : basePrice;
   
-  String get courtTypeDisplay => courtType == 'indoor' ? 'Indoor' : 'Outdoor';
+  // ✅ Updated to return actual court type
+  String get courtTypeDisplay => courtType;
   
-  // Get maintenance status text
   String get maintenanceStatus {
     if (!isUnderMaintenance) return 'Available';
     if (maintenanceUntil != null) {
@@ -119,7 +117,6 @@ class Court {
     return 'Under Maintenance';
   }
 
-  // Format date helper
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
   }
@@ -138,9 +135,10 @@ extension CourtListExtension on List<Court> {
   
   List<Court> get underMaintenance => where((c) => c.isUnderMaintenance).toList();
   
-  List<Court> get indoor => where((c) => c.courtType == 'indoor').toList();
+  // ✅ Updated to use new court types
+  List<Court> get fiveASide => where((c) => c.courtType == '5-A-Side').toList();
   
-  List<Court> get outdoor => where((c) => c.courtType == 'outdoor').toList();
+  List<Court> get sixASide => where((c) => c.courtType == '6-A-Side').toList();
   
   List<Court> get withPeakPricing => where((c) => c.hasPeakPricing).toList();
   

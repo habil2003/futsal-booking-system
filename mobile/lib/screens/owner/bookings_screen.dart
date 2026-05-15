@@ -35,7 +35,7 @@ class _BookingsScreenState extends State<BookingsScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _loadBookings();
   }
 
@@ -45,12 +45,24 @@ class _BookingsScreenState extends State<BookingsScreen>
     super.dispose();
   }
 
-  Future<void> _loadBookings() async {
-    final provider = Provider.of<BookingProvider>(context, listen: false);
-    await provider.loadTodayBookings(widget.futsalId);
-    await provider.loadOwnerUpcomingBookings(widget.futsalId);
-    await provider.loadOwnerMonthBookings(widget.futsalId, _selectedDate);
-  }
+Future<void> _loadBookings() async {
+  debugPrint('🔄 LOADING ALL BOOKINGS...');
+  final provider = Provider.of<BookingProvider>(context, listen: false);
+  
+  debugPrint('🔄 Loading today bookings...');
+  await provider.loadTodayBookings(widget.futsalId);
+  
+  debugPrint('🔄 Loading upcoming bookings...');
+  await provider.loadOwnerUpcomingBookings(widget.futsalId);
+  
+  debugPrint('🔄 Loading past bookings...');  // ← Check if this prints
+  await provider.loadOwnerPastBookings(widget.futsalId);
+  
+  debugPrint('🔄 Loading month bookings...');
+  await provider.loadOwnerMonthBookings(widget.futsalId, _selectedDate);
+  
+  debugPrint('🔄 ALL BOOKINGS LOADED');
+}
 
   @override
   Widget build(BuildContext context) {
@@ -65,6 +77,7 @@ class _BookingsScreenState extends State<BookingsScreen>
           tabs: const [
             Tab(text: 'TODAY', icon: Icon(Icons.today)),
             Tab(text: 'UPCOMING', icon: Icon(Icons.calendar_month)),
+            Tab(text: 'PAST', icon: Icon(Icons.history)),
             Tab(text: 'CALENDAR', icon: Icon(Icons.calendar_view_month)),
           ],
         ),
@@ -74,11 +87,6 @@ class _BookingsScreenState extends State<BookingsScreen>
             onPressed: _loadBookings,
             tooltip: 'Refresh',
           ),
-          IconButton(
-            icon: const Icon(Icons.filter_list),
-            onPressed: _showFilterDialog,
-            tooltip: 'Filter',
-          ),
         ],
       ),
       body: TabBarView(
@@ -86,6 +94,7 @@ class _BookingsScreenState extends State<BookingsScreen>
         children: [
           _buildTodayTab(),
           _buildUpcomingTab(),
+           _buildPastTab(),
           _buildCalendarTab(),
         ],
       ),
@@ -174,6 +183,337 @@ class _BookingsScreenState extends State<BookingsScreen>
       },
     );
   }
+
+  // ============================================
+// PAST TAB (Completed & Cancelled Bookings)
+// ============================================
+Widget _buildPastTab() {
+  // Add this to load data when tab is shown
+  final provider = Provider.of<BookingProvider>(context, listen: false);
+  
+  // Load past bookings if empty
+  if (provider.ownerPastBookings.isEmpty) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      provider.loadOwnerPastBookings(widget.futsalId);
+    });
+  }
+  
+  return Consumer<BookingProvider>(
+    builder: (ctx, provider, _) {
+      debugPrint('🔍 PAST TAB BUILD: ownerPastBookings length = ${provider.ownerPastBookings.length}');
+      
+      if (provider.isLoading && provider.ownerPastBookings.isEmpty) {
+        return const Center(child: CircularProgressIndicator());
+      }
+
+      if (provider.ownerPastBookings.isEmpty) {
+        return const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.history, size: 64, color: Colors.grey),
+              SizedBox(height: 16),
+              Text(
+                'No past bookings',
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Completed and cancelled bookings will appear here',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+        );
+      }
+
+      return Column(
+        children: [
+          _buildPastHeader(provider),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: provider.ownerPastBookings.length,
+              itemBuilder: (ctx, index) {
+                final booking = provider.ownerPastBookings[index];
+                return _buildPastBookingCard(booking);
+              },
+            ),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+Widget _buildPastHeader(BookingProvider provider) {
+  final completedCount = provider.ownerPastBookings.where((b) => b.isCompleted).length;
+  final cancelledCount = provider.ownerPastBookings.where((b) => b.isCancelled).length;
+
+  return Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(16),
+    color: Colors.grey.shade50,
+    child: Row(
+      children: [
+        Icon(Icons.history, color: Colors.grey.shade700, size: 16),
+        const SizedBox(width: 8),
+        Text(
+          'Past Bookings',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        const Spacer(),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.green.shade100,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            'Completed: $completedCount',
+            style: TextStyle(fontSize: 12, color: Colors.green.shade700),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.red.shade100,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            'Cancelled: $cancelledCount',
+            style: TextStyle(fontSize: 12, color: Colors.red.shade700),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _buildPastBookingCard(Booking booking) {
+  final isCompleted = booking.isCompleted;
+  
+  return Card(
+    margin: const EdgeInsets.only(bottom: 12),
+    elevation: 1,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Opacity(
+      opacity: isCompleted ? 1.0 : 0.7,
+      child: Column(
+        children: [
+          // Status bar
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: booking.statusColor.withOpacity(0.1),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  isCompleted ? Icons.check_circle : Icons.cancel,
+                  size: 14,
+                  color: booking.statusColor,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  booking.statusText,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: booking.statusColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Spacer(),
+                // ✅ ADD PAYMENT METHOD BADGE
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: booking.paymentMethod == 'KHALTI' 
+                        ? Colors.purple.shade100 
+                        : Colors.blue.shade100,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    booking.paymentMethod,
+                    style: TextStyle(
+                      fontSize: 8,
+                      color: booking.paymentMethod == 'KHALTI' 
+                          ? Colors.purple.shade700 
+                          : Colors.blue.shade700,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                // Date badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    '${booking.date.day}/${booking.date.month}/${booking.date.year}',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Main content
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Time column
+                Container(
+                  width: 60,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        booking.startTime,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      const Text('to', style: TextStyle(fontSize: 8, color: Colors.grey)),
+                      Text(
+                        booking.endTime,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(width: 12),
+
+                // Customer details
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        booking.customerName ?? 'Guest Customer',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (booking.customerPhone != null) ...[
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            const Icon(Icons.phone, size: 12, color: Colors.grey),
+                            const SizedBox(width: 4),
+                            Text(
+                              booking.customerPhone!,
+                              style: const TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade100,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'Court ${booking.courtNumber}',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.blue.shade700,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.shade100,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              booking.duration,
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.orange.shade700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Price
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      'रू ${booking.totalAmount}',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: booking.isPaid ? Colors.green : Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    if (booking.isPaid)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade100,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'PAID',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.green.shade700,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
 
   // ============================================
   // CALENDAR TAB
@@ -395,6 +735,9 @@ class _BookingsScreenState extends State<BookingsScreen>
   // ============================================
   Future<void> _checkInCustomer(
       Booking booking, BookingProvider provider) async {
+    print('🟢 CHECK IN clicked for booking: ${booking.id}');
+    print('   Current status: ${booking.bookingStatus}');
+    print('   Payment method: ${booking.paymentMethod}');
     final confirmed = await BookingActionDialog.show(
       context: context,
       title: 'Check In Customer',
@@ -406,6 +749,7 @@ class _BookingsScreenState extends State<BookingsScreen>
     _showLoading();
     final response =
         await provider.checkInCustomer(booking.id, widget.futsalId);
+    print('🟢 Check in response: $response');
     _hideLoadingAndShowResult(response);
   }
 
@@ -561,47 +905,5 @@ class _BookingsScreenState extends State<BookingsScreen>
     if (response['status'] == 'success') {
       _loadBookings();
     }
-  }
-
-  void _showFilterDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Filter Bookings'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            DropdownButtonFormField(
-              value: _selectedStatus,
-              hint: const Text('All Status'),
-              items: const [
-                DropdownMenuItem(value: null, child: Text('All Status')),
-                DropdownMenuItem(value: 'confirmed', child: Text('Confirmed')),
-                DropdownMenuItem(
-                    value: 'checked_in', child: Text('Checked In')),
-                DropdownMenuItem(value: 'completed', child: Text('Completed')),
-                DropdownMenuItem(value: 'cancelled', child: Text('Cancelled')),
-              ],
-              onChanged: (value) {
-                setState(() => _selectedStatus = value);
-                Navigator.pop(ctx);
-              },
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField(
-              value: _selectedCourtId,
-              hint: const Text('All Courts'),
-              items: const [
-                DropdownMenuItem(value: null, child: Text('All Courts'))
-              ],
-              onChanged: (value) {
-                setState(() => _selectedCourtId = value);
-                Navigator.pop(ctx);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
