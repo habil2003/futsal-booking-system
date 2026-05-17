@@ -159,8 +159,6 @@ class CourtCard extends StatelessWidget {
                       // Price info
                       Row(
                         children: [
-                          const Icon(Icons.currency_rupee,
-                              size: 14, color: Colors.grey),
                           const SizedBox(width: 2),
                           Text(
                             'रू ${court.basePrice}/hr',

@@ -10,6 +10,8 @@ class BookingProvider with ChangeNotifier {
   Map<DateTime, List<Booking>> _calendarBookings = {};
   List<Booking> _selectedDateBookings = [];
 
+  List<Booking> _ownerPastBookings = [];
+
   bool isLoading = false;
   String? error;
 
@@ -22,6 +24,7 @@ class BookingProvider with ChangeNotifier {
   List<Booking> get cancelledBookings => _cancelledBookings;
   Map<DateTime, List<Booking>> get calendarBookings => _calendarBookings;
   List<Booking> get selectedDateBookings => _selectedDateBookings;
+  List<Booking> get ownerPastBookings => _ownerPastBookings;
 
   int get todayCount => _todayBookings.length;
   int get upcomingCount => _upcomingBookings.length;
@@ -72,7 +75,7 @@ class BookingProvider with ChangeNotifier {
         final bookingDate = DateTime(b.date.year, b.date.month, b.date.day);
         return b.bookingStatus.toLowerCase() == 'completed' ||
             ((b.bookingStatus.toLowerCase() == 'confirmed' ||
-              b.bookingStatus.toLowerCase() == 'pending') &&
+                    b.bookingStatus.toLowerCase() == 'pending') &&
                 bookingDate.isBefore(today));
       }).toList();
 
@@ -94,7 +97,8 @@ class BookingProvider with ChangeNotifier {
     }
   }
 
-  Future<Map<String, dynamic>> createBooking(Map<String, dynamic> bookingData) async {
+  Future<Map<String, dynamic>> createBooking(
+      Map<String, dynamic> bookingData) async {
     debugPrint('📅 BookingProvider: Creating booking');
     debugPrint('📅 Booking data: $bookingData');
 
@@ -160,7 +164,8 @@ class BookingProvider with ChangeNotifier {
   }
 
   Future<void> loadTodayBookings(int futsalId) async {
-    debugPrint('📅 BookingProvider: Loading today\'s bookings for futsal $futsalId');
+    debugPrint(
+        '📅 BookingProvider: Loading today\'s bookings for futsal $futsalId');
 
     isLoading = true;
     error = null;
@@ -182,7 +187,8 @@ class BookingProvider with ChangeNotifier {
       }
 
       _todayBookings.sort((a, b) => a.startTime.compareTo(b.startTime));
-      debugPrint('📅 BookingProvider: Loaded ${_todayBookings.length} today\'s bookings');
+      debugPrint(
+          '📅 BookingProvider: Loaded ${_todayBookings.length} today\'s bookings');
 
       isLoading = false;
       notifyListeners();
@@ -195,7 +201,8 @@ class BookingProvider with ChangeNotifier {
   }
 
   Future<void> loadOwnerUpcomingBookings(int futsalId) async {
-    debugPrint('📅 BookingProvider: Loading upcoming bookings for futsal $futsalId');
+    debugPrint(
+        '📅 BookingProvider: Loading upcoming bookings for futsal $futsalId');
 
     try {
       final response = await ApiService.getOwnerUpcomingBookings(futsalId);
@@ -216,7 +223,8 @@ class BookingProvider with ChangeNotifier {
         return a.startTime.compareTo(b.startTime);
       });
 
-      debugPrint('📅 BookingProvider: Loaded ${_upcomingBookings.length} upcoming bookings');
+      debugPrint(
+          '📅 BookingProvider: Loaded ${_upcomingBookings.length} upcoming bookings');
 
       notifyListeners();
     } catch (e) {
@@ -225,13 +233,15 @@ class BookingProvider with ChangeNotifier {
   }
 
   Future<void> loadOwnerMonthBookings(int futsalId, DateTime month) async {
-    debugPrint('📅 BookingProvider: Loading bookings for ${month.month}/${month.year}');
+    debugPrint(
+        '📅 BookingProvider: Loading bookings for ${month.month}/${month.year}');
 
     try {
       final year = month.year;
       final monthNum = month.month;
 
-      final response = await ApiService.getOwnerMonthBookings(futsalId, year, monthNum);
+      final response =
+          await ApiService.getOwnerMonthBookings(futsalId, year, monthNum);
 
       debugPrint('📅 Month bookings response type: ${response.runtimeType}');
 
@@ -246,18 +256,47 @@ class BookingProvider with ChangeNotifier {
 
       _calendarBookings = {};
       for (var booking in bookings) {
-        final date = DateTime(booking.date.year, booking.date.month, booking.date.day);
+        final date =
+            DateTime(booking.date.year, booking.date.month, booking.date.day);
         if (!_calendarBookings.containsKey(date)) {
           _calendarBookings[date] = [];
         }
         _calendarBookings[date]!.add(booking);
       }
 
-      debugPrint('📅 BookingProvider: Loaded ${bookings.length} bookings for month');
+      debugPrint(
+          '📅 BookingProvider: Loaded ${bookings.length} bookings for month');
 
       notifyListeners();
     } catch (e) {
       debugPrint('📅 BookingProvider Month Error: $e');
+    }
+  }
+
+  Future<void> loadOwnerPastBookings(int futsalId) async {
+    debugPrint(
+        '📅 BookingProvider: Loading owner past bookings for futsal $futsalId');
+
+    try {
+      final response = await ApiService.getOwnerPastBookings(futsalId);
+      debugPrint('📅 Past bookings response type: ${response.runtimeType}');
+
+      _ownerPastBookings = [];
+
+      if (response is List) {
+        debugPrint('📅 Response is a List with ${response.length} items');
+        _ownerPastBookings = response
+            .map((json) => Booking.fromJson(json as Map<String, dynamic>))
+            .toList();
+      }
+
+      _ownerPastBookings.sort((a, b) => b.date.compareTo(a.date));
+      debugPrint(
+          '📅 BookingProvider: Loaded ${_ownerPastBookings.length} owner past bookings');
+
+      notifyListeners();
+    } catch (e) {
+      debugPrint('📅 BookingProvider Past Error: $e');
     }
   }
 
@@ -282,46 +321,48 @@ class BookingProvider with ChangeNotifier {
   // ============================================
 
   /// Check in a customer
-  Future<Map<String, dynamic>> checkInCustomer(int bookingId, int futsalId) async {
-    try {
-      final response = await ApiService.checkInBooking(bookingId);
-      if (response['status'] == 'success') {
-        // Find the booking in local lists to know its payment method
-        final booking = _findBookingById(bookingId);
+Future<Map<String, dynamic>> checkInCustomer(int bookingId, int futsalId) async {
+  try {
+    final response = await ApiService.checkInBooking(bookingId);
+    if (response['status'] == 'success') {
+      final booking = _findBookingById(bookingId);
 
-        if (booking != null) {
-          if (booking.paymentMethod == 'COD') {
-            // COD: mark payment as PAID and booking as COMPLETED
-            await updatePaymentStatus(bookingId, 'PAID', futsalId);
-          } else {
-            // Online payment (already paid): just update booking status to COMPLETED
-            _updateBookingStatus(bookingId, (b) => b.copyWith(
-              bookingStatus: 'COMPLETED',
-              checkInTime: DateTime.now(),
-            ));
-            await loadTodayBookings(futsalId);
-          }
+      if (booking != null) {
+        if (booking.paymentMethod == 'KHALTI') {
+          // Khalti: already paid, check-in completes the booking
+          _updateBookingStatus(bookingId, (b) => b.copyWith(
+            bookingStatus: 'COMPLETED',
+            checkInTime: DateTime.now(),
+          ));
         } else {
-          // Fallback: refresh list
-          await loadTodayBookings(futsalId);
+          // COD: check-in only changes status to CONFIRMED
+          _updateBookingStatus(bookingId, (b) => b.copyWith(
+            bookingStatus: 'CONFIRMED',
+            checkInTime: DateTime.now(),
+          ));
         }
-        return response;
       }
+      await loadTodayBookings(futsalId);
       return response;
-    } catch (e) {
-      return {'status': 'error', 'message': e.toString()};
     }
+    return response;
+  } catch (e) {
+    return {'status': 'error', 'message': e.toString()};
   }
+}
 
   /// Mark as Paid (for COD bookings) – now also marks booking as COMPLETED
-  Future<Map<String, dynamic>> updatePaymentStatus(int bookingId, String status, int futsalId) async {
+  Future<Map<String, dynamic>> updatePaymentStatus(
+      int bookingId, String status, int futsalId) async {
     try {
       final response = await ApiService.confirmCodPayment(bookingId);
       if (response['status'] == 'success') {
-        _updateBookingStatus(bookingId, (b) => b.copyWith(
-          paymentStatus: 'PAID',
-          bookingStatus: 'COMPLETED',
-        ));
+        _updateBookingStatus(
+            bookingId,
+            (b) => b.copyWith(
+                  paymentStatus: 'PAID',
+                  bookingStatus: 'COMPLETED',
+                ));
         await loadTodayBookings(futsalId);
         return response;
       }
@@ -337,7 +378,13 @@ class BookingProvider with ChangeNotifier {
 
   /// Find a booking in any local list
   Booking? _findBookingById(int bookingId) {
-    for (var list in [_todayBookings, _upcomingBookings, _pastBookings, _cancelledBookings]) {
+    for (var list in [
+      _todayBookings,
+      _upcomingBookings,
+      _pastBookings,
+      _cancelledBookings,
+      _ownerPastBookings, // ← ADD THIS LINE
+    ]) {
       final index = list.indexWhere((b) => b.id == bookingId);
       if (index != -1) return list[index];
     }
@@ -354,9 +401,11 @@ class BookingProvider with ChangeNotifier {
       _todayBookings[todayIndex] = update(_todayBookings[todayIndex]);
     }
 
-    final upcomingIndex = _upcomingBookings.indexWhere((b) => b.id == bookingId);
+    final upcomingIndex =
+        _upcomingBookings.indexWhere((b) => b.id == bookingId);
     if (upcomingIndex != -1) {
-      _upcomingBookings[upcomingIndex] = update(_upcomingBookings[upcomingIndex]);
+      _upcomingBookings[upcomingIndex] =
+          update(_upcomingBookings[upcomingIndex]);
     }
 
     final pastIndex = _pastBookings.indexWhere((b) => b.id == bookingId);
@@ -364,21 +413,27 @@ class BookingProvider with ChangeNotifier {
       _pastBookings[pastIndex] = update(_pastBookings[pastIndex]);
     }
 
-    final cancelledIndex = _cancelledBookings.indexWhere((b) => b.id == bookingId);
+    final cancelledIndex =
+        _cancelledBookings.indexWhere((b) => b.id == bookingId);
     if (cancelledIndex != -1) {
-      _cancelledBookings[cancelledIndex] = update(_cancelledBookings[cancelledIndex]);
+      _cancelledBookings[cancelledIndex] =
+          update(_cancelledBookings[cancelledIndex]);
     }
 
     for (var date in _calendarBookings.keys) {
-      final calendarIndex = _calendarBookings[date]?.indexWhere((b) => b.id == bookingId);
+      final calendarIndex =
+          _calendarBookings[date]?.indexWhere((b) => b.id == bookingId);
       if (calendarIndex != null && calendarIndex != -1) {
-        _calendarBookings[date]![calendarIndex] = update(_calendarBookings[date]![calendarIndex]);
+        _calendarBookings[date]![calendarIndex] =
+            update(_calendarBookings[date]![calendarIndex]);
       }
     }
 
-    final selectedIndex = _selectedDateBookings.indexWhere((b) => b.id == bookingId);
+    final selectedIndex =
+        _selectedDateBookings.indexWhere((b) => b.id == bookingId);
     if (selectedIndex != -1) {
-      _selectedDateBookings[selectedIndex] = update(_selectedDateBookings[selectedIndex]);
+      _selectedDateBookings[selectedIndex] =
+          update(_selectedDateBookings[selectedIndex]);
     }
 
     notifyListeners();
@@ -399,6 +454,7 @@ class BookingProvider with ChangeNotifier {
     _upcomingBookings = [];
     _pastBookings = [];
     _cancelledBookings = [];
+    _ownerPastBookings = []; // ← ADD THIS LINE
     _calendarBookings = {};
     _selectedDateBookings = [];
     _currentFutsalId = null;
@@ -415,7 +471,8 @@ class BookingProvider with ChangeNotifier {
     final completed = _todayBookings.where((b) => b.isCompleted).length;
 
     final paid = _todayBookings.where((b) => b.isPaid).length;
-    final unpaid = _todayBookings.where((b) => !b.isPaid && !b.isCancelled).length;
+    final unpaid =
+        _todayBookings.where((b) => !b.isPaid && !b.isCancelled).length;
 
     return {
       'totalToday': totalToday,
@@ -429,4 +486,3 @@ class BookingProvider with ChangeNotifier {
     };
   }
 }
-

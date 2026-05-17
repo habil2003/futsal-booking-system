@@ -229,7 +229,7 @@ class _CustomersScreenState extends State<CustomersScreen>
                             Text(c['email'] ?? 'No email'),
                             const SizedBox(height: 2),
                             Text(
-                              'Bookings: ${c['totalBookings']} | Spent: ₹${c['totalSpent']}',
+                              'Bookings: ${c['totalBookings']} | Spent: रु${c['totalSpent']}',
                               style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                             ),
                           ],
@@ -291,7 +291,7 @@ class _CustomersScreenState extends State<CustomersScreen>
               c['name'] ?? 'Unknown',
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
-            subtitle: Text('${c['totalBookings']} bookings | ₹${c['totalSpent']} spent'),
+            subtitle: Text('${c['totalBookings']} bookings | रु${c['totalSpent']} spent'),
             trailing: i < 3 
                 ? const Icon(Icons.emoji_events, color: Colors.amber)
                 : null,
@@ -344,8 +344,8 @@ class _CustomersScreenState extends State<CustomersScreen>
               Expanded(
                 child: _buildStatCard(
                   title: 'Total Revenue',
-                  value: '₹${_stats['totalRevenue'] ?? 0}',
-                  icon: Icons.currency_rupee,
+                  value: 'रु${_stats['totalRevenue'] ?? 0}',
+                  icon: Icons.payments_outlined,
                   color: Colors.orange,
                 ),
               ),
@@ -408,7 +408,7 @@ class _CustomersScreenState extends State<CustomersScreen>
                         ),
                       ),
                       Text(
-                        '₹${c['totalSpent']}',
+                        'रु${c['totalSpent']}',
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ],

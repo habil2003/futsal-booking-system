@@ -186,7 +186,7 @@ class _BlockedPlayersScreenState extends State<BlockedPlayersScreen> {
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              icon: const Icon(Icons.lock_open, color: Colors.green),
               tooltip: 'Unblock',
               onPressed: () async {
                 final confirm = await showDialog<bool>(

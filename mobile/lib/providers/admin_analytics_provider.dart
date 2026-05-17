@@ -77,9 +77,8 @@ class AdminAnalyticsProvider with ChangeNotifier {
   // ------------------------------------------------------------
   Future<void> loadRevenueForRange(ChartRange range) async {
     try {
-      final data = await ApiService.getRevenueOverTime(range.name);
-      _revenueLabels[range] =
-          data.map<String>((e) => e['label'].toString()).toList();
+      final data = await ApiService.getRevenueOverTimeAdmin(range.name);
+      _revenueLabels[range] = data.map<String>((e) => e['label'].toString()).toList();
       _revenueSpots[range] = data.asMap().entries.map((e) {
         return FlSpot(e.key.toDouble(), (e.value['value'] as num).toDouble());
       }).toList();
@@ -94,9 +93,8 @@ class AdminAnalyticsProvider with ChangeNotifier {
   // ------------------------------------------------------------
   Future<void> loadBookingsForRange(ChartRange range) async {
     try {
-      final data = await ApiService.getBookingsOverTime(range.name);
-      _bookingLabels[range] =
-          data.map<String>((e) => e['label'].toString()).toList();
+      final data = await ApiService.getBookingsOverTimeAdmin(range.name);
+      _bookingLabels[range] = data.map<String>((e) => e['label'].toString()).toList();
       _bookingSpots[range] = data.asMap().entries.map((e) {
         return FlSpot(e.key.toDouble(), (e.value['value'] as num).toDouble());
       }).toList();
@@ -111,9 +109,8 @@ class AdminAnalyticsProvider with ChangeNotifier {
   // ------------------------------------------------------------
   Future<void> loadBookingStatusBreakdown() async {
     try {
-      final data = await ApiService.getBookingStatusBreakdown();
-      _bookingStatusBreakdown =
-          data.map((key, value) => MapEntry(key, value as int));
+      final data = await ApiService.getBookingStatusBreakdownAdmin();
+      _bookingStatusBreakdown = data.map((key, value) => MapEntry(key, value as int));
       notifyListeners();
     } catch (e) {
       debugPrint('Status breakdown error: $e');

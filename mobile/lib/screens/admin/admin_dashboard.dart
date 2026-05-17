@@ -531,7 +531,7 @@ class AdminDashboard extends StatelessWidget {
       {
         'title': 'Total Revenue',
         'value': 'Rs ${adminProvider.totalRevenue.toStringAsFixed(0)}',
-        'icon': Icons.attach_money_rounded,
+        'icon': Icons.payments_outlined,
         'color': Colors.red
       },
     ];

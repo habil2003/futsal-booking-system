@@ -57,7 +57,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
-            Tab(text: 'Revenue', icon: Icon(Icons.attach_money)),
+            Tab(text: 'Revenue', icon: Icon(Icons.payments)),
             Tab(text: 'Insights', icon: Icon(Icons.insights)),
             Tab(text: 'Payment Methods', icon: Icon(Icons.payment)),
           ],
@@ -165,7 +165,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
               child: _buildSummaryCard(
                 label: 'All Time',
                 value: 'रू ${provider.allTimeRevenue.toStringAsFixed(0)}',
-                icon: Icons.attach_money,
+                icon: Icons.payments_outlined,
                 color: Colors.purple,
               ),
             ),
