@@ -29,6 +29,12 @@ model User {
   isEmailVerified Boolean       @default(false)
   otp             String?
   otpExpiry       DateTime?
+
+  socialId       String?   @unique
+  socialProvider String?   // 'GOOGLE', 'FACEBOOK', 'APPLE'
+  profileImage   String?
+
+
   ownerBlocks     Block[]       @relation("OwnerBlocks")
   playerBlocks    Block[]       @relation("PlayerBlocks")
   bookings        Booking[]

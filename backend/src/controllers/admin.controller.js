@@ -140,6 +140,92 @@ export const toggleUserStatus = async (req, res, next) => {
   }
 };
 
+export const editUser = async (req, res, next) => {
+  try {
+    const userId = parseInt(req.params.id);
+    const { fullName, phoneNumber, email } = req.body;
+
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        fullName: fullName || undefined,
+        phoneNumber: phoneNumber || undefined,
+        email: email || undefined,
+      },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        phoneNumber: true,
+        role: true,
+        isActive: true,
+        isApproved: true,
+      },
+    });
+
+    res.json({ status: "success", message: "User updated successfully", data: user });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteUser = async (req, res, next) => {
+  try {
+    const userId = parseInt(req.params.id);
+
+    // Check if user exists
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return res.status(404).json({ status: "error", message: "User not found" });
+    }
+
+    // Optional: Prevent deleting your own admin account
+    if (userId === req.user.id) {
+      return res.status(400).json({ status: "error", message: "Cannot delete your own account" });
+    }
+
+    // Delete user (Prisma will cascade delete related records if schema allows)
+    await prisma.user.delete({ where: { id: userId } });
+
+    res.json({ status: "success", message: "User deleted successfully" });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const changeUserRole = async (req, res, next) => {
+  try {
+    const userId = parseInt(req.params.id);
+    const { role } = req.body; // 'PLAYER', 'OWNER', or 'ADMIN'
+
+    if (!['PLAYER', 'OWNER', 'ADMIN'].includes(role)) {
+      return res.status(400).json({ status: "error", message: "Invalid role" });
+    }
+
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: { 
+        role: role,
+        // If changing to OWNER, require approval
+        isApproved: role === 'OWNER' ? false : true,
+      },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+        isApproved: true,
+      },
+    });
+
+    res.json({ status: "success", message: "User role updated successfully", data: user });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+
 // ============================================
 // FUTSAL MANAGEMENT
 // ============================================

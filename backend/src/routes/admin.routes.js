@@ -14,7 +14,10 @@ import {
   getAllBookings,
   getAdminAnalytics,
    getAdminProfile,      // ✅ Add this
-  updateAdminProfile,   // ✅ Add this
+  updateAdminProfile,
+  editUser,
+  deleteUser,
+  changeUserRole,   // ✅ Add this
 } from "../controllers/admin.controller.js";
 
 const router = express.Router();
@@ -42,6 +45,10 @@ router.get("/analytics", authenticate, authorize("ADMIN"), getAdminAnalytics);
 /* Admin Profile */
 router.get("/profile", authenticate, authorize("ADMIN"), getAdminProfile);
 router.put("/profile", authenticate, authorize("ADMIN"), updateAdminProfile);
+
+router.patch("/users/:id/edit", authenticate, authorize("ADMIN"), editUser);
+router.delete("/users/:id", authenticate, authorize("ADMIN"), deleteUser);
+router.patch("/users/:id/change-role", authenticate, authorize("ADMIN"), changeUserRole);
 
 
 
