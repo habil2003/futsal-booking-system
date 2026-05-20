@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/auth_provider.dart';
 import '../utils/route_utils.dart';
-import 'home_screen.dart';
+// import 'home_screen.dart';
 import 'owner/owner_dashboard.dart';
 import 'admin/admin_account.dart';
-import 'login_screen.dart';
+// import 'login_screen.dart';
 import './player/home_screen.dart';
+import './onboarding_screen.dart';   
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -19,20 +21,35 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _navigateBasedOnAuth();
+    _navigateAfterSplash();
   }
 
-  Future<void> _navigateBasedOnAuth() async {
-    final auth = Provider.of<AuthProvider>(context, listen: false);
-    await auth.checkAuth();
+  Future<void> _navigateAfterSplash() async {
+    // 1. Check if onboarding has been completed
+    final prefs = await SharedPreferences.getInstance();
+    final onboardingDone = prefs.getBool('onboarding_complete') ?? false;
 
+    // Minimum splash display time
     await Future.delayed(const Duration(seconds: 2));
 
     if (!mounted) return;
 
-    if (auth.isAuthenticated) {
-      final lastRoute = await getLastRoute();
+    // 2. If onboarding not done, go there first (regardless of auth)
+    if (!onboardingDone) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+      );
+      return;
+    }
 
+    // 3. Onboarding already done – proceed with normal auth flow
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    await auth.checkAuth();
+
+    if (auth.isAuthenticated) {
+      // Restore last route if available
+      final lastRoute = await getLastRoute();
       if (lastRoute != null) {
         switch (lastRoute) {
           case '/home':
@@ -62,7 +79,7 @@ class _SplashScreenState extends State<SplashScreen> {
         }
       }
 
-      // Fallback to role‑based navigation
+      // Fallback role‑based navigation
       if (auth.isAdmin) {
         Navigator.pushReplacement(
           context,
@@ -80,9 +97,10 @@ class _SplashScreenState extends State<SplashScreen> {
         );
       }
     } else {
+      // Not logged in → go to login
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        MaterialPageRoute(builder: (_) => const OnboardingScreen()),
       );
     }
   }
