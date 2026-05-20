@@ -18,31 +18,31 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   int _currentPage = 0;
   late Timer _autoScrollTimer;
 
-  final List<OnboardingItem> _items = const [
-    OnboardingItem(
-      image: 'assets/image/maps.jpg',
-      title: 'Find Nearby Grounds',
-      description:
-          'Discover the best futsal grounds near you with real-time availability, ratings, and easy booking.',
-      fallbackIcon: Icons.search,
-      fallbackColor: Color(0xFF4CAF50),
-    ),
-    OnboardingItem(
-      image: 'assets/image/trophy.png',
-      title: 'Tournament Time 🏆',
-      description:
-          'Join tournaments, compete with top squads, and chase the trophy.',
-      fallbackIcon: Icons.emoji_events,
-      fallbackColor: Color(0xFFFF9800),
-    ),
-    OnboardingItem(
-      image: 'assets/image/play.jpg',
-      title: 'Ready to Play?',
-      description: 'Quick futsal booking at your fingertips.',
-      fallbackIcon: Icons.calendar_today,
-      fallbackColor: Color(0xFF2196F3),
-    ),
-  ];
+final List<OnboardingItem> _items = const [
+  OnboardingItem(
+    image: './image/maps.jpg',
+    title: 'Find Nearby Grounds',
+    description:
+        'Discover the best futsal grounds near you with real-time availability, ratings, and easy booking.',
+    fallbackIcon: Icons.search,
+    fallbackColor: Color(0xFF4CAF50),
+  ),
+  OnboardingItem(
+    image: './image/trophy.jpg',
+    title: 'Tournament Time 🏆',
+    description:
+        'Join tournaments, compete with top squads, and chase the trophy.',
+    fallbackIcon: Icons.emoji_events,
+    fallbackColor: Color(0xFFFF9800),
+  ),
+  OnboardingItem(
+    image: './image/play.jpg',
+    title: 'Ready to Play?',
+    description: 'Quick futsal booking at your fingertips.',
+    fallbackIcon: Icons.calendar_today,
+    fallbackColor: Color(0xFF2196F3),
+  ),
+];
 
   @override
   void initState() {

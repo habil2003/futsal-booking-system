@@ -20,6 +20,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../screens/player/futsal_details_screen.dart';
 import '../../screens/player/booking_history_screen.dart';
 import '../../screens/player/search_screen.dart';
+import '../../screens/player/tournament_screen.dart';   // adjust name if needed
 
 class PlayerHomeScreen extends StatefulWidget {
   const PlayerHomeScreen({super.key});
@@ -35,36 +36,73 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
   int _currentProductAdIndex = 0;
   late Future<List<Map<String, dynamic>>> futureProductAds;
 
-  // UI state
   String _selectedFilter = 'All';
   bool _showFilters = false;
   int _currentAdIndex = 0;
+  int _currentNavIndex = 0;       // controls which tab is displayed
 
-  // Navigation state
-  int _currentNavIndex = 0;
-
-  // Location state
   Position? _userPosition;
   bool _isGettingLocation = false;
   double _distanceRadius = 5.0;
 
-  // Data futures
   late Future<List<Map<String, dynamic>>> futureAds = _fetchAds();
-  late Future<List<Map<String, dynamic>>> futureTournaments =
-      _fetchTournaments();
+  late Future<List<Map<String, dynamic>>> futureTournaments = _fetchTournaments();
 
-  // Dynamic filters
   List<String> _filters = ['All', 'Popular'];
 
-  // ──────────────── SharedPreferences keys ────────────────
   static const _filterKey = 'home_filter';
   static const _radiusKey = 'home_radius';
   static const _showFiltersKey = 'home_show_filters';
 
+  // ─── Time‑based greeting ───
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good Morning';
+    if (hour < 16) return 'Good Afternoon';
+    if (hour < 20) return 'Good Evening';
+    return 'Good Night';
+  }
+
+  Widget _buildGreetingRow(String greeting) {
+    IconData icon;
+    switch (greeting) {
+      case 'Good Morning':
+        icon = Icons.waving_hand;
+        break;
+      case 'Good Afternoon':
+        icon = Icons.wb_sunny;
+        break;
+      case 'Good Evening':
+        icon = Icons.wb_twilight;
+        break;
+      case 'Good Night':
+        icon = Icons.bedtime;
+        break;
+      default:
+        icon = Icons.wb_sunny;
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: Colors.white70, size: 18),
+        const SizedBox(width: 6),
+        Text(
+          greeting,
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   void initState() {
     super.initState();
-    _loadFilterPreferences(); // Restore persisted filters
+    _loadFilterPreferences();
     _refreshAll();
     _startAdAutoScroll();
 
@@ -79,7 +117,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     super.dispose();
   }
 
-  // ─────────── Persistence Helpers ───────────
+  // ────────────────── Persistence ──────────────────
   Future<void> _loadFilterPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
@@ -96,16 +134,11 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     await prefs.setBool(_showFiltersKey, _showFilters);
   }
 
-  // ─────────── Auto scroll timers ───────────
   void _startAdAutoScroll() {
     Future.delayed(const Duration(seconds: 4), () {
       if (!mounted) return;
       if (_adController.hasClients) {
-        if (_currentAdIndex < 2) {
-          _currentAdIndex++;
-        } else {
-          _currentAdIndex = 0;
-        }
+        _currentAdIndex = (_currentAdIndex + 1) % 2;
         _adController.animateToPage(
           _currentAdIndex,
           duration: const Duration(milliseconds: 300),
@@ -120,11 +153,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     Future.delayed(const Duration(seconds: 5), () {
       if (!mounted) return;
       if (_productAdController.hasClients) {
-        if (_currentProductAdIndex < 2) {
-          _currentProductAdIndex++;
-        } else {
-          _currentProductAdIndex = 0;
-        }
+        _currentProductAdIndex = (_currentProductAdIndex + 1) % 3;
         _productAdController.animateToPage(
           _currentProductAdIndex,
           duration: const Duration(milliseconds: 300),
@@ -135,7 +164,6 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     });
   }
 
-  // ─────────── Data Refresh ───────────
   Future<void> _refreshAll() async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final futsalProvider = Provider.of<FutsalProvider>(context, listen: false);
@@ -159,7 +187,6 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
 
     for (var futsal in futsalProvider.futsals) {
       final courtTypes = futsal.getCourtTypes();
-      // Directly use the court types from database (5-A-Side, 6-A-Side)
       filterSet.addAll(courtTypes);
     }
 
@@ -168,41 +195,34 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     });
   }
 
-  // ─────────── Fetchers ───────────
+  // ────────────────── Data fetching ──────────────────
   Future<List<Map<String, dynamic>>> _fetchAds() async {
     final ads = await ApiService.getActiveAds();
-    return ads
-        .map((ad) => {
-              'image': ad['imageUrl'],
-              'title': ad['title'],
-              'subtitle': ad['subtitle'],
-              'cta': ad['buttonText'],
-              'color': Colors.deepPurple,
-            })
-        .toList()
-        .cast<Map<String, dynamic>>();
+    return ads.map((ad) => {
+      'image': ad['imageUrl'],
+      'title': ad['title'],
+      'subtitle': ad['subtitle'],
+      'cta': ad['buttonText'],
+      'color': Colors.deepPurple,
+    }).toList().cast<Map<String, dynamic>>();
   }
 
   Future<List<Map<String, dynamic>>> _fetchTournaments() async {
     try {
       final response = await ApiService.getList('tournaments/published');
-      return response
-          .map((t) {
-            final startDate = DateTime.parse(t['startDate']);
-            final endDate =
-                t['endDate'] != null ? DateTime.parse(t['endDate']) : null;
-            final dateStr = endDate != null
-                ? '${_monthAbbr(startDate.month)} ${startDate.day} - ${_monthAbbr(endDate.month)} ${endDate.day}'
-                : '${_monthAbbr(startDate.month)} ${startDate.day}';
-            return {
-              'name': t['name'],
-              'date': dateStr,
-              'prize': t['prizePool']?.toString() ?? 'TBA',
-              'image': t['imageUrl'] ?? 'https://picsum.photos/id/1005/200/200',
-            };
-          })
-          .toList()
-          .cast<Map<String, dynamic>>();
+      return response.map((t) {
+        final startDate = DateTime.parse(t['startDate']);
+        final endDate = t['endDate'] != null ? DateTime.parse(t['endDate']) : null;
+        final dateStr = endDate != null
+            ? '${_monthAbbr(startDate.month)} ${startDate.day} - ${_monthAbbr(endDate.month)} ${endDate.day}'
+            : '${_monthAbbr(startDate.month)} ${startDate.day}';
+        return {
+          'name': t['name'],
+          'date': dateStr,
+          'prize': t['prizePool']?.toString() ?? 'TBA',
+          'image': t['imageUrl'] ?? 'https://picsum.photos/id/1005/200/200',
+        };
+      }).toList().cast<Map<String, dynamic>>();
     } catch (e) {
       debugPrint('Error fetching tournaments: $e');
       return [];
@@ -210,20 +230,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
   }
 
   String _monthAbbr(int month) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec'
-    ];
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     return months[month - 1];
   }
 
@@ -280,10 +287,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
       if (permission == LocationPermission.deniedForever) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Location permission denied. Enable in settings.'),
-              backgroundColor: Colors.red,
-            ),
+            const SnackBar(content: Text('Location permission denied. Enable in settings.'), backgroundColor: Colors.red),
           );
         }
         return;
@@ -292,25 +296,16 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
         desiredAccuracy: LocationAccuracy.medium,
         timeLimit: const Duration(seconds: 20),
       );
-      setState(() {
-        _userPosition = position;
-      });
+      setState(() => _userPosition = position);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                'Location set! Showing futsals within $_distanceRadius km'),
-            backgroundColor: Colors.green,
-          ),
+          SnackBar(content: Text('Location set! Showing futsals within $_distanceRadius km'), backgroundColor: Colors.green),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not get location: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Could not get location: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -318,8 +313,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     }
   }
 
-  double _calculateDistance(
-      double lat1, double lng1, double lat2, double lng2) {
+  double _calculateDistance(double lat1, double lng1, double lat2, double lng2) {
     const R = 6371.0;
     final dLat = (lat2 - lat1) * math.pi / 180;
     final dLng = (lng2 - lng1) * math.pi / 180;
@@ -347,35 +341,27 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
       for (var futsal in futsals) {
         if (futsal.latitude != null && futsal.longitude != null) {
           futsal.distance = _calculateDistance(
-            _userPosition!.latitude,
-            _userPosition!.longitude,
-            futsal.latitude!,
-            futsal.longitude!,
+            _userPosition!.latitude, _userPosition!.longitude,
+            futsal.latitude!, futsal.longitude!,
           );
         }
       }
-      futsals = futsals
-          .where((f) => f.distance == null || f.distance! <= _distanceRadius)
-          .toList();
-      futsals.sort((a, b) => (a.distance ?? double.infinity)
-          .compareTo(b.distance ?? double.infinity));
+      futsals = futsals.where((f) => f.distance == null || f.distance! <= _distanceRadius).toList();
+      futsals.sort((a, b) => (a.distance ?? double.infinity).compareTo(b.distance ?? double.infinity));
     }
 
     if (_selectedFilter == 'Popular') {
-      futsals.sort(
-          (a, b) => (b.averageRating ?? 0).compareTo(a.averageRating ?? 0));
+      futsals.sort((a, b) => (b.averageRating ?? 0).compareTo(a.averageRating ?? 0));
     }
 
     return futsals;
   }
 
-  // ─────────── Navigation ───────────
   void _onBookPressed(BuildContext context, Futsal futsal) async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     if (!auth.isAuthenticated) {
       final didLogin = await Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        context, MaterialPageRoute(builder: (_) => const LoginScreen()),
       );
       if (didLogin == true) {
         _proceedToBooking(context, futsal);
@@ -389,128 +375,165 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => FutsalDetailsScreen(
-          futsal: futsal,
-          initialTabIndex: 1,
-        ),
+        builder: (context) => FutsalDetailsScreen(futsal: futsal, initialTabIndex: 1),
       ),
     );
   }
 
-  // ─────────── Main Build ───────────
+  // ────────────────── Main Build with persistent bottom nav ──────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       extendBodyBehindAppBar: true,
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Colors.green.shade900, Colors.black87],
-          ),
-        ),
-        child: SafeArea(
-          child: RefreshIndicator(
-            onRefresh: _refreshAll,
-            color: Colors.white,
-            backgroundColor: Colors.green.shade700,
-            child: CustomScrollView(
-              slivers: [
-                _buildSliverAppBar(),
-                if (_showFilters)
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: Responsive.getScreenPadding(context),
-                      child: FilterPanel(
-                        userPosition: _userPosition,
-                        isGettingLocation: _isGettingLocation,
-                        distanceRadius: _distanceRadius,
-                        onGetLocation: _getUserLocation,
-                        onDistanceChanged: (value) {
-                          setState(() => _distanceRadius = value);
-                          _saveFilterPreferences();
-                        },
-                      ),
-                    ),
-                  ),
-                SliverToBoxAdapter(child: _buildAdCarousel()),
-                SliverToBoxAdapter(child: _buildFeaturedSection()),
+      body: IndexedStack(
+        index: _currentNavIndex,
+        children: [
+          _buildHomeTab(),                // 0 – Home
+          const SearchScreen(),           // 1 – Search
+          _buildBookingsTab(),            // 2 – Bookings
+          const TournamentsScreen(),      // 3 – Tournaments
+          _buildProfileTab(),             // 4 – Profile
+        ],
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
+        backgroundColor: Colors.white,
+        selectedItemColor: Colors.green.shade700,
+        unselectedItemColor: Colors.grey.shade500,
+        showUnselectedLabels: false,
+        showSelectedLabels: false,
+        currentIndex: _currentNavIndex,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
+          BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: 'Bookings'),
+          BottomNavigationBarItem(icon: Icon(Icons.emoji_events), label: 'Tournaments'),
+          BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Profile'),
+        ],
+        onTap: (index) {
+          setState(() => _currentNavIndex = index);
+        },
+      ),
+    );
+  }
 
-                // Filter chips
+  // ─────────── Tab Builders ───────────
+  Widget _buildHomeTab() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Colors.green.shade900, Colors.black87],
+        ),
+      ),
+      child: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: _refreshAll,
+          color: Colors.white,
+          backgroundColor: Colors.green.shade700,
+          child: CustomScrollView(
+            slivers: [
+              _buildSliverAppBar(),
+              if (_showFilters)
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: FilterChips(
-                      filters: _filters,
-                      selectedFilter: _selectedFilter,
-                      onFilterSelected: (filter) {
-                        setState(() => _selectedFilter = filter);
+                    padding: Responsive.getScreenPadding(context),
+                    child: FilterPanel(
+                      userPosition: _userPosition,
+                      isGettingLocation: _isGettingLocation,
+                      distanceRadius: _distanceRadius,
+                      onGetLocation: _getUserLocation,
+                      onDistanceChanged: (value) {
+                        setState(() => _distanceRadius = value);
                         _saveFilterPreferences();
                       },
                     ),
                   ),
                 ),
-
-                // Top 6 grounds
-                SliverToBoxAdapter(
-                    child: _buildFutsalListSection('Top Grounds', maxCount: 6)),
-
-                // Tournaments
-                SliverToBoxAdapter(child: _buildTournamentsSection()),
-
-                // Next 4 grounds (skip first 6)
-                SliverToBoxAdapter(
-                    child: _buildFutsalListSection('More Grounds',
-                        maxCount: 4, skipCount: 6)),
-
-                // Product ads, action buttons, footer
-                SliverToBoxAdapter(child: _buildProductAdCarousel()),
-                SliverToBoxAdapter(child: _buildActionButtons()),
-                SliverToBoxAdapter(child: _buildFooter()),
-                SliverToBoxAdapter(child: SizedBox(height: 1)),
-              ],
-            ),
+              SliverToBoxAdapter(child: _buildAdCarousel()),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: FilterChips(
+                    filters: _filters,
+                    selectedFilter: _selectedFilter,
+                    onFilterSelected: (filter) {
+                      setState(() => _selectedFilter = filter);
+                      _saveFilterPreferences();
+                    },
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(child: _buildFutsalListSection('Top Grounds', maxCount: 6)),
+              SliverToBoxAdapter(child: _buildTournamentsSection()),
+              SliverToBoxAdapter(child: _buildFutsalListSection('More Grounds', maxCount: 4, skipCount: 6)),
+              SliverToBoxAdapter(child: _buildProductAdCarousel()),
+              SliverToBoxAdapter(child: _buildActionButtons()),
+              SliverToBoxAdapter(child: _buildFooter()),
+              SliverToBoxAdapter(child: SizedBox(height: 1)),
+            ],
           ),
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(),
     );
   }
 
-  // ─────────── Futsal Section Helper ───────────
-  Widget _buildFutsalListSection(String title,
-      {required int maxCount, int skipCount = 0}) {
-    final allFutsals = _filteredFutsals;
-    final sliced = allFutsals.skip(skipCount).take(maxCount).toList();
-
-    if (sliced.isEmpty) return const SizedBox.shrink();
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 8),
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
+  Widget _buildBookingsTab() {
+    final auth = Provider.of<AuthProvider>(context);
+    if (!auth.isAuthenticated) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.calendar_today, size: 64, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
+            Text('Please log in to view bookings', style: TextStyle(color: Colors.grey.shade600)),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                );
+              },
+              child: const Text('Login'),
             ),
-          ),
-          const SizedBox(height: 12),
-          Column(
-            children:
-                sliced.map((futsal) => _buildVendorStyleCard(futsal)).toList(),
-          ),
-        ],
-      ),
-    );
+          ],
+        ),
+      );
+    }
+    return const BookingHistoryScreen();
   }
 
-  // ─────────── Sliver App Bar ───────────
+  Widget _buildProfileTab() {
+    final auth = Provider.of<AuthProvider>(context);
+    if (!auth.isAuthenticated) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.person_outline, size: 64, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
+            Text('Please log in to view profile', style: TextStyle(color: Colors.grey.shade600)),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                );
+              },
+              child: const Text('Login'),
+            ),
+          ],
+        ),
+      );
+    }
+    return AccountSetting();
+  }
+
+  // ─────────── Sliver App Bar with Greeting ───────────
   Widget _buildSliverAppBar() {
     return SliverAppBar(
       automaticallyImplyLeading: false,
@@ -520,31 +543,45 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
       backgroundColor: Colors.transparent,
       elevation: 0,
       centerTitle: false,
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Find Your',
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 16,
-              fontWeight: FontWeight.w400,
-            ),
-          ),
-          Text(
-            'Perfect Futsal ⚽',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              height: 1.2,
-              shadows: [
-                Shadow(
-                    color: Colors.black26, blurRadius: 10, offset: Offset(0, 2))
+      title: Consumer<AuthProvider>(
+        builder: (context, auth, _) {
+          final name = auth.user?.fullName;
+          if (name != null && name.isNotEmpty) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildGreetingRow(_getGreeting()),
+                Text(
+                  name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    height: 1.2,
+                    shadows: [Shadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 2))],
+                  ),
+                ),
               ],
-            ),
-          ),
-        ],
+            );
+          } else {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Find Your', style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.w400)),
+                const Text(
+                  'Perfect Futsal ⚽',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    height: 1.2,
+                    shadows: [Shadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 2))],
+                  ),
+                ),
+              ],
+            );
+          }
+        },
       ),
       actions: [
         IconButton(
@@ -556,17 +593,13 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
             margin: const EdgeInsets.only(right: 16),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                    color: Colors.black26, blurRadius: 8, offset: Offset(0, 2))
-              ],
+              boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 2))],
             ),
             child: auth.isAuthenticated
                 ? PopupMenuButton<String>(
                     offset: Offset(0, 50),
                     color: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                     child: CircleAvatar(
                       backgroundColor: Colors.white,
                       child: Icon(Icons.person, color: Colors.green.shade700),
@@ -579,13 +612,10 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                             title: Text('Logout'),
                             content: Text('Are you sure you want to logout?'),
                             actions: [
-                              TextButton(
-                                  onPressed: () => Navigator.pop(ctx, false),
-                                  child: Text('Cancel')),
+                              TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Cancel')),
                               TextButton(
                                 onPressed: () => Navigator.pop(ctx, true),
-                                style: TextButton.styleFrom(
-                                    foregroundColor: Colors.red),
+                                style: TextButton.styleFrom(foregroundColor: Colors.red),
                                 child: Text('Logout'),
                               ),
                             ],
@@ -595,27 +625,16 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                           await auth.logout();
                           setState(() {});
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                                content: Text('Logged out successfully'),
-                                behavior: SnackBarBehavior.floating),
+                            SnackBar(content: Text('Logged out successfully'), behavior: SnackBarBehavior.floating),
                           );
                         }
                       } else if (value == 'profile') {
-                        Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => AccountSetting()));
+                        setState(() => _currentNavIndex = 4); // switch to profile tab
                       } else if (value == 'dashboard') {
                         if (auth.isOwner) {
-                          Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => const OwnerDashboard()));
+                          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const OwnerDashboard()));
                         } else if (auth.isAdmin) {
-                          Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => AdminDashboard()));
+                          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => AdminDashboard()));
                         }
                       } else if (value == 'filters') {
                         setState(() => _showFilters = !_showFilters);
@@ -627,11 +646,9 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                         value: 'filters',
                         child: Row(
                           children: [
-                            Icon(Icons.filter_list,
-                                color: Colors.grey.shade700),
+                            Icon(Icons.filter_list, color: Colors.grey.shade700),
                             SizedBox(width: 12),
-                            Text(
-                                _showFilters ? 'Hide Filters' : 'Show Filters'),
+                            Text(_showFilters ? 'Hide Filters' : 'Show Filters'),
                           ],
                         ),
                       ),
@@ -639,8 +656,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                         value: 'profile',
                         child: Row(
                           children: [
-                            Icon(Icons.person_outline,
-                                color: Colors.grey.shade700),
+                            Icon(Icons.person_outline, color: Colors.grey.shade700),
                             SizedBox(width: 12),
                             Text('My Profile'),
                           ],
@@ -651,8 +667,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                           value: 'dashboard',
                           child: Row(
                             children: [
-                              Icon(Icons.dashboard,
-                                  color: Colors.grey.shade700),
+                              Icon(Icons.dashboard, color: Colors.grey.shade700),
                               SizedBox(width: 12),
                               Text('Dashboard'),
                             ],
@@ -676,10 +691,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                     shape: CircleBorder(),
                     child: InkWell(
                       onTap: () async {
-                        await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const LoginScreen()));
+                        await Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
                         setState(() {});
                       },
                       customBorder: CircleBorder(),
@@ -702,25 +714,17 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     );
   }
 
-  // ─────────── Search Bar (tappable, opens SearchScreen) ───────────
   Widget _buildSearchBar() {
     return GestureDetector(
-      onTap: () => Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const SearchScreen()),
-      ),
+      onTap: () {
+        setState(() => _currentNavIndex = 1);   // switch to search tab instead of push
+      },
       child: Container(
         height: 48,
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(30),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 20,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, 4))],
           border: Border.all(color: Colors.white30, width: 1),
         ),
         child: Row(
@@ -731,17 +735,61 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
             Expanded(
               child: Text(
                 'Search by name or location...',
-                style: TextStyle(
-                  color: Colors.grey.shade400,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w400,
-                ),
+                style: TextStyle(color: Colors.grey.shade400, fontSize: 15, fontWeight: FontWeight.w400),
               ),
             ),
             const Icon(Icons.tune, color: Colors.grey, size: 20),
             const SizedBox(width: 16),
           ],
         ),
+      ),
+    );
+  }
+
+  // ─────────── Futsal List Section ───────────
+  Widget _buildFutsalListSection(String title, {required int maxCount, int skipCount = 0}) {
+    final allFutsals = _filteredFutsals;
+    final sliced = allFutsals.skip(skipCount).take(maxCount).toList();
+    if (sliced.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
+                TextButton(
+                  onPressed: () => setState(() => _currentNavIndex = 1),   // go to search tab
+                  child: Text('See All', style: TextStyle(color: Colors.green.shade300, fontSize: 14, fontWeight: FontWeight.w500)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 210,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: sliced.length,
+              padding: const EdgeInsets.only(right: 16),
+              itemBuilder: (context, index) {
+                return SizedBox(
+                  width: 190,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: _buildSquareFutsalCard(sliced[index]),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -764,8 +812,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
               height: 180,
               child: PageView.builder(
                 controller: _adController,
-                onPageChanged: (index) =>
-                    setState(() => _currentAdIndex = index),
+                onPageChanged: (index) => setState(() => _currentAdIndex = index),
                 itemCount: ads.length,
                 itemBuilder: (context, index) => _buildAdCard(ads[index]),
               ),
@@ -781,9 +828,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                   width: _currentAdIndex == index ? 24 : 8,
                   height: 8,
                   decoration: BoxDecoration(
-                    color: _currentAdIndex == index
-                        ? Colors.green.shade400
-                        : Colors.white38,
+                    color: _currentAdIndex == index ? Colors.green.shade400 : Colors.white38,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -812,8 +857,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
         borderRadius: BorderRadius.circular(24),
         child: Stack(
           children: [
-            Image.network(ad['image'],
-                height: 180, width: double.infinity, fit: BoxFit.cover),
+            Image.network(ad['image'], height: 180, width: double.infinity, fit: BoxFit.cover),
             Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -829,24 +873,17 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(ad['title'],
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold)),
+                  Text(ad['title'], style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
                   SizedBox(height: 6),
-                  Text(ad['subtitle'],
-                      style: TextStyle(color: Colors.white70, fontSize: 14)),
+                  Text(ad['subtitle'], style: TextStyle(color: Colors.white70, fontSize: 14)),
                   SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: () {},
                     style: ElevatedButton.styleFrom(
                       backgroundColor: ad['color'] ?? Colors.green,
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20)),
-                      padding:
-                          EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                     ),
                     child: Text(ad['cta']),
                   ),
@@ -870,7 +907,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     );
   }
 
-  // ─────────── Featured Section ───────────
+  // ─────────── Featured Section (inactive) ───────────
   Widget _buildFeaturedSection() {
     return Consumer<FutsalProvider>(
       builder: (context, provider, _) {
@@ -889,17 +926,10 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    '✨ Featured Grounds',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600),
-                  ),
+                  Text('✨ Featured Grounds', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
                   TextButton(
                     onPressed: () {},
-                    child: Text('See All',
-                        style: TextStyle(color: Colors.green.shade300)),
+                    child: Text('See All', style: TextStyle(color: Colors.green.shade300)),
                   ),
                 ],
               ),
@@ -910,8 +940,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 itemCount: featured.length,
-                itemBuilder: (context, index) =>
-                    _buildFeaturedCard(featured[index]),
+                itemBuilder: (context, index) => _buildFeaturedCard(featured[index]),
               ),
             ),
           ],
@@ -921,9 +950,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
   }
 
   Widget _buildFeaturedCard(Futsal futsal) {
-    final imageUrl = futsal.images.isNotEmpty
-        ? futsal.images[0]
-        : 'https://via.placeholder.com/300x200?text=Futsal';
+    final imageUrl = futsal.images.isNotEmpty ? futsal.images[0] : 'https://via.placeholder.com/300x200?text=Futsal';
     return Hero(
       tag: 'featured-${futsal.id}',
       child: Material(
@@ -937,10 +964,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                    color: Colors.black26, blurRadius: 8, offset: Offset(0, 4))
-              ],
+              boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 4))],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -949,10 +973,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                   borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                   child: Stack(
                     children: [
-                      Image.network(imageUrl,
-                          height: 120,
-                          width: double.infinity,
-                          fit: BoxFit.cover),
+                      Image.network(imageUrl, height: 120, width: double.infinity, fit: BoxFit.cover),
                       Positioned(
                         top: 8,
                         right: 8,
@@ -961,44 +982,28 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                             final isFav = favProvider.isFavorite(futsal.id);
                             return Container(
                               padding: EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: Colors.black54,
-                                shape: BoxShape.circle,
-                              ),
+                              decoration: BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
                               child: InkWell(
                                 onTap: () async {
-                                  final auth = Provider.of<AuthProvider>(
-                                      context,
-                                      listen: false);
+                                  final auth = Provider.of<AuthProvider>(context, listen: false);
                                   if (!auth.isAuthenticated) {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                          content: Text(
-                                              'Please log in to save favorites'),
-                                          backgroundColor: Colors.orange),
+                                      const SnackBar(content: Text('Please log in to save favorites'), backgroundColor: Colors.orange),
                                     );
                                     return;
                                   }
-                                  final success = await favProvider
-                                      .toggleFavorite(futsal.id);
+                                  final success = await favProvider.toggleFavorite(futsal.id);
                                   if (success && context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
-                                        content: Text(isFav
-                                            ? 'Removed from favorites'
-                                            : 'Added to favorites'),
+                                        content: Text(isFav ? 'Removed from favorites' : 'Added to favorites'),
                                         backgroundColor: Colors.green,
                                         duration: const Duration(seconds: 1),
                                       ),
                                     );
                                   }
                                 },
-                                child: Icon(
-                                    isFav
-                                        ? Icons.favorite
-                                        : Icons.favorite_border,
-                                    color: isFav ? Colors.red : Colors.white,
-                                    size: 16),
+                                child: Icon(isFav ? Icons.favorite : Icons.favorite_border, color: isFav ? Colors.red : Colors.white, size: 16),
                               ),
                             );
                           },
@@ -1012,25 +1017,14 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(futsal.name,
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 16),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
+                      Text(futsal.name, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16), maxLines: 1, overflow: TextOverflow.ellipsis),
                       SizedBox(height: 4),
                       Row(
                         children: [
-                          Icon(Icons.location_on,
-                              size: 14, color: Colors.grey.shade600),
+                          Icon(Icons.location_on, size: 14, color: Colors.grey.shade600),
                           SizedBox(width: 4),
                           Expanded(
-                            child: Text(
-                              futsal.address.split(',').first,
-                              style: TextStyle(
-                                  fontSize: 12, color: Colors.grey.shade600),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                            child: Text(futsal.address.split(',').first, style: TextStyle(fontSize: 12, color: Colors.grey.shade600), maxLines: 1, overflow: TextOverflow.ellipsis),
                           ),
                         ],
                       ),
@@ -1039,20 +1033,11 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                         children: [
                           Icon(Icons.star, size: 14, color: Colors.amber),
                           SizedBox(width: 4),
-                          Text(
-                            futsal.averageRating?.toStringAsFixed(1) ?? '4.5',
-                            style: TextStyle(
-                                fontSize: 12, fontWeight: FontWeight.w600),
-                          ),
+                          Text(futsal.averageRating?.toStringAsFixed(1) ?? '4.5', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                           Spacer(),
                           Text(
-                            futsal.getMinPrice() != null
-                                ? 'Rs. ${futsal.getMinPrice()!.toStringAsFixed(0)}/hr'
-                                : '',
-                            style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.green.shade700),
+                            futsal.getMinPrice() != null ? 'Rs. ${futsal.getMinPrice()!.toStringAsFixed(0)}/hr' : '',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.green.shade700),
                           ),
                         ],
                       ),
@@ -1087,17 +1072,10 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    '🏆 Upcoming Tournaments',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600),
-                  ),
+                  Text('🏆 Upcoming Tournaments', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
                   TextButton(
-                    onPressed: () {},
-                    child: Text('View All',
-                        style: TextStyle(color: Colors.green.shade300)),
+                    onPressed: () => setState(() => _currentNavIndex = 3),   // go to tournaments tab
+                    child: Text('View All', style: TextStyle(color: Colors.green.shade300)),
                   ),
                 ],
               ),
@@ -1115,18 +1093,11 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                     margin: const EdgeInsets.only(right: 16, bottom: 8),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [
-                          Colors.deepPurple.shade400,
-                          Colors.purple.shade900
-                        ],
+                        colors: [Colors.deepPurple.shade400, Colors.purple.shade900],
                       ),
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
-                        BoxShadow(
-                          color: Colors.purple.withOpacity(0.3),
-                          blurRadius: 10,
-                          offset: Offset(0, 4),
-                        )
+                        BoxShadow(color: Colors.purple.withOpacity(0.3), blurRadius: 10, offset: Offset(0, 4))
                       ],
                     ),
                     child: Stack(
@@ -1134,37 +1105,28 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                         Positioned(
                           right: -20,
                           bottom: -20,
-                          child: Icon(Icons.emoji_events,
-                              size: 100, color: Colors.white.withOpacity(0.1)),
+                          child: Icon(Icons.emoji_events, size: 100, color: Colors.white.withOpacity(0.1)),
                         ),
                         Padding(
                           padding: const EdgeInsets.all(16),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(t['name'],
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold)),
+                              Text(t['name'], style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                               SizedBox(height: 4),
                               Row(
                                 children: [
-                                  Icon(Icons.calendar_today,
-                                      size: 14, color: Colors.white70),
+                                  Icon(Icons.calendar_today, size: 14, color: Colors.white70),
                                   SizedBox(width: 6),
-                                  Text(t['date'],
-                                      style: TextStyle(color: Colors.white70)),
+                                  Text(t['date'], style: TextStyle(color: Colors.white70)),
                                 ],
                               ),
                               SizedBox(height: 4),
                               Row(
                                 children: [
-                                  Icon(Icons.emoji_events,
-                                      size: 14, color: Colors.amber),
+                                  Icon(Icons.emoji_events, size: 14, color: Colors.amber),
                                   SizedBox(width: 6),
-                                  Text('Prize: ${t['prize']}',
-                                      style: TextStyle(color: Colors.white70)),
+                                  Text('Prize: ${t['prize']}', style: TextStyle(color: Colors.white70)),
                                 ],
                               ),
                               Spacer(),
@@ -1173,8 +1135,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.white,
                                   foregroundColor: Colors.purple,
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(20)),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                                 ),
                                 child: Text('Register'),
                               ),
@@ -1202,16 +1163,12 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
           Container(width: 150, height: 20, color: Colors.grey.shade800),
           SizedBox(height: 12),
           Row(
-            children: List.generate(
-                3,
-                (index) => Container(
-                      width: 200,
-                      height: 180,
-                      margin: EdgeInsets.only(right: 16),
-                      decoration: BoxDecoration(
-                          color: Colors.grey.shade800,
-                          borderRadius: BorderRadius.circular(20)),
-                    )),
+            children: List.generate(3, (index) => Container(
+                  width: 200,
+                  height: 180,
+                  margin: EdgeInsets.only(right: 16),
+                  decoration: BoxDecoration(color: Colors.grey.shade800, borderRadius: BorderRadius.circular(20)),
+                )),
           ),
         ],
       ),
@@ -1235,15 +1192,13 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
         final maxHeight = 180.0;
         final minHeight = 130.0;
         final height = bannerHeight.clamp(minHeight, maxHeight);
-
         return Column(
           children: [
             SizedBox(
               height: height,
               child: PageView.builder(
                 controller: _productAdController,
-                onPageChanged: (index) =>
-                    setState(() => _currentProductAdIndex = index),
+                onPageChanged: (index) => setState(() => _currentProductAdIndex = index),
                 itemCount: ads.length,
                 itemBuilder: (context, index) {
                   final ad = ads[index];
@@ -1262,9 +1217,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                   width: _currentProductAdIndex == index ? 24 : 8,
                   height: 8,
                   decoration: BoxDecoration(
-                    color: _currentProductAdIndex == index
-                        ? Colors.amber.shade400
-                        : Colors.white38,
+                    color: _currentProductAdIndex == index ? Colors.amber.shade400 : Colors.white38,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -1289,11 +1242,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
           ),
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
-            BoxShadow(
-              color: Colors.black38,
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
+            BoxShadow(color: Colors.black38, blurRadius: 10, offset: const Offset(0, 4)),
           ],
         ),
         child: Material(
@@ -1334,9 +1283,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                           fontSize: height * 0.08,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 1.5,
-                          shadows: [
-                            Shadow(color: Colors.black26, blurRadius: 4)
-                          ],
+                          shadows: [Shadow(color: Colors.black26, blurRadius: 4)],
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -1346,9 +1293,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                           color: Colors.white,
                           fontSize: height * 0.14,
                           fontWeight: FontWeight.bold,
-                          shadows: [
-                            Shadow(color: Colors.black38, blurRadius: 6)
-                          ],
+                          shadows: [Shadow(color: Colors.black38, blurRadius: 6)],
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -1357,9 +1302,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                         style: TextStyle(
                           color: Colors.white70,
                           fontSize: height * 0.09,
-                          shadows: [
-                            Shadow(color: Colors.black26, blurRadius: 4)
-                          ],
+                          shadows: [Shadow(color: Colors.black26, blurRadius: 4)],
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -1368,17 +1311,13 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                         style: ElevatedButton.styleFrom(
                           backgroundColor: ad['buttonColor'],
                           foregroundColor: Colors.black,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                           padding: EdgeInsets.symmetric(
                             horizontal: height * 0.12,
                             vertical: height * 0.05,
                           ),
                         ),
-                        child: Text(
-                          ad['buttonText'],
-                          style: TextStyle(fontSize: height * 0.08),
-                        ),
+                        child: Text(ad['buttonText'], style: TextStyle(fontSize: height * 0.08)),
                       ),
                     ],
                   ),
@@ -1422,35 +1361,22 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     return Consumer<AuthProvider>(
       builder: (context, auth, _) {
         if (auth.isAuthenticated) return const SizedBox.shrink();
-
         final isDesktop = Responsive.isDesktop(context);
         final buttonPadding = EdgeInsets.symmetric(
           horizontal: isDesktop ? 24 : 16,
           vertical: isDesktop ? 16 : 12,
         );
-
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
           child: Column(
             children: [
               const Divider(color: Colors.white24, thickness: 1),
               const SizedBox(height: 20),
-              Text(
-                'Ready to get started?',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: isDesktop ? 20 : 18,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              Text('Ready to get started?',
+                  style: TextStyle(color: Colors.white, fontSize: isDesktop ? 20 : 18, fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),
-              Text(
-                'Login to book or register your futsal',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: isDesktop ? 14 : 12,
-                ),
-              ),
+              Text('Login to book or register your futsal',
+                  style: TextStyle(color: Colors.white70, fontSize: isDesktop ? 14 : 12)),
               const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -1462,8 +1388,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                         MaterialPageRoute(
                           builder: (_) => const LoginScreen(),
                           settings: const RouteSettings(
-                            arguments: LoginScreenArguments(
-                                isLogin: true, selectedRole: 'PLAYER'),
+                            arguments: LoginScreenArguments(isLogin: true, selectedRole: 'PLAYER'),
                           ),
                         ),
                       );
@@ -1474,8 +1399,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                       backgroundColor: Colors.green.shade600,
                       foregroundColor: Colors.white,
                       padding: buttonPadding,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -1486,8 +1410,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                         MaterialPageRoute(
                           builder: (_) => const LoginScreen(),
                           settings: RouteSettings(
-                            arguments: LoginScreenArguments(
-                                isLogin: false, selectedRole: 'OWNER'),
+                            arguments: LoginScreenArguments(isLogin: false, selectedRole: 'OWNER'),
                           ),
                         ),
                       );
@@ -1498,8 +1421,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                       foregroundColor: Colors.white,
                       side: const BorderSide(color: Colors.white),
                       padding: buttonPadding,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                     ),
                   ),
                 ],
@@ -1517,7 +1439,6 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     final isDesktop = Responsive.isDesktop(context);
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 600;
-
     return Container(
       width: double.infinity,
       padding: EdgeInsets.symmetric(
@@ -1552,20 +1473,14 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                 children: [
                   Icon(Icons.sports_soccer, color: Colors.white, size: 28),
                   const SizedBox(width: 8),
-                  Text(
-                    'Futsal Booking',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold),
-                  ),
+                  Text('Futsal Booking',
+                      style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
                 ],
               ),
               const SizedBox(height: 16),
               Text(
-                'Your one-stop platform for booking futsal grounds, managing tournaments, and connecting with players. We make finding and reserving your perfect pitch easy and hassle-free.',
-                style:
-                    TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
+                'Your one-stop platform for booking futsal grounds, managing tournaments, and connecting with players.',
+                style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
               ),
               const SizedBox(height: 20),
               Row(
@@ -1585,11 +1500,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Quick Links',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold)),
+              Text('Quick Links', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
               _buildFooterLink('About Us'),
               _buildFooterLink('How It Works'),
@@ -1603,11 +1514,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Services',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold)),
+              Text('Services', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
               _buildFooterLink('Book a Ground'),
               _buildFooterLink('Tournaments'),
@@ -1621,14 +1528,9 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Contact Us',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold)),
+              Text('Contact Us', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
-              _buildContactItem(
-                  Icons.email_outlined, 'support@futsalbooking.com'),
+              _buildContactItem(Icons.email_outlined, 'support@futsalbooking.com'),
               const SizedBox(height: 8),
               _buildContactItem(Icons.phone_outlined, '+977 980-0000000'),
               const SizedBox(height: 8),
@@ -1648,11 +1550,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
           children: [
             Icon(Icons.sports_soccer, color: Colors.white, size: 24),
             const SizedBox(width: 8),
-            Text('Futsal Booking',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold)),
+            Text('Futsal Booking', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
           ],
         ),
         const SizedBox(height: 12),
@@ -1719,10 +1617,8 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     return Padding(
       padding: const EdgeInsets.only(bottom: 1),
       child: InkWell(
-        onTap: () => ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$text page coming soon'))),
-        child:
-            Text(text, style: TextStyle(color: Colors.white70, fontSize: 14)),
+        onTap: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$text page coming soon'))),
+        child: Text(text, style: TextStyle(color: Colors.white70, fontSize: 14)),
       ),
     );
   }
@@ -1739,89 +1635,20 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
 
   Widget _buildSocialIcon(IconData icon, String platform) {
     return InkWell(
-      onTap: () => ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('$platform link coming soon'))),
+      onTap: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$platform link coming soon'))),
       child: Container(
         padding: const EdgeInsets.all(8),
-        decoration:
-            BoxDecoration(color: Colors.white10, shape: BoxShape.circle),
+        decoration: BoxDecoration(color: Colors.white10, shape: BoxShape.circle),
         child: Icon(icon, color: Colors.white70, size: 20),
       ),
     );
   }
 
-  // ─────────── Bottom Navigation ───────────
-  Widget _buildBottomNav() {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(30),
-        boxShadow: [
-          BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 4))
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(30),
-        child: BottomNavigationBar(
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: Colors.white,
-          selectedItemColor: Colors.green.shade700,
-          unselectedItemColor: Colors.grey.shade500,
-          showUnselectedLabels: false,
-          showSelectedLabels: false,
-          currentIndex: _currentNavIndex,
-          items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-            BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
-            BottomNavigationBarItem(
-                icon: Icon(Icons.calendar_today), label: 'Bookings'),
-            BottomNavigationBarItem(
-                icon: Icon(Icons.person_outline), label: 'Profile'),
-          ],
-          onTap: (index) {
-            setState(() => _currentNavIndex = index);
-            switch (index) {
-              case 0:
-                break;
-              case 1:
-                Navigator.pushReplacement(context,
-                    MaterialPageRoute(builder: (_) => const SearchScreen()));
-                break;
-              case 2:
-                final auth = Provider.of<AuthProvider>(context, listen: false);
-                if (auth.isAuthenticated) {
-                  Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const BookingHistoryScreen()));
-                } else {
-                  Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const LoginScreen()));
-                }
-                break;
-              case 3:
-                final auth = Provider.of<AuthProvider>(context, listen: false);
-                if (auth.isAuthenticated) {
-                  Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => AccountSetting()));
-                } else {
-                  Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const LoginScreen()));
-                }
-                break;
-            }
-          },
-        ),
-      ),
-    );
-  }
-
-  // ─────────── Vendor Style Card (used in Top/More Grounds) ───────────
-  Widget _buildVendorStyleCard(Futsal futsal) {
+  // ─────────── Square Futsal Card (horizontal slider) ───────────
+  Widget _buildSquareFutsalCard(Futsal futsal) {
     final imageUrl = futsal.images.isNotEmpty
         ? futsal.images[0]
-        : 'https://via.placeholder.com/300x180?text=Futsal';
+        : 'https://via.placeholder.com/300x200?text=Futsal';
     final rating = futsal.averageRating ?? 4.5;
     final price = futsal.getMinPrice();
 
@@ -1829,61 +1656,52 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
       onTap: () => _onBookPressed(context, futsal),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.06),
+              color: Colors.black.withOpacity(0.08),
               blurRadius: 8,
               offset: const Offset(0, 3),
             ),
           ],
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
               child: Image.network(
                 imageUrl,
-                width: 100,
-                height: 100,
+                height: 110,
+                width: double.infinity,
                 fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) => Container(
-                  width: 100,
-                  height: 100,
+                  height: 110,
                   color: Colors.green.shade50,
-                  child: const Icon(Icons.sports_soccer,
-                      color: Colors.green, size: 40),
+                  child: const Icon(Icons.sports_soccer, color: Colors.green, size: 40),
                 ),
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    futsal.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  Text(futsal.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      Icon(Icons.location_on,
-                          size: 14, color: Colors.grey.shade500),
+                      const Icon(Icons.location_on, size: 12, color: Colors.grey),
                       const SizedBox(width: 2),
                       Expanded(
                         child: Text(
-                          futsal.address,
-                          style: TextStyle(
-                              fontSize: 12, color: Colors.grey.shade600),
+                          futsal.address.split(',').first,
+                          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -1893,80 +1711,19 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      ...List.generate(
-                        5,
-                        (i) => Icon(
-                          i < rating.round() ? Icons.star : Icons.star_border,
-                          size: 14,
-                          color: Colors.amber,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
+                      const Icon(Icons.star, size: 14, color: Colors.amber),
+                      const SizedBox(width: 2),
+                      Text(rating.toStringAsFixed(1),
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                      const Spacer(),
                       Text(
-                        rating.toStringAsFixed(1),
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        '(1,099)',
-                        style: TextStyle(
-                            fontSize: 12, color: Colors.grey.shade500),
+                        price != null ? 'Rs. ${price.toStringAsFixed(0)}/hr' : 'Price varies',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.green.shade700),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    price != null
-                        ? 'From Rs. ${price.toStringAsFixed(0)}/hr'
-                        : 'Price varies',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.green.shade700,
-                    ),
-                  ),
                 ],
               ),
-            ),
-            Consumer<FavoriteProvider>(
-              builder: (context, favProvider, child) {
-                final isFav = favProvider.isFavorite(futsal.id);
-                return IconButton(
-                  icon: Icon(
-                    isFav ? Icons.bookmark : Icons.bookmark_border,
-                    color: isFav ? Colors.green.shade700 : Colors.grey.shade400,
-                    size: 28,
-                  ),
-                  onPressed: () async {
-                    final auth =
-                        Provider.of<AuthProvider>(context, listen: false);
-                    if (!auth.isAuthenticated) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Please log in to save favorites'),
-                          backgroundColor: Colors.orange,
-                        ),
-                      );
-                      return;
-                    }
-                    final success = await favProvider.toggleFavorite(futsal.id);
-                    if (success && context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(isFav
-                              ? 'Removed from favorites'
-                              : 'Added to favorites'),
-                          backgroundColor: Colors.green,
-                          duration: const Duration(seconds: 1),
-                        ),
-                      );
-                    }
-                  },
-                );
-              },
             ),
           ],
         ),
