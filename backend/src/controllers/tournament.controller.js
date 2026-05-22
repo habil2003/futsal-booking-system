@@ -1,8 +1,5 @@
 import { prisma } from "../index.js";
-
-// ============================================
-// TOURNAMENT CRUD OPERATIONS
-// ============================================
+import { createNotification } from "../services/notificationService.js";
 
 /**
  * Create a new tournament
@@ -66,6 +63,35 @@ export const createTournament = async (req, res) => {
         isPublished: isPublished || false,
       },
     });
+
+    // ── Notifications ──
+    try {
+      // Notify owner
+      await createNotification({
+        userId: req.user.id,
+        title: 'Tournament Created',
+        message: `Your tournament "${tournament.name}" has been created and is in draft.`,
+        type: 'tournament_created',
+        data: { tournamentId: tournament.id },
+      });
+
+      // Notify all admins
+      const adminUsers = await prisma.user.findMany({
+        where: { role: 'ADMIN', isActive: true },
+        select: { id: true },
+      });
+      for (const admin of adminUsers) {
+        await createNotification({
+          userId: admin.id,
+          title: 'New Tournament Created',
+          message: `A new tournament "${tournament.name}" was created by owner ID ${req.user.id}.`,
+          type: 'admin_tournament_created',
+          data: { tournamentId: tournament.id },
+        });
+      }
+    } catch (notifErr) {
+      console.error('Notification error:', notifErr);
+    }
 
     res.status(201).json({
       status: "success",
@@ -255,14 +281,6 @@ export const updateTournament = async (req, res) => {
     const { id } = req.params;
     const updates = req.body;
 
-    console.log("=== UPDATE TOURNAMENT DEBUG ===");
-    console.log("Tournament ID:", id);
-    console.log("Updates received:", JSON.stringify(updates, null, 2));
-
-    console.log("PRIZES RECEIVED:", updates.prizes);
-    console.log("PRIZES TYPE:", typeof updates.prizes);
-    console.log("PRIZES IS ARRAY?", Array.isArray(updates.prizes));
-
     // Check ownership
     const tournament = await prisma.tournament.findUnique({
       where: { id: parseInt(id) },
@@ -293,40 +311,24 @@ export const updateTournament = async (req, res) => {
       delete updates.startDate;
     }
 
-    // Prepare data for Prisma - handle special cases
     const { futsalId, prizes, ...otherUpdates } = updates;
 
-    const updateData = {
-      ...otherUpdates,
-    };
+    const updateData = { ...otherUpdates };
 
-    // Handle prizes: if null or undefined, set to empty array
-    // If it's an array, use it as is
     if (prizes === null || prizes === undefined) {
-      updateData.prizes = []; // Set to empty array instead of null
+      updateData.prizes = [];
     } else if (Array.isArray(prizes)) {
       updateData.prizes = prizes;
     }
 
-    // Handle futsal connection
     if (futsalId) {
-      updateData.futsal = {
-        connect: { id: parseInt(futsalId) },
-      };
+      updateData.futsal = { connect: { id: parseInt(futsalId) } };
     }
-
-    console.log("Final updateData:", JSON.stringify(updateData, null, 2));
 
     const updatedTournament = await prisma.tournament.update({
       where: { id: parseInt(id) },
       data: updateData,
     });
-
-    console.log(
-      "UPDATED TOURNAMENT FROM DB:",
-      JSON.stringify(updatedTournament, null, 2),
-    );
-    console.log("SAVED PRIZES:", updatedTournament.prizes);
 
     res.json({
       status: "success",
@@ -334,8 +336,7 @@ export const updateTournament = async (req, res) => {
       tournament: updatedTournament,
     });
   } catch (error) {
-    console.error("=== UPDATE TOURNAMENT ERROR ===");
-    console.error(error);
+    console.error("Update tournament error:", error);
     res.status(500).json({
       status: "error",
       message: "Server error",
@@ -374,7 +375,6 @@ export const deleteTournament = async (req, res) => {
       });
     }
 
-    // Don't allow deletion if tournament has started
     if (tournament.status !== "DRAFT") {
       return res.status(400).json({
         status: "error",
@@ -382,32 +382,15 @@ export const deleteTournament = async (req, res) => {
       });
     }
 
-    // Delete in transaction (matches, teams, then tournament)
+    // Delete in transaction
     await prisma.$transaction(async (tx) => {
-      // Delete matches
-      await tx.match.deleteMany({
-        where: { tournamentId: parseInt(id) },
-      });
-
-      // Delete teams and their members
-      const teams = await tx.team.findMany({
-        where: { tournamentId: parseInt(id) },
-      });
-
+      await tx.match.deleteMany({ where: { tournamentId: parseInt(id) } });
+      const teams = await tx.team.findMany({ where: { tournamentId: parseInt(id) } });
       for (const team of teams) {
-        await tx.teamMember.deleteMany({
-          where: { teamId: team.id },
-        });
+        await tx.teamMember.deleteMany({ where: { teamId: team.id } });
       }
-
-      await tx.team.deleteMany({
-        where: { tournamentId: parseInt(id) },
-      });
-
-      // Delete tournament
-      await tx.tournament.delete({
-        where: { id: parseInt(id) },
-      });
+      await tx.team.deleteMany({ where: { tournamentId: parseInt(id) } });
+      await tx.tournament.delete({ where: { id: parseInt(id) } });
     });
 
     res.json({
@@ -440,7 +423,6 @@ export const updateTournamentStatus = async (req, res) => {
       });
     }
 
-    // Check ownership
     const tournament = await prisma.tournament.findUnique({
       where: { id: parseInt(id) },
       include: { futsal: true },
@@ -463,7 +445,6 @@ export const updateTournamentStatus = async (req, res) => {
       });
     }
 
-    // ✅ ADD THIS CHECK: Cannot change status of cancelled tournament
     if (tournament.status === "CANCELLED") {
       return res.status(400).json({
         status: "error",
@@ -471,7 +452,6 @@ export const updateTournamentStatus = async (req, res) => {
       });
     }
 
-    // Validate status transitions
     if (tournament.status === "COMPLETED") {
       return res.status(400).json({
         status: "error",
@@ -483,6 +463,26 @@ export const updateTournamentStatus = async (req, res) => {
       where: { id: parseInt(id) },
       data: { status },
     });
+
+    // ── Notification ──
+    try {
+      let message = '';
+      if (status === 'ONGOING') message = `Your tournament "${tournament.name}" is now ongoing.`;
+      else if (status === 'COMPLETED') message = `Your tournament "${tournament.name}" has been completed.`;
+      else if (status === 'CANCELLED') message = `Your tournament "${tournament.name}" has been cancelled.`;
+
+      if (message) {
+        await createNotification({
+          userId: tournament.futsal.ownerId,
+          title: `Tournament ${status}`,
+          message,
+          type: 'tournament_status_changed',
+          data: { tournamentId: parseInt(id), status },
+        });
+      }
+    } catch (notifErr) {
+      console.error('Notification error:', notifErr);
+    }
 
     res.json({
       status: "success",
@@ -498,9 +498,7 @@ export const updateTournamentStatus = async (req, res) => {
   }
 };
 
-// ============================================
 // TEAM MANAGEMENT
-// ============================================
 
 /**
  * Add team to tournament
@@ -511,7 +509,6 @@ export const addTeam = async (req, res) => {
     const { tournamentId } = req.params;
     const { name, captainName, captainPhone, players, jerseyColor } = req.body;
 
-    // Check tournament exists and is in DRAFT status
     const tournament = await prisma.tournament.findUnique({
       where: { id: parseInt(tournamentId) },
       include: { futsal: true },
@@ -524,7 +521,6 @@ export const addTeam = async (req, res) => {
       });
     }
 
-    // Check if tournament is full
     const teamCount = await prisma.team.count({
       where: { tournamentId: parseInt(tournamentId) },
     });
@@ -536,7 +532,6 @@ export const addTeam = async (req, res) => {
       });
     }
 
-    // Check if team name already exists
     const existingTeam = await prisma.team.findFirst({
       where: {
         tournamentId: parseInt(tournamentId),
@@ -551,20 +546,16 @@ export const addTeam = async (req, res) => {
       });
     }
 
-    // Create team and team members in transaction
     const result = await prisma.$transaction(async (tx) => {
-      // Create team
       const team = await tx.team.create({
         data: {
           tournamentId: parseInt(tournamentId),
           name,
-          logo: null, // Will implement image upload later
+          logo: null,
         },
       });
 
-      // Create captain as team member if user exists
       if (captainName) {
-        // For now, create without user link
         await tx.teamMember.create({
           data: {
             teamId: team.id,
@@ -577,7 +568,6 @@ export const addTeam = async (req, res) => {
         });
       }
 
-      // Add other players
       if (players && players.length > 0) {
         for (const player of players) {
           await tx.teamMember.create({
@@ -593,6 +583,19 @@ export const addTeam = async (req, res) => {
 
       return team;
     });
+
+    // ── Notification for owner ──
+    try {
+      await createNotification({
+        userId: tournament.futsal.ownerId,
+        title: 'New Team Registered',
+        message: `Team "${name}" has joined your tournament "${tournament.name}".`,
+        type: 'team_registered',
+        data: { tournamentId: parseInt(tournamentId), teamId: result.id },
+      });
+    } catch (notifErr) {
+      console.error('Notification error:', notifErr);
+    }
 
     res.status(201).json({
       status: "success",
@@ -657,7 +660,6 @@ export const updateTeam = async (req, res) => {
     const { teamId } = req.params;
     const updates = req.body;
 
-    // Check team exists and tournament is in DRAFT
     const team = await prisma.team.findUnique({
       where: { id: parseInt(teamId) },
       include: {
@@ -711,7 +713,6 @@ export const deleteTeam = async (req, res) => {
   try {
     const { teamId } = req.params;
 
-    // Check team exists and tournament is in DRAFT
     const team = await prisma.team.findUnique({
       where: { id: parseInt(teamId) },
       include: {
@@ -738,14 +739,9 @@ export const deleteTeam = async (req, res) => {
       });
     }
 
-    // Delete team members then team
     await prisma.$transaction([
-      prisma.teamMember.deleteMany({
-        where: { teamId: parseInt(teamId) },
-      }),
-      prisma.team.delete({
-        where: { id: parseInt(teamId) },
-      }),
+      prisma.teamMember.deleteMany({ where: { teamId: parseInt(teamId) } }),
+      prisma.team.delete({ where: { id: parseInt(teamId) } }),
     ]);
 
     res.json({
@@ -761,19 +757,12 @@ export const deleteTeam = async (req, res) => {
   }
 };
 
-// ============================================
 // FIXTURE GENERATION
-// ============================================
 
-/**
- * Generate fixtures for tournament
- * @route   POST /api/tournaments/:tournamentId/generate-fixtures
- */
 export const generateFixtures = async (req, res) => {
   try {
     const { tournamentId } = req.params;
 
-    // Get tournament with teams
     const tournament = await prisma.tournament.findUnique({
       where: { id: parseInt(tournamentId) },
       include: {
@@ -789,7 +778,6 @@ export const generateFixtures = async (req, res) => {
       });
     }
 
-    // Verify ownership
     if (
       tournament.futsal.ownerId !== req.user.id &&
       req.user.role !== "ADMIN"
@@ -800,7 +788,6 @@ export const generateFixtures = async (req, res) => {
       });
     }
 
-    // Check if tournament already has fixtures
     const existingMatches = await prisma.match.count({
       where: { tournamentId: parseInt(tournamentId) },
     });
@@ -812,7 +799,6 @@ export const generateFixtures = async (req, res) => {
       });
     }
 
-    // Check number of teams
     const teamCount = tournament.teams.length;
     if (teamCount < 2) {
       return res.status(400).json({
@@ -822,33 +808,31 @@ export const generateFixtures = async (req, res) => {
     }
 
     let matches = [];
-
     if (tournament.type === "KNOCKOUT") {
-      // Generate knockout fixtures
-      matches = generateKnockoutFixtures(
-        tournament.teams,
-        tournament.startDate,
-        tournamentId,
-      );
+      matches = generateKnockoutFixtures(tournament.teams, tournament.startDate, tournamentId);
     } else {
-      // Generate round robin fixtures
-      matches = generateRoundRobinFixtures(
-        tournament.teams,
-        tournament.startDate,
-        tournamentId,
-      );
+      matches = generateRoundRobinFixtures(tournament.teams, tournament.startDate, tournamentId);
     }
 
-    // Save matches to database
-    const createdMatches = await prisma.match.createMany({
-      data: matches,
-    });
+    await prisma.match.createMany({ data: matches });
 
-    // Update tournament status to ONGOING
     await prisma.tournament.update({
       where: { id: parseInt(tournamentId) },
       data: { status: "ONGOING" },
     });
+
+    // ── Notification ──
+    try {
+      await createNotification({
+        userId: tournament.futsal.ownerId,
+        title: 'Fixtures Generated',
+        message: `Fixtures have been generated for "${tournament.name}" and the tournament is now ongoing.`,
+        type: 'fixtures_generated',
+        data: { tournamentId: parseInt(tournamentId) },
+      });
+    } catch (notifErr) {
+      console.error('Notification error:', notifErr);
+    }
 
     res.json({
       status: "success",
@@ -864,30 +848,13 @@ export const generateFixtures = async (req, res) => {
   }
 };
 
-// Helper function for knockout fixtures
+// Helper functions (unchanged)
 const generateKnockoutFixtures = (teams, startDate, tournamentId) => {
   const shuffled = [...teams].sort(() => 0.5 - Math.random());
   const matches = [];
   let matchDate = new Date(startDate);
-
-  // Determine the correct round name based on number of teams
-  let firstRoundName = "";
   const teamCount = teams.length;
-
-  if (teamCount === 2) {
-    firstRoundName = "FINAL";
-  } else if (teamCount === 4) {
-    firstRoundName = "SEMI_FINAL";
-  } else if (teamCount === 8) {
-    firstRoundName = "QUARTER_FINAL";
-  } else if (teamCount === 16) {
-    firstRoundName = "ROUND_OF_16";
-  } else {
-    firstRoundName = "QUARTER_FINAL"; // default
-  }
-
-  console.log(`🏆 Generating ${firstRoundName} matches for ${teamCount} teams`);
-
+  let firstRoundName = teamCount === 2 ? "FINAL" : teamCount === 4 ? "SEMI_FINAL" : teamCount === 8 ? "QUARTER_FINAL" : teamCount === 16 ? "ROUND_OF_16" : "QUARTER_FINAL";
   for (let i = 0; i < shuffled.length; i += 2) {
     if (i + 1 < shuffled.length) {
       matches.push({
@@ -895,22 +862,19 @@ const generateKnockoutFixtures = (teams, startDate, tournamentId) => {
         homeTeamId: shuffled[i].id,
         awayTeamId: shuffled[i + 1].id,
         matchDate: new Date(matchDate),
-        round: firstRoundName, // Use dynamic round name
+        round: firstRoundName,
         status: "SCHEDULED",
       });
     }
     matchDate.setDate(matchDate.getDate() + 1);
   }
-
   return matches;
 };
 
-// Helper function for round robin fixtures
 const generateRoundRobinFixtures = (teams, startDate, tournamentId) => {
   const matches = [];
   let matchDate = new Date(startDate);
   const numTeams = teams.length;
-
   for (let i = 0; i < numTeams; i++) {
     for (let j = i + 1; j < numTeams; j++) {
       matches.push({
@@ -924,431 +888,189 @@ const generateRoundRobinFixtures = (teams, startDate, tournamentId) => {
       matchDate.setDate(matchDate.getDate() + 1);
     }
   }
-
   return matches;
 };
 
-// ============================================
 // MATCH MANAGEMENT
-// ============================================
 
-/**
- * Get matches for tournament
- * @route   GET /api/tournaments/:tournamentId/matches
- */
 export const getMatches = async (req, res) => {
   try {
     const { tournamentId } = req.params;
-
     const matches = await prisma.match.findMany({
       where: { tournamentId: parseInt(tournamentId) },
       include: {
-        homeTeam: {
-          select: { id: true, name: true },
-        },
-        awayTeam: {
-          select: { id: true, name: true },
-        },
+        homeTeam: { select: { id: true, name: true } },
+        awayTeam: { select: { id: true, name: true } },
       },
-      orderBy: {
-        matchDate: "asc",
-      },
+      orderBy: { matchDate: "asc" },
     });
-
-    res.json({
-      status: "success",
-      results: matches.length,
-      matches,
-    });
+    res.json({ status: "success", results: matches.length, matches });
   } catch (error) {
     console.error("Get matches error:", error);
-    res.status(500).json({
-      status: "error",
-      message: "Server error",
-    });
+    res.status(500).json({ status: "error", message: "Server error" });
   }
 };
 
-/**
- * Update match score and trigger next round generation
- */
 export const updateMatchScore = async (req, res) => {
   try {
     const { matchId } = req.params;
     const { homeScore, awayScore, homePenalty, awayPenalty } = req.body;
 
-    // Get match with tournament info
     const match = await prisma.match.findUnique({
       where: { id: parseInt(matchId) },
       include: {
-        tournament: {
-          include: { futsal: true },
-        },
+        tournament: { include: { futsal: true } },
       },
     });
 
-    if (!match) {
-      return res.status(404).json({
-        status: "error",
-        message: "Match not found",
-      });
+    if (!match) return res.status(404).json({ status: "error", message: "Match not found" });
+
+    if (match.tournament.futsal.ownerId !== req.user.id && req.user.role !== "ADMIN") {
+      return res.status(403).json({ status: "error", message: "You do not have permission" });
     }
 
-    // Verify ownership
-    if (
-      match.tournament.futsal.ownerId !== req.user.id &&
-      req.user.role !== "ADMIN"
-    ) {
-      return res.status(403).json({
-        status: "error",
-        message: "You do not have permission",
-      });
-    }
-
-    // Update match
     const updatedMatch = await prisma.match.update({
       where: { id: parseInt(matchId) },
-      data: {
-        homeScore,
-        awayScore,
-        homePenalty,
-        awayPenalty,
-        status: "COMPLETED",
-      },
+      data: { homeScore, awayScore, homePenalty, awayPenalty, status: "COMPLETED" },
     });
 
-    // For knockout tournaments, check if we need to generate next round
-    if (match.tournament.type === "KNOCKOUT") {
-      // Check if all matches in current round are completed
-      const roundMatches = await prisma.match.findMany({
-        where: {
-          tournamentId: match.tournamentId,
-          round: match.round,
-        },
-      });
-
-      const completedMatches = roundMatches.filter(
-        (m) => m.status === "COMPLETED",
-      );
-
-      if (completedMatches.length === roundMatches.length) {
-        // All matches in this round are done, generate next round
-        await generateNextRoundMatches(match.tournamentId, match.round);
-      }
-    }
-
-    // For round robin, check if all matches are completed
-    if (match.tournament.type === "ROUND_ROBIN") {
-      // Get all matches for this tournament
-      const allMatches = await prisma.match.findMany({
-        where: {
-          tournamentId: match.tournamentId,
-        },
-      });
-
-      const completedMatches = allMatches.filter(
-        (m) => m.status === "COMPLETED",
-      );
-
-      // If all matches are completed, mark tournament as COMPLETED
-      if (completedMatches.length === allMatches.length && allMatches.length > 0) {
-        await prisma.tournament.update({
-          where: { id: match.tournamentId },
-          data: { status: "COMPLETED" },
+    // Check tournament completion
+    const tournament = match.tournament;
+    if (tournament.type === "KNOCKOUT" && match.round === "FINAL") {
+      await prisma.tournament.update({ where: { id: tournament.id }, data: { status: "COMPLETED" } });
+      // Notification
+      try {
+        await createNotification({
+          userId: tournament.futsal.ownerId,
+          title: 'Tournament Completed',
+          message: `The tournament "${tournament.name}" has finished.`,
+          type: 'tournament_completed',
+          data: { tournamentId: tournament.id },
         });
-        console.log("🏆 Round Robin tournament marked as COMPLETED");
+      } catch (e) { console.error('Notification error:', e); }
+    } else if (tournament.type === "ROUND_ROBIN") {
+      const allMatches = await prisma.match.findMany({ where: { tournamentId: tournament.id } });
+      const completedCount = allMatches.filter(m => m.status === "COMPLETED").length;
+      if (completedCount === allMatches.length) {
+        await prisma.tournament.update({ where: { id: tournament.id }, data: { status: "COMPLETED" } });
+        try {
+          await createNotification({
+            userId: tournament.futsal.ownerId,
+            title: 'Tournament Completed',
+            message: `The tournament "${tournament.name}" has finished.`,
+            type: 'tournament_completed',
+            data: { tournamentId: tournament.id },
+          });
+        } catch (e) { console.error('Notification error:', e); }
       }
     }
 
-    // For knockout, check if final match was just completed
-    if (match.tournament.type === "KNOCKOUT" && match.round === "FINAL") {
-      await prisma.tournament.update({
-        where: { id: match.tournamentId },
-        data: { status: "COMPLETED" },
+    // Generate next round if knockout
+    if (tournament.type === "KNOCKOUT") {
+      const roundMatches = await prisma.match.findMany({
+        where: { tournamentId: tournament.id, round: match.round },
       });
-      console.log("🏆 Knockout tournament marked as COMPLETED");
+      const allCompleted = roundMatches.every(m => m.status === "COMPLETED");
+      if (allCompleted) {
+        await generateNextRoundMatches(tournament.id, match.round);
+      }
     }
 
-    res.json({
-      status: "success",
-      message: "Score updated successfully",
-      match: updatedMatch,
-    });
+    res.json({ status: "success", message: "Score updated successfully", match: updatedMatch });
   } catch (error) {
     console.error("Update match score error:", error);
-    res.status(500).json({
-      status: "error",
-      message: "Server error",
-    });
+    res.status(500).json({ status: "error", message: "Server error" });
   }
 };
-/**
- * Generate next round matches for knockout tournament
- * Called automatically when all matches in current round are completed
- */
+
 const generateNextRoundMatches = async (tournamentId, currentRound) => {
-  try {
-    console.log(
-      `🏆 Generating next round for tournament ${tournamentId} after ${currentRound}`,
-    );
+  const completedMatches = await prisma.match.findMany({
+    where: { tournamentId, round: currentRound, status: "COMPLETED" },
+    include: { homeTeam: true, awayTeam: true },
+  });
+  const winners = completedMatches.map(m => {
+    if (m.homeScore > m.awayScore) return m.homeTeamId;
+    if (m.awayScore > m.homeScore) return m.awayTeamId;
+    if (m.homePenalty !== null && m.awayPenalty !== null) return m.homePenalty > m.awayPenalty ? m.homeTeamId : m.awayTeamId;
+    return null;
+  }).filter(w => w !== null);
 
-    // Get all completed matches in current round
-    const completedMatches = await prisma.match.findMany({
-      where: {
-        tournamentId: parseInt(tournamentId),
-        round: currentRound,
-        status: "COMPLETED",
-      },
-      include: {
-        homeTeam: true,
-        awayTeam: true,
-      },
-    });
-
-    if (completedMatches.length === 0) {
-      console.log("No completed matches found");
-      return;
-    }
-
-    // Get all matches in current round to check if all are completed
-    const allMatchesInRound = await prisma.match.count({
-      where: {
-        tournamentId: parseInt(tournamentId),
-        round: currentRound,
-      },
-    });
-
-    // Only proceed if all matches in this round are completed
-    if (completedMatches.length !== allMatchesInRound) {
-      console.log("Not all matches in this round are completed yet");
-      return;
-    }
-
-    // Determine winners from completed matches
-    const winners = completedMatches
-      .map((match) => {
-        // Determine winner based on scores
-        if (match.homeScore > match.awayScore) {
-          return match.homeTeamId;
-        } else if (match.awayScore > match.homeScore) {
-          return match.awayTeamId;
-        } else {
-          // Handle draws - if penalties exist
-          if (match.homePenalty !== null && match.awayPenalty !== null) {
-            return match.homePenalty > match.awayPenalty
-              ? match.homeTeamId
-              : match.awayTeamId;
-          }
-          // If no penalties and draw, return null (should not happen in knockout)
-          return null;
-        }
-      })
-      .filter((winner) => winner !== null);
-
-    console.log(`Winners: ${winners.length} teams advancing`);
-
-    if (winners.length < 2) {
-      console.log("Not enough winners to create next round");
-      return;
-    }
-
-    // Determine next round name
-    const nextRound = getNextRound(currentRound);
-    if (!nextRound) {
-      console.log("No next round available");
-      return;
-    }
-
-    // Calculate next match date (day after last match)
-    const lastMatchDate = new Date(
-      Math.max(...completedMatches.map((m) => new Date(m.matchDate))),
-    );
-    const nextMatchDate = new Date(
-      lastMatchDate.getTime() + 24 * 60 * 60 * 1000,
-    );
-
-    // Pair up winners for next round
-    const nextRoundMatches = [];
-    for (let i = 0; i < winners.length; i += 2) {
-      if (i + 1 < winners.length) {
-        nextRoundMatches.push({
-          tournamentId: parseInt(tournamentId),
-          homeTeamId: winners[i],
-          awayTeamId: winners[i + 1],
-          matchDate: new Date(
-            nextMatchDate.getTime() + (i / 2) * 24 * 60 * 60 * 1000,
-          ),
-          round: nextRound,
-          status: "SCHEDULED",
-        });
-      } else {
-        // Odd number of teams - this team gets a bye to next round
-        console.log(
-          `Team ${winners[i]} gets a bye to ${getNextRound(nextRound)}`,
-        );
-
-        // Create a bye entry or handle specially
-        // For now, we'll create a placeholder match or handle in next round
-        // You might want to store this team as automatic qualifier
-      }
-    }
-
-    if (nextRoundMatches.length > 0) {
-      // Create next round matches
-      await prisma.match.createMany({
-        data: nextRoundMatches,
+  if (winners.length < 2) return;
+  const nextRound = getNextRound(currentRound);
+  if (!nextRound) return;
+  const lastDate = new Date(Math.max(...completedMatches.map(m => m.matchDate.getTime())));
+  const nextDate = new Date(lastDate.getTime() + 86400000);
+  const newMatches = [];
+  for (let i = 0; i < winners.length; i += 2) {
+    if (i + 1 < winners.length) {
+      newMatches.push({
+        tournamentId,
+        homeTeamId: winners[i],
+        awayTeamId: winners[i + 1],
+        matchDate: new Date(nextDate.getTime() + (i / 2) * 86400000),
+        round: nextRound,
+        status: "SCHEDULED",
       });
-      console.log(
-        `Created ${nextRoundMatches.length} matches for ${nextRound}`,
-      );
     }
-
-    // Check if this was the final round
-    if (nextRound === "FINAL" && nextRoundMatches.length === 1) {
-      console.log("Final round created - tournament will complete after this");
-    }
-  } catch (error) {
-    console.error("Error generating next round matches:", error);
   }
+  if (newMatches.length > 0) await prisma.match.createMany({ data: newMatches });
 };
 
-const getNextRound = (currentRound) => {
-  const roundProgression = {
-    ROUND_OF_16: "QUARTER_FINAL",
-    QUARTER_FINAL: "SEMI_FINAL",
-    SEMI_FINAL: "FINAL",
-    FINAL: null,
-  };
-
-  return roundProgression[currentRound] || null;
+const getNextRound = (round) => {
+  const map = { ROUND_OF_16: "QUARTER_FINAL", QUARTER_FINAL: "SEMI_FINAL", SEMI_FINAL: "FINAL", FINAL: null };
+  return map[round] || null;
 };
 
-/**
- * Update match status
- * @route   PATCH /api/matches/:matchId/status
- */
 export const updateMatchStatus = async (req, res) => {
   try {
     const { matchId } = req.params;
     const { status } = req.body;
-
     const validStatuses = ["SCHEDULED", "ONGOING", "COMPLETED", "CANCELLED"];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({
-        status: "error",
-        message: "Invalid status",
-      });
-    }
-
-    const match = await prisma.match.update({
-      where: { id: parseInt(matchId) },
-      data: { status },
-    });
-
-    res.json({
-      status: "success",
-      message: "Match status updated",
-      match,
-    });
+    if (!validStatuses.includes(status)) return res.status(400).json({ status: "error", message: "Invalid status" });
+    const match = await prisma.match.update({ where: { id: parseInt(matchId) }, data: { status } });
+    res.json({ status: "success", message: "Match status updated", match });
   } catch (error) {
     console.error("Update match status error:", error);
-    res.status(500).json({
-      status: "error",
-      message: "Server error",
-    });
+    res.status(500).json({ status: "error", message: "Server error" });
   }
 };
 
-// ============================================
 // TOURNAMENT STATISTICS
-// ============================================
 
-/**
- * Get tournament standings/leaderboard
- * @route   GET /api/tournaments/:tournamentId/standings
- */
 export const getTournamentStandings = async (req, res) => {
   try {
     const { tournamentId } = req.params;
-
     const tournament = await prisma.tournament.findUnique({
       where: { id: parseInt(tournamentId) },
       include: {
         teams: {
           include: {
-            homeMatches: {
-              where: { status: "COMPLETED" },
-            },
-            awayMatches: {
-              where: { status: "COMPLETED" },
-            },
+            homeMatches: { where: { status: "COMPLETED" } },
+            awayMatches: { where: { status: "COMPLETED" } },
           },
         },
       },
     });
+    if (!tournament) return res.status(404).json({ status: "error", message: "Tournament not found" });
 
-    if (!tournament) {
-      return res.status(404).json({
-        status: "error",
-        message: "Tournament not found",
-      });
-    }
-
-    // Calculate standings
-    const standings = tournament.teams.map((team) => {
+    const standings = tournament.teams.map(team => {
       const allMatches = [...team.homeMatches, ...team.awayMatches];
-      const wins = allMatches.filter(
-        (m) =>
-          (m.homeTeamId === team.id && m.homeScore > m.awayScore) ||
-          (m.awayTeamId === team.id && m.awayScore > m.homeScore),
-      ).length;
-
-      const draws = allMatches.filter(
-        (m) => m.homeScore === m.awayScore,
-      ).length;
+      const wins = allMatches.filter(m => (m.homeTeamId === team.id && m.homeScore > m.awayScore) || (m.awayTeamId === team.id && m.awayScore > m.homeScore)).length;
+      const draws = allMatches.filter(m => m.homeScore === m.awayScore).length;
       const losses = allMatches.length - wins - draws;
-      const goalsFor = allMatches.reduce(
-        (sum, m) =>
-          sum + (m.homeTeamId === team.id ? m.homeScore : m.awayScore),
-        0,
-      );
-      const goalsAgainst = allMatches.reduce(
-        (sum, m) =>
-          sum + (m.homeTeamId === team.id ? m.awayScore : m.homeScore),
-        0,
-      );
-
+      const goalsFor = allMatches.reduce((sum, m) => sum + (m.homeTeamId === team.id ? m.homeScore : m.awayScore), 0);
+      const goalsAgainst = allMatches.reduce((sum, m) => sum + (m.homeTeamId === team.id ? m.awayScore : m.homeScore), 0);
       return {
-        teamId: team.id,
-        teamName: team.name,
-        played: allMatches.length,
-        wins,
-        draws,
-        losses,
-        goalsFor,
-        goalsAgainst,
+        teamId: team.id, teamName: team.name, played: allMatches.length,
+        wins, draws, losses, goalsFor, goalsAgainst,
         goalDifference: goalsFor - goalsAgainst,
         points: wins * 3 + draws,
       };
     });
-
-    // Sort by points, then goal difference, then goals for
-    standings.sort((a, b) => {
-      if (a.points !== b.points) return b.points - a.points;
-      if (a.goalDifference !== b.goalDifference)
-        return b.goalDifference - a.goalDifference;
-      return b.goalsFor - a.goalsFor;
-    });
-
-    res.json({
-      status: "success",
-      standings,
-    });
+    standings.sort((a, b) => b.points - a.points || b.goalDifference - a.goalDifference || b.goalsFor - a.goalsFor);
+    res.json({ status: "success", standings });
   } catch (error) {
     console.error("Get standings error:", error);
-    res.status(500).json({
-      status: "error",
-      message: "Server error",
-    });
+    res.status(500).json({ status: "error", message: "Server error" });
   }
 };

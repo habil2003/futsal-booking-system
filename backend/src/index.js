@@ -45,6 +45,7 @@ import futsalRoutes from './routes/futsal.routes.js';
 import bookingRoutes from './routes/booking.routes.js';
 import ownerRoutes from './routes/owner.routes.js';
 import courtRoutes from './routes/court.routes.js';
+import notificationRoutes from './routes/notification.routes.js';
 // import tournamentRoutes from './routes/tournament.routes.js'
 import tournamentsRoutes from './routes/tournament.route.js'; // ✅ Added tournament routes
 import slotRoutes from './routes/slot.routes.js';
@@ -63,6 +64,7 @@ app.use('/api/futsals', futsalRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/owner', ownerRoutes);
 app.use('/api', courtRoutes);
+app.use('/api/notifications', notificationRoutes);
 // app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/slots', slotRoutes);
 app.use('/api/reviews', reviewRoutes);

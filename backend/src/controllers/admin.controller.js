@@ -1,4 +1,5 @@
 import { prisma } from "../index.js";
+import { createNotification } from "../services/notification.service.js";
 
 export const getDashboardStats = async (req, res) => {
   try {
@@ -275,6 +276,19 @@ export const approveFutsal = async (req, res, next) => {
         status: 'ACTIVE',
       },
     });
+
+    // ── Notify the owner that their futsal was approved ──
+    try {
+      await createNotification({
+        userId: futsal.ownerId,
+        title: 'Futsal Approved',
+        message: `Your futsal "${futsal.name}" has been approved and is now active.`,
+        type: 'futsal_approved',
+        data: { futsalId },
+      });
+    } catch (notifErr) {
+      console.error('Notification error:', notifErr);
+    }
 
     res.json({
       status: "success",
