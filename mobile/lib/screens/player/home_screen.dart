@@ -16,15 +16,33 @@ import 'home/widgets/filter_chips.dart';
 import 'home/widgets/filter_panel.dart';
 import '../../widgets/empty_state.dart';
 import '../../screens/account_setting.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../screens/player/futsal_details_screen.dart';
 import '../../screens/player/booking_history_screen.dart';
-import '../../screens/player/search_screen.dart';
-import '../../screens/player/tournament_screen.dart';   // adjust name if needed
+import '../../screens/player/venue_screen.dart';
+import '../../screens/player/tournament_screen.dart';
+import '../../screens/player/notification_screen.dart';
+import '../../screens/player/account/wishlist.dart';
+
+// ─── Modern Colour Palette ───
+class AppColors {
+  static const primary = Color(0xFF059669);
+  static const primaryLight = Color(0xFF34D399);
+  static const primaryDark = Color(0xFF047857);
+  static const surface = Color(0xFFFFFFFF);
+  static const background = Color(0xFFF8FAFC);
+  static const onBackground = Color(0xFF1E293B);
+  static const secondaryText = Color(0xFF64748B);
+  static const divider = Color(0xFFE2E8F0);
+  static const shadow = Color(0x1A000000);
+  static const accentAmber = Color(0xFFF59E0B);
+  static const accentCoral = Color(0xFFEF4444);
+  static const accentPurple = Color(0xFF7C3AED);
+  static const cardDark1 = Color(0xFF1E293B);
+  static const cardDark2 = Color(0xFF0F172A);
+}
 
 class PlayerHomeScreen extends StatefulWidget {
   const PlayerHomeScreen({super.key});
-
   @override
   _PlayerHomeScreenState createState() => _PlayerHomeScreenState();
 }
@@ -32,21 +50,19 @@ class PlayerHomeScreen extends StatefulWidget {
 class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     with TickerProviderStateMixin {
   final PageController _adController = PageController();
-  final PageController _productAdController = PageController();
-  int _currentProductAdIndex = 0;
-  late Future<List<Map<String, dynamic>>> futureProductAds;
 
   String _selectedFilter = 'All';
   bool _showFilters = false;
   int _currentAdIndex = 0;
-  int _currentNavIndex = 0;       // controls which tab is displayed
+  int _currentNavIndex = 0;
 
   Position? _userPosition;
   bool _isGettingLocation = false;
   double _distanceRadius = 5.0;
 
   late Future<List<Map<String, dynamic>>> futureAds = _fetchAds();
-  late Future<List<Map<String, dynamic>>> futureTournaments = _fetchTournaments();
+  late Future<List<Map<String, dynamic>>> futureTournaments =
+      _fetchTournaments();
 
   List<String> _filters = ['All', 'Popular'];
 
@@ -54,49 +70,10 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
   static const _radiusKey = 'home_radius';
   static const _showFiltersKey = 'home_show_filters';
 
-  // ─── Time‑based greeting ───
-  String _getGreeting() {
-    final hour = DateTime.now().hour;
-    if (hour < 12) return 'Good Morning';
-    if (hour < 16) return 'Good Afternoon';
-    if (hour < 20) return 'Good Evening';
-    return 'Good Night';
-  }
-
-  Widget _buildGreetingRow(String greeting) {
-    IconData icon;
-    switch (greeting) {
-      case 'Good Morning':
-        icon = Icons.waving_hand;
-        break;
-      case 'Good Afternoon':
-        icon = Icons.wb_sunny;
-        break;
-      case 'Good Evening':
-        icon = Icons.wb_twilight;
-        break;
-      case 'Good Night':
-        icon = Icons.bedtime;
-        break;
-      default:
-        icon = Icons.wb_sunny;
-    }
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: Colors.white70, size: 18),
-        const SizedBox(width: 6),
-        Text(
-          greeting,
-          style: const TextStyle(
-            color: Colors.white70,
-            fontSize: 14,
-            fontWeight: FontWeight.w400,
-          ),
-        ),
-      ],
-    );
+  double _sp(double baseSize) {
+    final width = MediaQuery.of(context).size.width;
+    final scale = (width / 375.0).clamp(0.85, 1.2);
+    return baseSize * scale;
   }
 
   @override
@@ -105,19 +82,14 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     _loadFilterPreferences();
     _refreshAll();
     _startAdAutoScroll();
-
-    futureProductAds = _fetchProductAds();
-    _startProductAdAutoScroll();
   }
 
   @override
   void dispose() {
     _adController.dispose();
-    _productAdController.dispose();
     super.dispose();
   }
 
-  // ────────────────── Persistence ──────────────────
   Future<void> _loadFilterPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
@@ -149,80 +121,65 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     });
   }
 
-  void _startProductAdAutoScroll() {
-    Future.delayed(const Duration(seconds: 5), () {
-      if (!mounted) return;
-      if (_productAdController.hasClients) {
-        _currentProductAdIndex = (_currentProductAdIndex + 1) % 3;
-        _productAdController.animateToPage(
-          _currentProductAdIndex,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
-      }
-      _startProductAdAutoScroll();
-    });
-  }
-
   Future<void> _refreshAll() async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final futsalProvider = Provider.of<FutsalProvider>(context, listen: false);
-
     await futsalProvider.fetchFutsals();
     if (!mounted) return;
     _updateFilters();
-
     if (auth.isAuthenticated) {
       final favProvider = Provider.of<FavoriteProvider>(context, listen: false);
       await favProvider.loadFavorites();
       if (!mounted) return;
     }
-
     setState(() {});
   }
 
   void _updateFilters() {
     final futsalProvider = Provider.of<FutsalProvider>(context, listen: false);
     final Set<String> filterSet = {'All', 'Popular'};
-
     for (var futsal in futsalProvider.futsals) {
-      final courtTypes = futsal.getCourtTypes();
-      filterSet.addAll(courtTypes);
+      filterSet.addAll(futsal.getCourtTypes());
     }
-
     setState(() {
       _filters = filterSet.toList();
     });
   }
 
-  // ────────────────── Data fetching ──────────────────
   Future<List<Map<String, dynamic>>> _fetchAds() async {
     final ads = await ApiService.getActiveAds();
-    return ads.map((ad) => {
-      'image': ad['imageUrl'],
-      'title': ad['title'],
-      'subtitle': ad['subtitle'],
-      'cta': ad['buttonText'],
-      'color': Colors.deepPurple,
-    }).toList().cast<Map<String, dynamic>>();
+    return ads
+        .map((ad) => {
+              'image': ad['imageUrl'],
+              'title': ad['title'],
+              'subtitle': ad['subtitle'],
+              'cta': ad['buttonText'],
+              'color': AppColors.primary,
+            })
+        .toList()
+        .cast<Map<String, dynamic>>();
   }
 
   Future<List<Map<String, dynamic>>> _fetchTournaments() async {
     try {
       final response = await ApiService.getList('tournaments/published');
-      return response.map((t) {
-        final startDate = DateTime.parse(t['startDate']);
-        final endDate = t['endDate'] != null ? DateTime.parse(t['endDate']) : null;
-        final dateStr = endDate != null
-            ? '${_monthAbbr(startDate.month)} ${startDate.day} - ${_monthAbbr(endDate.month)} ${endDate.day}'
-            : '${_monthAbbr(startDate.month)} ${startDate.day}';
-        return {
-          'name': t['name'],
-          'date': dateStr,
-          'prize': t['prizePool']?.toString() ?? 'TBA',
-          'image': t['imageUrl'] ?? 'https://picsum.photos/id/1005/200/200',
-        };
-      }).toList().cast<Map<String, dynamic>>();
+      return response
+          .map((t) {
+            final startDate = DateTime.parse(t['startDate']);
+            final endDate =
+                t['endDate'] != null ? DateTime.parse(t['endDate']) : null;
+            final dateStr = endDate != null
+                ? '${_monthAbbr(startDate.month)} ${startDate.day} - ${_monthAbbr(endDate.month)} ${endDate.day}'
+                : '${_monthAbbr(startDate.month)} ${startDate.day}';
+            return {
+              'name': t['name'],
+              'date': dateStr,
+              'prize': t['prizePool']?.toString() ?? 'TBA',
+              'image': t['imageUrl'] ?? 'https://picsum.photos/id/1005/200/200',
+            };
+          })
+          .toList()
+          .cast<Map<String, dynamic>>();
     } catch (e) {
       debugPrint('Error fetching tournaments: $e');
       return [];
@@ -230,53 +187,23 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
   }
 
   String _monthAbbr(int month) {
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
     return months[month - 1];
   }
 
-  Future<List<Map<String, dynamic>>> _fetchProductAds() async {
-    await Future.delayed(const Duration(milliseconds: 1000));
-    return [
-      {
-        'gradientStart': Colors.blueGrey.shade800,
-        'gradientEnd': Colors.black87,
-        'tag': '⚡ GEAR UP!',
-        'title': 'Premium Jerseys',
-        'subtitle': 'Up to 40% off • Free shipping',
-        'buttonText': 'SHOP NOW',
-        'buttonColor': Colors.amber.shade600,
-        'imageUrl':
-            'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&h=400&fit=crop',
-        'externalUrl': 'https://www.example.com/jerseys',
-      },
-      {
-        'gradientStart': Colors.deepOrange.shade700,
-        'gradientEnd': Colors.brown.shade900,
-        'tag': '👟 NEW ARRIVALS',
-        'title': 'Pro Football Boots',
-        'subtitle': 'Lightweight • 20% off first order',
-        'buttonText': 'EXPLORE',
-        'buttonColor': Colors.white,
-        'imageUrl':
-            'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&h=400&fit=crop',
-        'externalUrl': 'https://www.example.com/boots',
-      },
-      {
-        'gradientStart': Colors.indigo.shade600,
-        'gradientEnd': Colors.purple.shade900,
-        'tag': '🏷️ LIMITED OFFER',
-        'title': 'Complete Kit Set',
-        'subtitle': 'Jersey + Shorts + Socks',
-        'buttonText': 'BUY NOW',
-        'buttonColor': Colors.yellow.shade600,
-        'imageUrl':
-            'https://images.unsplash.com/photo-1551958219-acbc608c6377?w=800&h=400&fit=crop',
-        'externalUrl': 'https://www.example.com/kits',
-      },
-    ];
-  }
-
-  // ─────────── Location ───────────
   Future<void> _getUserLocation() async {
     setState(() => _isGettingLocation = true);
     try {
@@ -287,7 +214,10 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
       if (permission == LocationPermission.deniedForever) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Location permission denied. Enable in settings.'), backgroundColor: Colors.red),
+            const SnackBar(
+                content:
+                    Text('Location permission denied. Enable in settings.'),
+                backgroundColor: Colors.red),
           );
         }
         return;
@@ -299,13 +229,18 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
       setState(() => _userPosition = position);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Location set! Showing futsals within $_distanceRadius km'), backgroundColor: Colors.green),
+          SnackBar(
+              content: Text(
+                  'Location set! Showing futsals within $_distanceRadius km'),
+              backgroundColor: AppColors.primary),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not get location: $e'), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text('Could not get location: $e'),
+              backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -313,7 +248,8 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     }
   }
 
-  double _calculateDistance(double lat1, double lng1, double lat2, double lng2) {
+  double _calculateDistance(
+      double lat1, double lng1, double lat2, double lng2) {
     const R = 6371.0;
     final dLat = (lat2 - lat1) * math.pi / 180;
     final dLng = (lng2 - lng1) * math.pi / 180;
@@ -328,30 +264,27 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
 
   List<Futsal> get _filteredFutsals {
     final futsalProvider = Provider.of<FutsalProvider>(context, listen: false);
-    var futsals = futsalProvider.futsals;
+    var futsals = List<Futsal>.from(futsalProvider.futsals);
 
-    if (_selectedFilter != 'All' && _selectedFilter != 'Popular') {
-      futsals = futsals.where((f) {
-        final courtTypes = f.getCourtTypes();
-        return courtTypes.contains(_selectedFilter);
-      }).toList();
-    }
+    // Sort by rating (highest first) – this makes Top Grounds show the best‑rated
+    futsals
+        .sort((a, b) => (b.averageRating ?? 0).compareTo(a.averageRating ?? 0));
 
+    // Apply location radius filter if user has set a position
     if (_userPosition != null) {
-      for (var futsal in futsals) {
-        if (futsal.latitude != null && futsal.longitude != null) {
-          futsal.distance = _calculateDistance(
-            _userPosition!.latitude, _userPosition!.longitude,
-            futsal.latitude!, futsal.longitude!,
+      for (var f in futsals) {
+        if (f.latitude != null && f.longitude != null) {
+          f.distance = _calculateDistance(
+            _userPosition!.latitude,
+            _userPosition!.longitude,
+            f.latitude!,
+            f.longitude!,
           );
         }
       }
-      futsals = futsals.where((f) => f.distance == null || f.distance! <= _distanceRadius).toList();
-      futsals.sort((a, b) => (a.distance ?? double.infinity).compareTo(b.distance ?? double.infinity));
-    }
-
-    if (_selectedFilter == 'Popular') {
-      futsals.sort((a, b) => (b.averageRating ?? 0).compareTo(a.averageRating ?? 0));
+      futsals = futsals
+          .where((f) => f.distance == null || f.distance! <= _distanceRadius)
+          .toList();
     }
 
     return futsals;
@@ -361,7 +294,8 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     final auth = Provider.of<AuthProvider>(context, listen: false);
     if (!auth.isAuthenticated) {
       final didLogin = await Navigator.push(
-        context, MaterialPageRoute(builder: (_) => const LoginScreen()),
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
       );
       if (didLogin == true) {
         _proceedToBooking(context, futsal);
@@ -375,12 +309,12 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => FutsalDetailsScreen(futsal: futsal, initialTabIndex: 1),
+        builder: (context) =>
+            FutsalDetailsScreen(futsal: futsal, initialTabIndex: 1),
       ),
     );
   }
 
-  // ────────────────── Main Build with persistent bottom nav ──────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -388,53 +322,56 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
       body: IndexedStack(
         index: _currentNavIndex,
         children: [
-          _buildHomeTab(),                // 0 – Home
-          const SearchScreen(),           // 1 – Search
-          _buildBookingsTab(),            // 2 – Bookings
-          const TournamentsScreen(),      // 3 – Tournaments
-          _buildProfileTab(),             // 4 – Profile
+          _buildHomeTab(),
+          const VenueScreen(),
+          _buildBookingsTab(),
+          const TournamentsScreen(),
+          _buildProfileTab(),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.white,
-        selectedItemColor: Colors.green.shade700,
-        unselectedItemColor: Colors.grey.shade500,
-        showUnselectedLabels: false,
-        showSelectedLabels: false,
+        selectedItemColor: AppColors.primary,
+        unselectedItemColor: AppColors.secondaryText,
+        showSelectedLabels: true,
+        showUnselectedLabels: true,
         currentIndex: _currentNavIndex,
+        elevation: 8,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: 'Bookings'),
-          BottomNavigationBarItem(icon: Icon(Icons.emoji_events), label: 'Tournaments'),
-          BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Profile'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.home_rounded), label: 'Home'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.sports_soccer), label: 'Venue'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.calendar_month_rounded), label: 'Bookings'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.emoji_events_rounded), label: 'Tournaments'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline_rounded), label: 'Profile'),
         ],
-        onTap: (index) {
-          setState(() => _currentNavIndex = index);
-        },
+        onTap: (index) => setState(() => _currentNavIndex = index),
       ),
     );
   }
 
-  // ─────────── Tab Builders ───────────
   Widget _buildHomeTab() {
     return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Colors.green.shade900, Colors.black87],
-        ),
-      ),
+      color: AppColors.background,
       child: SafeArea(
         child: RefreshIndicator(
           onRefresh: _refreshAll,
-          color: Colors.white,
-          backgroundColor: Colors.green.shade700,
+          color: AppColors.primary,
+          backgroundColor: Colors.white,
           child: CustomScrollView(
             slivers: [
               _buildSliverAppBar(),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: _buildSearchBar(),
+                ),
+              ),
               if (_showFilters)
                 SliverToBoxAdapter(
                   child: Padding(
@@ -451,27 +388,21 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                     ),
                   ),
                 ),
+              SliverToBoxAdapter(child: const SizedBox(height: 16)),
               SliverToBoxAdapter(child: _buildAdCarousel()),
+              SliverToBoxAdapter(child: const SizedBox(height: 16)),
+              SliverToBoxAdapter(child: const SizedBox(height: 16)),
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: FilterChips(
-                    filters: _filters,
-                    selectedFilter: _selectedFilter,
-                    onFilterSelected: (filter) {
-                      setState(() => _selectedFilter = filter);
-                      _saveFilterPreferences();
-                    },
-                  ),
-                ),
-              ),
-              SliverToBoxAdapter(child: _buildFutsalListSection('Top Grounds', maxCount: 6)),
+                  child: _buildFutsalListSection('Top Grounds', maxCount: 6)),
+              SliverToBoxAdapter(child: const SizedBox(height: 24)),
               SliverToBoxAdapter(child: _buildTournamentsSection()),
-              SliverToBoxAdapter(child: _buildFutsalListSection('More Grounds', maxCount: 4, skipCount: 6)),
-              SliverToBoxAdapter(child: _buildProductAdCarousel()),
+              SliverToBoxAdapter(child: const SizedBox(height: 24)),
+              SliverToBoxAdapter(
+                  child: _buildFutsalListSection('More Grounds',
+                      maxCount: 4, skipCount: 6)),
+              SliverToBoxAdapter(child: const SizedBox(height: 24)),
               SliverToBoxAdapter(child: _buildActionButtons()),
-              SliverToBoxAdapter(child: _buildFooter()),
-              SliverToBoxAdapter(child: SizedBox(height: 1)),
+              SliverToBoxAdapter(child: const SizedBox(height: 16)),
             ],
           ),
         ),
@@ -486,18 +417,22 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.calendar_today, size: 64, color: Colors.grey.shade400),
+            Icon(Icons.calendar_month_rounded,
+                size: 64, color: AppColors.secondaryText),
             const SizedBox(height: 16),
-            Text('Please log in to view bookings', style: TextStyle(color: Colors.grey.shade600)),
+            Text('Please log in to view bookings',
+                style: TextStyle(
+                    color: AppColors.secondaryText, fontSize: _sp(14))),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                );
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const LoginScreen()));
               },
-              child: const Text('Login'),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white),
+              child: Text('Login', style: TextStyle(fontSize: _sp(14))),
             ),
           ],
         ),
@@ -513,18 +448,22 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.person_outline, size: 64, color: Colors.grey.shade400),
+            Icon(Icons.person_outline_rounded,
+                size: 64, color: AppColors.secondaryText),
             const SizedBox(height: 16),
-            Text('Please log in to view profile', style: TextStyle(color: Colors.grey.shade600)),
+            Text('Please log in to view profile',
+                style: TextStyle(
+                    color: AppColors.secondaryText, fontSize: _sp(14))),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                );
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const LoginScreen()));
               },
-              child: const Text('Login'),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white),
+              child: Text('Login', style: TextStyle(fontSize: _sp(14))),
             ),
           ],
         ),
@@ -533,76 +472,157 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     return AccountSetting();
   }
 
-  // ─────────── Sliver App Bar with Greeting ───────────
   Widget _buildSliverAppBar() {
     return SliverAppBar(
       automaticallyImplyLeading: false,
-      floating: true,
-      pinned: false,
-      snap: true,
-      backgroundColor: Colors.transparent,
+      pinned: true,
+      floating: false,
+      snap: false,
+      backgroundColor: Colors.white,
       elevation: 0,
+      toolbarHeight: 80,
       centerTitle: false,
-      title: Consumer<AuthProvider>(
-        builder: (context, auth, _) {
-          final name = auth.user?.fullName;
-          if (name != null && name.isNotEmpty) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildGreetingRow(_getGreeting()),
-                Text(
-                  name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    height: 1.2,
-                    shadows: [Shadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 2))],
+      titleSpacing: 20,
+      title: Padding(
+        padding: const EdgeInsets.only(top: 16),
+        child: Consumer<AuthProvider>(
+          builder: (context, auth, _) {
+            final name = auth.user?.fullName;
+            if (name != null && name.isNotEmpty) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ── "Hey, Name" on the same line ──
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Text(
+                        'Hey, ',
+                        style: TextStyle(
+                          color: AppColors.secondaryText,
+                          fontSize: _sp(18),
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                      Text(
+                        name,
+                        style: TextStyle(
+                          color: AppColors.onBackground,
+                          fontSize: _sp(22),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
-            );
-          } else {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Find Your', style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.w400)),
-                const Text(
-                  'Perfect Futsal ⚽',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    height: 1.2,
-                    shadows: [Shadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 2))],
+                  const SizedBox(height: 6),
+                  // ── Current location (or “Add location” if not set) ──
+                  GestureDetector(
+                    onTap: _userPosition == null ? _getUserLocation : null,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.location_on_outlined,
+                          size: 16,
+                          color: _userPosition != null
+                              ? AppColors.primary
+                              : AppColors.secondaryText,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _userPosition != null
+                              ? 'Current location'
+                              : 'Add location',
+                          style: TextStyle(
+                            color: _userPosition != null
+                                ? AppColors.primary
+                                : AppColors.secondaryText,
+                            fontSize: _sp(13),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            );
-          }
-        },
+                ],
+              );
+            } else {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Find Your',
+                      style: TextStyle(
+                          color: AppColors.secondaryText,
+                          fontSize: _sp(16),
+                          fontWeight: FontWeight.w400)),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Perfect Futsal ⚽',
+                    style: TextStyle(
+                      color: AppColors.onBackground,
+                      fontSize: _sp(26),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              );
+            }
+          },
+        ),
       ),
       actions: [
+        // 1. Notification bell
         IconButton(
-          icon: Icon(Icons.notifications_outlined, color: Colors.white),
-          onPressed: () {},
+          icon: const Icon(Icons.notifications_outlined,
+              color: AppColors.onBackground),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const NotificationScreen()),
+            );
+          },
         ),
+        // 2. Favourite heart (only when logged in)
+        Consumer<AuthProvider>(
+          builder: (_, auth, __) {
+            if (!auth.isAuthenticated) return const SizedBox.shrink();
+            return IconButton(
+              icon: const Icon(Icons.favorite_border,
+                  color: AppColors.onBackground),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const WishlistScreen()),
+                );
+              },
+            );
+          },
+        ),
+        // 3. Profile avatar (or login button)
         Consumer<AuthProvider>(
           builder: (_, auth, __) => Container(
             margin: const EdgeInsets.only(right: 16),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 2))],
+              boxShadow: [
+                BoxShadow(
+                    color: AppColors.shadow,
+                    blurRadius: 8,
+                    offset: Offset(0, 2))
+              ],
             ),
             child: auth.isAuthenticated
                 ? PopupMenuButton<String>(
-                    offset: Offset(0, 50),
+                    offset: const Offset(0, 50),
                     color: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
                     child: CircleAvatar(
-                      backgroundColor: Colors.white,
-                      child: Icon(Icons.person, color: Colors.green.shade700),
+                      backgroundColor: AppColors.primaryLight.withOpacity(0.2),
+                      child: Icon(Icons.person, color: AppColors.primary),
                     ),
                     onSelected: (value) async {
                       if (value == 'logout') {
@@ -612,10 +632,13 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                             title: Text('Logout'),
                             content: Text('Are you sure you want to logout?'),
                             actions: [
-                              TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Cancel')),
+                              TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: Text('Cancel')),
                               TextButton(
                                 onPressed: () => Navigator.pop(ctx, true),
-                                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                                style: TextButton.styleFrom(
+                                    foregroundColor: Colors.red),
                                 child: Text('Logout'),
                               ),
                             ],
@@ -625,16 +648,24 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                           await auth.logout();
                           setState(() {});
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Logged out successfully'), behavior: SnackBarBehavior.floating),
+                            SnackBar(
+                                content: Text('Logged out successfully'),
+                                behavior: SnackBarBehavior.floating),
                           );
                         }
                       } else if (value == 'profile') {
-                        setState(() => _currentNavIndex = 4); // switch to profile tab
+                        setState(() => _currentNavIndex = 4);
                       } else if (value == 'dashboard') {
                         if (auth.isOwner) {
-                          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const OwnerDashboard()));
+                          Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const OwnerDashboard()));
                         } else if (auth.isAdmin) {
-                          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => AdminDashboard()));
+                          Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => AdminDashboard()));
                         }
                       } else if (value == 'filters') {
                         setState(() => _showFilters = !_showFilters);
@@ -646,9 +677,11 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                         value: 'filters',
                         child: Row(
                           children: [
-                            Icon(Icons.filter_list, color: Colors.grey.shade700),
+                            Icon(Icons.filter_list,
+                                color: AppColors.onBackground),
                             SizedBox(width: 12),
-                            Text(_showFilters ? 'Hide Filters' : 'Show Filters'),
+                            Text(
+                                _showFilters ? 'Hide Filters' : 'Show Filters'),
                           ],
                         ),
                       ),
@@ -656,7 +689,8 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                         value: 'profile',
                         child: Row(
                           children: [
-                            Icon(Icons.person_outline, color: Colors.grey.shade700),
+                            Icon(Icons.person_outline,
+                                color: AppColors.onBackground),
                             SizedBox(width: 12),
                             Text('My Profile'),
                           ],
@@ -667,7 +701,8 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                           value: 'dashboard',
                           child: Row(
                             children: [
-                              Icon(Icons.dashboard, color: Colors.grey.shade700),
+                              Icon(Icons.dashboard,
+                                  color: AppColors.onBackground),
                               SizedBox(width: 12),
                               Text('Dashboard'),
                             ],
@@ -678,9 +713,10 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                         value: 'logout',
                         child: Row(
                           children: [
-                            Icon(Icons.logout, color: Colors.red),
+                            Icon(Icons.logout, color: AppColors.accentCoral),
                             SizedBox(width: 12),
-                            Text('Logout', style: TextStyle(color: Colors.red)),
+                            Text('Logout',
+                                style: TextStyle(color: AppColors.accentCoral)),
                           ],
                         ),
                       ),
@@ -691,63 +727,74 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                     shape: CircleBorder(),
                     child: InkWell(
                       onTap: () async {
-                        await Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+                        await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const LoginScreen()));
                         setState(() {});
                       },
                       customBorder: CircleBorder(),
                       child: Padding(
                         padding: const EdgeInsets.all(10),
-                        child: Icon(Icons.login, color: Colors.green.shade700),
+                        child: Icon(Icons.login, color: AppColors.primary),
                       ),
                     ),
                   ),
           ),
         ),
       ],
-      bottom: PreferredSize(
-        preferredSize: Size.fromHeight(70),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-          child: _buildSearchBar(),
-        ),
-      ),
     );
   }
 
   Widget _buildSearchBar() {
     return GestureDetector(
-      onTap: () {
-        setState(() => _currentNavIndex = 1);   // switch to search tab instead of push
-      },
+      onTap: () => setState(() => _currentNavIndex = 1),
       child: Container(
-        height: 48,
+        height: 52,
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(30),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, 4))],
-          border: Border.all(color: Colors.white30, width: 1),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+                color: AppColors.shadow,
+                blurRadius: 12,
+                offset: const Offset(0, 4))
+          ],
         ),
         child: Row(
           children: [
             const SizedBox(width: 16),
-            const Icon(Icons.search, color: Colors.green, size: 22),
+            Icon(Icons.search_rounded, color: AppColors.primary, size: 24),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 'Search by name or location...',
-                style: TextStyle(color: Colors.grey.shade400, fontSize: 15, fontWeight: FontWeight.w400),
+                style: TextStyle(
+                  color: AppColors.secondaryText,
+                  fontSize: _sp(15),
+                  fontWeight: FontWeight.w400,
+                ),
               ),
             ),
-            const Icon(Icons.tune, color: Colors.grey, size: 20),
-            const SizedBox(width: 16),
+            Container(
+              margin: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child:
+                  Icon(Icons.tune_rounded, color: AppColors.primary, size: 20),
+            ),
+            const SizedBox(width: 8),
           ],
         ),
       ),
     );
   }
 
-  // ─────────── Futsal List Section ───────────
-  Widget _buildFutsalListSection(String title, {required int maxCount, int skipCount = 0}) {
+  Widget _buildFutsalListSection(String title,
+      {required int maxCount, int skipCount = 0}) {
     final allFutsals = _filteredFutsals;
     final sliced = allFutsals.skip(skipCount).take(maxCount).toList();
     if (sliced.isEmpty) return const SizedBox.shrink();
@@ -757,32 +804,39 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
+                Text(title,
+                    style: TextStyle(
+                        color: AppColors.onBackground,
+                        fontSize: _sp(20),
+                        fontWeight: FontWeight.bold)),
                 TextButton(
-                  onPressed: () => setState(() => _currentNavIndex = 1),   // go to search tab
-                  child: Text('See All', style: TextStyle(color: Colors.green.shade300, fontSize: 14, fontWeight: FontWeight.w500)),
+                  onPressed: () => setState(() => _currentNavIndex = 1),
+                  child: Text('See All',
+                      style: TextStyle(
+                          color: AppColors.primary,
+                          fontSize: _sp(14),
+                          fontWeight: FontWeight.w600)),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 12),
           SizedBox(
-            height: 210,
+            height: 230,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               itemCount: sliced.length,
               padding: const EdgeInsets.only(right: 16),
               itemBuilder: (context, index) {
                 return SizedBox(
-                  width: 190,
+                  width: 200,
                   child: Padding(
-                    padding: const EdgeInsets.only(right: 12),
+                    padding: const EdgeInsets.only(right: 16),
                     child: _buildSquareFutsalCard(sliced[index]),
                   ),
                 );
@@ -794,7 +848,169 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     );
   }
 
-  // ─────────── Ad Carousel ───────────
+  Widget _buildSquareFutsalCard(Futsal futsal) {
+    final imageUrl = futsal.images.isNotEmpty
+        ? futsal.images[0]
+        : 'https://via.placeholder.com/300x200?text=Futsal';
+    final rating = futsal.averageRating ?? 4.5;
+    final price = futsal.getMinPrice();
+
+    return GestureDetector(
+      onTap: () => _onBookPressed(context, futsal),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.shadow,
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Stack(
+              children: [
+                Image.network(
+                  imageUrl,
+                  height: 120,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    height: 120,
+                    color: AppColors.primary.withOpacity(0.05),
+                    child: Icon(Icons.sports_soccer,
+                        color: AppColors.primary, size: 40),
+                  ),
+                ),
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.black38,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Consumer<FavoriteProvider>(
+                      builder: (context, fav, _) {
+                        final isFav = fav.isFavorite(futsal.id);
+                        return InkWell(
+                          onTap: () async {
+                            final auth = Provider.of<AuthProvider>(context,
+                                listen: false);
+                            if (!auth.isAuthenticated) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content:
+                                        Text('Please log in to save favorites'),
+                                    backgroundColor: Colors.orange),
+                              );
+                              return;
+                            }
+                            final success = await fav.toggleFavorite(futsal.id);
+                            if (success && context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(isFav
+                                      ? 'Removed from favorites'
+                                      : 'Added to favorites'),
+                                  backgroundColor: Colors.green,
+                                  duration: const Duration(seconds: 1),
+                                ),
+                              );
+                            }
+                          },
+                          child: Icon(
+                            isFav ? Icons.favorite : Icons.favorite_border,
+                            color: isFav ? AppColors.accentCoral : Colors.white,
+                            size: 18,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(futsal.name,
+                      style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: _sp(15),
+                          color: AppColors.onBackground),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(Icons.location_on_outlined,
+                          size: 14, color: AppColors.secondaryText),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          futsal.address.split(',').first,
+                          style: TextStyle(
+                              fontSize: _sp(12),
+                              color: AppColors.secondaryText),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.accentAmber.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.star_rounded,
+                                size: 14, color: AppColors.accentAmber),
+                            const SizedBox(width: 4),
+                            Text(rating.toStringAsFixed(1),
+                                style: TextStyle(
+                                    fontSize: _sp(13),
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.onBackground)),
+                          ],
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        price != null
+                            ? 'Rs. ${price.toStringAsFixed(0)}/hr'
+                            : 'Price varies',
+                        style: TextStyle(
+                            fontSize: _sp(13),
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primaryDark),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildAdCarousel() {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: futureAds,
@@ -809,26 +1025,29 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
         return Column(
           children: [
             SizedBox(
-              height: 180,
+              height: 200,
               child: PageView.builder(
                 controller: _adController,
-                onPageChanged: (index) => setState(() => _currentAdIndex = index),
+                onPageChanged: (index) =>
+                    setState(() => _currentAdIndex = index),
                 itemCount: ads.length,
                 itemBuilder: (context, index) => _buildAdCard(ads[index]),
               ),
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(
                 ads.length,
                 (index) => AnimatedContainer(
-                  duration: Duration(milliseconds: 300),
-                  margin: EdgeInsets.symmetric(horizontal: 4),
+                  duration: const Duration(milliseconds: 300),
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
                   width: _currentAdIndex == index ? 24 : 8,
                   height: 8,
                   decoration: BoxDecoration(
-                    color: _currentAdIndex == index ? Colors.green.shade400 : Colors.white38,
+                    color: _currentAdIndex == index
+                        ? AppColors.primary
+                        : AppColors.divider,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -847,9 +1066,9 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: (ad['color'] as Color?)?.withOpacity(0.3) ?? Colors.black26,
+            color: AppColors.shadow,
             blurRadius: 12,
-            offset: Offset(0, 6),
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -857,13 +1076,17 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
         borderRadius: BorderRadius.circular(24),
         child: Stack(
           children: [
-            Image.network(ad['image'], height: 180, width: double.infinity, fit: BoxFit.cover),
+            Image.network(ad['image'],
+                height: 200, width: double.infinity, fit: BoxFit.cover),
             Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.centerLeft,
                   end: Alignment.centerRight,
-                  colors: [Colors.black.withOpacity(0.6), Colors.transparent],
+                  colors: [
+                    AppColors.cardDark1.withOpacity(0.85),
+                    AppColors.cardDark2.withOpacity(0.5),
+                  ],
                 ),
               ),
             ),
@@ -873,19 +1096,31 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(ad['title'], style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-                  SizedBox(height: 6),
-                  Text(ad['subtitle'], style: TextStyle(color: Colors.white70, fontSize: 14)),
-                  SizedBox(height: 16),
+                  Text(ad['title'],
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: _sp(24),
+                          fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 6),
+                  Text(ad['subtitle'],
+                      style: TextStyle(
+                          color: Colors.white.withOpacity(0.9),
+                          fontSize: _sp(14))),
+                  const SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: () {},
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: ad['color'] ?? Colors.green,
+                      backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
                     ),
-                    child: Text(ad['cta']),
+                    child: Text(ad['cta'],
+                        style: TextStyle(
+                            fontSize: _sp(14), fontWeight: FontWeight.w600)),
                   ),
                 ],
               ),
@@ -899,160 +1134,14 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
   Widget _buildAdShimmer() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      height: 180,
+      height: 200,
       decoration: BoxDecoration(
-        color: Colors.grey.shade800,
+        color: AppColors.divider,
         borderRadius: BorderRadius.circular(24),
       ),
     );
   }
 
-  // ─────────── Featured Section (inactive) ───────────
-  Widget _buildFeaturedSection() {
-    return Consumer<FutsalProvider>(
-      builder: (context, provider, _) {
-        if (provider.isLoading && provider.futsals.isEmpty) {
-          return _buildHorizontalShimmer();
-        }
-        if (provider.futsals.isEmpty) {
-          return SizedBox.shrink();
-        }
-        final featured = provider.futsals.take(4).toList();
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('✨ Featured Grounds', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
-                  TextButton(
-                    onPressed: () {},
-                    child: Text('See All', style: TextStyle(color: Colors.green.shade300)),
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(
-              height: 220,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                itemCount: featured.length,
-                itemBuilder: (context, index) => _buildFeaturedCard(featured[index]),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildFeaturedCard(Futsal futsal) {
-    final imageUrl = futsal.images.isNotEmpty ? futsal.images[0] : 'https://via.placeholder.com/300x200?text=Futsal';
-    return Hero(
-      tag: 'featured-${futsal.id}',
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => _onBookPressed(context, futsal),
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            width: 200,
-            margin: const EdgeInsets.only(right: 16, bottom: 8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 4))],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                  child: Stack(
-                    children: [
-                      Image.network(imageUrl, height: 120, width: double.infinity, fit: BoxFit.cover),
-                      Positioned(
-                        top: 8,
-                        right: 8,
-                        child: Consumer<FavoriteProvider>(
-                          builder: (context, favProvider, child) {
-                            final isFav = favProvider.isFavorite(futsal.id);
-                            return Container(
-                              padding: EdgeInsets.all(6),
-                              decoration: BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
-                              child: InkWell(
-                                onTap: () async {
-                                  final auth = Provider.of<AuthProvider>(context, listen: false);
-                                  if (!auth.isAuthenticated) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Please log in to save favorites'), backgroundColor: Colors.orange),
-                                    );
-                                    return;
-                                  }
-                                  final success = await favProvider.toggleFavorite(futsal.id);
-                                  if (success && context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(isFav ? 'Removed from favorites' : 'Added to favorites'),
-                                        backgroundColor: Colors.green,
-                                        duration: const Duration(seconds: 1),
-                                      ),
-                                    );
-                                  }
-                                },
-                                child: Icon(isFav ? Icons.favorite : Icons.favorite_border, color: isFav ? Colors.red : Colors.white, size: 16),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(futsal.name, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16), maxLines: 1, overflow: TextOverflow.ellipsis),
-                      SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(Icons.location_on, size: 14, color: Colors.grey.shade600),
-                          SizedBox(width: 4),
-                          Expanded(
-                            child: Text(futsal.address.split(',').first, style: TextStyle(fontSize: 12, color: Colors.grey.shade600), maxLines: 1, overflow: TextOverflow.ellipsis),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(Icons.star, size: 14, color: Colors.amber),
-                          SizedBox(width: 4),
-                          Text(futsal.averageRating?.toStringAsFixed(1) ?? '4.5', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                          Spacer(),
-                          Text(
-                            futsal.getMinPrice() != null ? 'Rs. ${futsal.getMinPrice()!.toStringAsFixed(0)}/hr' : '',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.green.shade700),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ─────────── Tournaments Section ───────────
   Widget _buildTournamentsSection() {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: futureTournaments,
@@ -1072,16 +1161,24 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('🏆 Upcoming Tournaments', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
+                  Text('🏆 Upcoming Tournaments',
+                      style: TextStyle(
+                          color: AppColors.onBackground,
+                          fontSize: _sp(20),
+                          fontWeight: FontWeight.bold)),
                   TextButton(
-                    onPressed: () => setState(() => _currentNavIndex = 3),   // go to tournaments tab
-                    child: Text('View All', style: TextStyle(color: Colors.green.shade300)),
+                    onPressed: () => setState(() => _currentNavIndex = 3),
+                    child: Text('View All',
+                        style: TextStyle(
+                            color: AppColors.primary,
+                            fontSize: _sp(14),
+                            fontWeight: FontWeight.w600)),
                   ),
                 ],
               ),
             ),
             SizedBox(
-              height: 160,
+              height: 180,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -1089,15 +1186,21 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                 itemBuilder: (context, index) {
                   final t = tournaments[index];
                   return Container(
-                    width: 280,
+                    width: 300,
                     margin: const EdgeInsets.only(right: 16, bottom: 8),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Colors.deepPurple.shade400, Colors.purple.shade900],
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(24),
                       boxShadow: [
-                        BoxShadow(color: Colors.purple.withOpacity(0.3), blurRadius: 10, offset: Offset(0, 4))
+                        BoxShadow(
+                          color: const Color(0xFF4F46E5).withOpacity(0.3),
+                          blurRadius: 12,
+                          offset: const Offset(0, 6),
+                        )
                       ],
                     ),
                     child: Stack(
@@ -1105,39 +1208,63 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                         Positioned(
                           right: -20,
                           bottom: -20,
-                          child: Icon(Icons.emoji_events, size: 100, color: Colors.white.withOpacity(0.1)),
+                          child: Icon(Icons.emoji_events,
+                              size: 100, color: Colors.white.withOpacity(0.1)),
                         ),
                         Padding(
-                          padding: const EdgeInsets.all(16),
+                          padding: const EdgeInsets.all(20),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(t['name'], style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                              SizedBox(height: 4),
+                              Text(t['name'],
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: _sp(18),
+                                      fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 8),
                               Row(
                                 children: [
-                                  Icon(Icons.calendar_today, size: 14, color: Colors.white70),
-                                  SizedBox(width: 6),
-                                  Text(t['date'], style: TextStyle(color: Colors.white70)),
+                                  Icon(Icons.calendar_today_rounded,
+                                      size: 16, color: Colors.white70),
+                                  const SizedBox(width: 6),
+                                  Text(t['date'],
+                                      style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: _sp(13))),
                                 ],
                               ),
-                              SizedBox(height: 4),
+                              const SizedBox(height: 8),
                               Row(
                                 children: [
-                                  Icon(Icons.emoji_events, size: 14, color: Colors.amber),
-                                  SizedBox(width: 6),
-                                  Text('Prize: ${t['prize']}', style: TextStyle(color: Colors.white70)),
+                                  Icon(Icons.emoji_events_rounded,
+                                      size: 16, color: AppColors.accentAmber),
+                                  const SizedBox(width: 6),
+                                  Text('Prize: ${t['prize']}',
+                                      style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: _sp(13))),
                                 ],
                               ),
-                              Spacer(),
-                              ElevatedButton(
-                                onPressed: () {},
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white,
-                                  foregroundColor: Colors.purple,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                              const Spacer(),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton(
+                                  onPressed: () {},
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.white,
+                                    foregroundColor: AppColors.accentPurple,
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(14)),
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 12),
+                                  ),
+                                  child: Text('Register',
+                                      style: TextStyle(
+                                          fontSize: _sp(14),
+                                          fontWeight: FontWeight.w600)),
                                 ),
-                                child: Text('Register'),
                               ),
                             ],
                           ),
@@ -1160,224 +1287,53 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(width: 150, height: 20, color: Colors.grey.shade800),
+          Container(width: 150, height: 20, color: AppColors.divider),
           SizedBox(height: 12),
           Row(
-            children: List.generate(3, (index) => Container(
-                  width: 200,
-                  height: 180,
-                  margin: EdgeInsets.only(right: 16),
-                  decoration: BoxDecoration(color: Colors.grey.shade800, borderRadius: BorderRadius.circular(20)),
-                )),
+            children: List.generate(
+              3,
+              (index) => Container(
+                width: 200,
+                height: 180,
+                margin: const EdgeInsets.only(right: 16),
+                decoration: BoxDecoration(
+                  color: AppColors.divider,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  // ─────────── Product Ad Carousel ───────────
-  Widget _buildProductAdCarousel() {
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: futureProductAds,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return _buildProductAdShimmer();
-        }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const SizedBox.shrink();
-        }
-        final ads = snapshot.data!;
-        final screenWidth = MediaQuery.of(context).size.width;
-        final bannerHeight = screenWidth * 0.35;
-        final maxHeight = 180.0;
-        final minHeight = 130.0;
-        final height = bannerHeight.clamp(minHeight, maxHeight);
-        return Column(
-          children: [
-            SizedBox(
-              height: height,
-              child: PageView.builder(
-                controller: _productAdController,
-                onPageChanged: (index) => setState(() => _currentProductAdIndex = index),
-                itemCount: ads.length,
-                itemBuilder: (context, index) {
-                  final ad = ads[index];
-                  return _buildProductAdCard(ad, height);
-                },
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(
-                ads.length,
-                (index) => AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  width: _currentProductAdIndex == index ? 24 : 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: _currentProductAdIndex == index ? Colors.amber.shade400 : Colors.white38,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildProductAdCard(Map<String, dynamic> ad, double height) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        height: height,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [ad['gradientStart'], ad['gradientEnd']],
-          ),
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(color: Colors.black38, blurRadius: 10, offset: const Offset(0, 4)),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () => _launchURL(ad['externalUrl']),
-            borderRadius: BorderRadius.circular(20),
-            child: Stack(
-              children: [
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  bottom: 0,
-                  width: height * 2.5,
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: Image.network(
-                      ad['imageUrl'],
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => Icon(
-                        Icons.shopping_bag,
-                        size: height * 0.5,
-                        color: Colors.white24,
-                      ),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: EdgeInsets.all(height * 0.1),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        ad['tag'],
-                        style: TextStyle(
-                          color: Colors.amber.shade300,
-                          fontSize: height * 0.08,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.5,
-                          shadows: [Shadow(color: Colors.black26, blurRadius: 4)],
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        ad['title'],
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: height * 0.14,
-                          fontWeight: FontWeight.bold,
-                          shadows: [Shadow(color: Colors.black38, blurRadius: 6)],
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        ad['subtitle'],
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: height * 0.09,
-                          shadows: [Shadow(color: Colors.black26, blurRadius: 4)],
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      ElevatedButton(
-                        onPressed: () => _launchURL(ad['externalUrl']),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: ad['buttonColor'],
-                          foregroundColor: Colors.black,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                          padding: EdgeInsets.symmetric(
-                            horizontal: height * 0.12,
-                            vertical: height * 0.05,
-                          ),
-                        ),
-                        child: Text(ad['buttonText'], style: TextStyle(fontSize: height * 0.08)),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProductAdShimmer() {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final height = (screenWidth * 0.35).clamp(130.0, 180.0);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        height: height,
-        decoration: BoxDecoration(
-          color: Colors.grey.shade800,
-          borderRadius: BorderRadius.circular(20),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _launchURL(String url) async {
-    final Uri uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not open $url')),
-      );
-    }
-  }
-
-  // ─────────── Action Buttons ───────────
   Widget _buildActionButtons() {
     return Consumer<AuthProvider>(
       builder: (context, auth, _) {
         if (auth.isAuthenticated) return const SizedBox.shrink();
         final isDesktop = Responsive.isDesktop(context);
         final buttonPadding = EdgeInsets.symmetric(
-          horizontal: isDesktop ? 24 : 16,
-          vertical: isDesktop ? 16 : 12,
+          horizontal: isDesktop ? 24 : 20,
+          vertical: isDesktop ? 18 : 14,
         );
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
           child: Column(
             children: [
-              const Divider(color: Colors.white24, thickness: 1),
-              const SizedBox(height: 20),
+              Container(height: 1, color: AppColors.divider),
+              const SizedBox(height: 24),
               Text('Ready to get started?',
-                  style: TextStyle(color: Colors.white, fontSize: isDesktop ? 20 : 18, fontWeight: FontWeight.w600)),
+                  style: TextStyle(
+                      color: AppColors.onBackground,
+                      fontSize: _sp(isDesktop ? 22 : 20),
+                      fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               Text('Login to book or register your futsal',
-                  style: TextStyle(color: Colors.white70, fontSize: isDesktop ? 14 : 12)),
-              const SizedBox(height: 24),
+                  style: TextStyle(
+                      color: AppColors.secondaryText,
+                      fontSize: _sp(isDesktop ? 15 : 13))),
+              const SizedBox(height: 28),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -1388,18 +1344,23 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                         MaterialPageRoute(
                           builder: (_) => const LoginScreen(),
                           settings: const RouteSettings(
-                            arguments: LoginScreenArguments(isLogin: true, selectedRole: 'PLAYER'),
+                            arguments: LoginScreenArguments(
+                                isLogin: true, selectedRole: 'PLAYER'),
                           ),
                         ),
                       );
                     },
-                    icon: const Icon(Icons.login),
-                    label: const Text('Login as Player'),
+                    icon: const Icon(Icons.login_rounded, size: 20),
+                    label: Text('Login',
+                        style: TextStyle(
+                            fontSize: _sp(15), fontWeight: FontWeight.w600)),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green.shade600,
+                      backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
+                      elevation: 0,
                       padding: buttonPadding,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -1410,324 +1371,31 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                         MaterialPageRoute(
                           builder: (_) => const LoginScreen(),
                           settings: RouteSettings(
-                            arguments: LoginScreenArguments(isLogin: false, selectedRole: 'OWNER'),
+                            arguments: LoginScreenArguments(
+                                isLogin: false, selectedRole: 'OWNER'),
                           ),
                         ),
                       );
                     },
-                    icon: const Icon(Icons.add_business),
-                    label: const Text('Register Futsal'),
+                    icon: const Icon(Icons.add_business_rounded, size: 20),
+                    label: Text('Register Futsal',
+                        style: TextStyle(
+                            fontSize: _sp(15), fontWeight: FontWeight.w600)),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      side: const BorderSide(color: Colors.white),
+                      foregroundColor: AppColors.primary,
+                      side: BorderSide(color: AppColors.primary, width: 1.5),
                       padding: buttonPadding,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
             ],
           ),
         );
       },
-    );
-  }
-
-  // ─────────── Footer ───────────
-  Widget _buildFooter() {
-    final isDesktop = Responsive.isDesktop(context);
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isMobile = screenWidth < 600;
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.symmetric(
-        horizontal: isDesktop ? 40 : 24,
-        vertical: isDesktop ? 40 : 30,
-      ),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.green.shade900.withOpacity(0.8),
-            Colors.black.withOpacity(0.6),
-          ],
-        ),
-        border: Border(top: BorderSide(color: Colors.white24, width: 1)),
-      ),
-      child: isMobile ? _buildMobileFooter() : _buildDesktopFooter(isDesktop),
-    );
-  }
-
-  Widget _buildDesktopFooter(bool isDesktop) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          flex: 2,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.sports_soccer, color: Colors.white, size: 28),
-                  const SizedBox(width: 8),
-                  Text('Futsal Booking',
-                      style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Your one-stop platform for booking futsal grounds, managing tournaments, and connecting with players.',
-                style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  _buildSocialIcon(Icons.facebook, 'Facebook'),
-                  const SizedBox(width: 12),
-                  _buildSocialIcon(Icons.camera_alt, 'Instagram'),
-                  const SizedBox(width: 12),
-                  _buildSocialIcon(Icons.alternate_email, 'Twitter'),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 40),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Quick Links', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 16),
-              _buildFooterLink('About Us'),
-              _buildFooterLink('How It Works'),
-              _buildFooterLink('Pricing'),
-              _buildFooterLink('FAQs'),
-              _buildFooterLink('Blog'),
-            ],
-          ),
-        ),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Services', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 16),
-              _buildFooterLink('Book a Ground'),
-              _buildFooterLink('Tournaments'),
-              _buildFooterLink('Become an Owner'),
-              _buildFooterLink('Player Community'),
-              _buildFooterLink('Gift Cards'),
-            ],
-          ),
-        ),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Contact Us', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 16),
-              _buildContactItem(Icons.email_outlined, 'support@futsalbooking.com'),
-              const SizedBox(height: 8),
-              _buildContactItem(Icons.phone_outlined, '+977 980-0000000'),
-              const SizedBox(height: 8),
-              _buildContactItem(Icons.location_on_outlined, 'Kathmandu, Nepal'),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMobileFooter() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(Icons.sports_soccer, color: Colors.white, size: 24),
-            const SizedBox(width: 8),
-            Text('Futsal Booking', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Text(
-          'Your one-stop platform for booking futsal grounds, managing tournaments, and connecting with players.',
-          style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
-        ),
-        const SizedBox(height: 24),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Quick Links', style: _footerHeadingStyle()),
-                  const SizedBox(height: 12),
-                  _buildFooterLink('About Us'),
-                  _buildFooterLink('How It Works'),
-                  _buildFooterLink('FAQs'),
-                ],
-              ),
-            ),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Services', style: _footerHeadingStyle()),
-                  const SizedBox(height: 12),
-                  _buildFooterLink('Book a Ground'),
-                  _buildFooterLink('Tournaments'),
-                  _buildFooterLink('Become an Owner'),
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
-        Text('Contact Us', style: _footerHeadingStyle()),
-        const SizedBox(height: 12),
-        _buildContactItem(Icons.email_outlined, 'support@futsalbooking.com'),
-        const SizedBox(height: 8),
-        _buildContactItem(Icons.phone_outlined, '+977 980-0000000'),
-        const SizedBox(height: 8),
-        _buildContactItem(Icons.location_on_outlined, 'Kathmandu, Nepal'),
-        const SizedBox(height: 24),
-        Row(
-          children: [
-            _buildSocialIcon(Icons.facebook, 'Facebook'),
-            const SizedBox(width: 16),
-            _buildSocialIcon(Icons.camera_alt, 'Instagram'),
-            const SizedBox(width: 16),
-            _buildSocialIcon(Icons.alternate_email, 'Twitter'),
-          ],
-        ),
-      ],
-    );
-  }
-
-  TextStyle _footerHeadingStyle() =>
-      TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold);
-
-  Widget _buildFooterLink(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 1),
-      child: InkWell(
-        onTap: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$text page coming soon'))),
-        child: Text(text, style: TextStyle(color: Colors.white70, fontSize: 14)),
-      ),
-    );
-  }
-
-  Widget _buildContactItem(IconData icon, String text) {
-    return Row(
-      children: [
-        Icon(icon, color: Colors.green.shade300, size: 18),
-        const SizedBox(width: 12),
-        Text(text, style: TextStyle(color: Colors.white70, fontSize: 14)),
-      ],
-    );
-  }
-
-  Widget _buildSocialIcon(IconData icon, String platform) {
-    return InkWell(
-      onTap: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$platform link coming soon'))),
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: Colors.white10, shape: BoxShape.circle),
-        child: Icon(icon, color: Colors.white70, size: 20),
-      ),
-    );
-  }
-
-  // ─────────── Square Futsal Card (horizontal slider) ───────────
-  Widget _buildSquareFutsalCard(Futsal futsal) {
-    final imageUrl = futsal.images.isNotEmpty
-        ? futsal.images[0]
-        : 'https://via.placeholder.com/300x200?text=Futsal';
-    final rating = futsal.averageRating ?? 4.5;
-    final price = futsal.getMinPrice();
-
-    return GestureDetector(
-      onTap: () => _onBookPressed(context, futsal),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.08),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-              child: Image.network(
-                imageUrl,
-                height: 110,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  height: 110,
-                  color: Colors.green.shade50,
-                  child: const Icon(Icons.sports_soccer, color: Colors.green, size: 40),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(futsal.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(Icons.location_on, size: 12, color: Colors.grey),
-                      const SizedBox(width: 2),
-                      Expanded(
-                        child: Text(
-                          futsal.address.split(',').first,
-                          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      const Icon(Icons.star, size: 14, color: Colors.amber),
-                      const SizedBox(width: 2),
-                      Text(rating.toStringAsFixed(1),
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                      const Spacer(),
-                      Text(
-                        price != null ? 'Rs. ${price.toStringAsFixed(0)}/hr' : 'Price varies',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.green.shade700),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

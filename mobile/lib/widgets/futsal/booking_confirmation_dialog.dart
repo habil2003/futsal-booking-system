@@ -1,11 +1,12 @@
-// lib/widgets/futsal/booking_confirmation_dialog.dart
 import 'package:flutter/material.dart';
 import '../../utils/date_formatter.dart';
 import '../../utils/futsal_constants.dart';
+import '../../utils/app_colors.dart';
 
 class BookingConfirmationDialog extends StatefulWidget {
   final Map<String, dynamic> selectedSlot;
   final DateTime selectedDate;
+  final String groundName;
   final bool isProcessing;
   final Function(int) onConfirm;
   final VoidCallback onCancel;
@@ -14,6 +15,7 @@ class BookingConfirmationDialog extends StatefulWidget {
     super.key,
     required this.selectedSlot,
     required this.selectedDate,
+    required this.groundName,
     required this.isProcessing,
     required this.onConfirm,
     required this.onCancel,
@@ -24,8 +26,7 @@ class BookingConfirmationDialog extends StatefulWidget {
       _BookingConfirmationDialogState();
 }
 
-class _BookingConfirmationDialogState
-    extends State<BookingConfirmationDialog> {
+class _BookingConfirmationDialogState extends State<BookingConfirmationDialog> {
   int _selectedDuration = 1;
 
   String _getCourtNumber() {
@@ -55,179 +56,252 @@ class _BookingConfirmationDialogState
     return num.tryParse(widget.selectedSlot['price']?.toString() ?? '0') ?? 0;
   }
 
-  Widget _buildDetailRow(IconData icon, String text) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: Colors.green),
-        const SizedBox(width: 8),
-        Text(text),
-      ],
-    );
-  }
-
-  Widget _buildPeakChip() {
-    return Container(
-      margin: const EdgeInsets.only(left: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: Colors.red.shade50,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: Colors.red.shade200),
-      ),
-      child: Text(
-        '🔥 Peak',
-        style: TextStyle(
-          fontSize: 10,
-          color: Colors.red.shade700,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final price = _getSlotPrice();
     final isPeak = _isSlotPeak();
     final total = price * _selectedDuration;
+    final dateStr = DateFormatter.formatDateFull(widget.selectedDate);
+    final timeStr = widget.selectedSlot['startTime'] ?? '';
+    final courtStr = _getCourtNumber();
 
     return AlertDialog(
-      title: const Text('Confirm Booking'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Details container
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.green.shade50,
-              borderRadius: BorderRadius.circular(10),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      insetPadding: const EdgeInsets.symmetric(
+          horizontal: 8, vertical: 24), 
+      title: const Padding(
+        padding: EdgeInsets.only(bottom: 8.0),
+        child: Text(
+        'Confirm Booking',
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          color: AppColors.onBackground,
+          fontSize: 22, 
+        ),
+      ),
+      ),
+      content: SizedBox(
+        height: 500,
+        width: 400, 
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ── Ground Summary Box ──
+            Container(
+              padding: const EdgeInsets.all(18), // increased from 14
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.divider),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildInfoRow(Icons.sports_soccer_rounded, widget.groundName,
+                      fontWeight: FontWeight.bold, fontSize: 16),
+                  const SizedBox(height: 10),
+                  _buildInfoRow(Icons.calendar_today_rounded, dateStr,
+                      fontSize: 16),
+                  const SizedBox(height: 10),
+                  _buildInfoRow(Icons.access_time_rounded, timeStr,
+                      fontSize: 16),
+                  const SizedBox(height: 10),
+                  _buildInfoRow(Icons.grid_view_rounded, courtStr,
+                      fontSize: 16),
+                ],
+              ),
             ),
-            child: Column(
-              children: [
-                _buildDetailRow(
-                    Icons.calendar_today,
-                    DateFormatter.formatDateFull(widget.selectedDate)),
-                const SizedBox(height: 8),
-                _buildDetailRow(
-                    Icons.access_time, widget.selectedSlot['startTime']),
-                const SizedBox(height: 8),
-                _buildDetailRow(Icons.sports_soccer, _getCourtNumber()),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Duration selector
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade200),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Duration (hours)'),
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.remove_circle_outline),
-                          onPressed: _selectedDuration > 1
-                              ? () => setState(() => _selectedDuration--)
-                              : null,
-                          color: _selectedDuration > 1
-                              ? Colors.green
-                              : Colors.grey,
+            const SizedBox(height: 20),
+            // ── Pricing Box ──
+            Container(
+              padding: const EdgeInsets.all(18), // increased from 14
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.divider),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Price per hour row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Text('Price per hour',
+                              style: TextStyle(
+                                  color: AppColors.secondaryText,
+                                  fontSize: 16)),
+                          if (isPeak) ...[
+                            const SizedBox(width: 8),
+                            _buildPeakChip(),
+                          ],
+                        ],
+                      ),
+                      Text(
+                        'रू ${price.toStringAsFixed(0)}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: isPeak
+                              ? AppColors.accentCoral
+                              : AppColors.primaryDark,
                         ),
-                        Container(
-                          width: 40,
-                          alignment: Alignment.center,
-                          child: Text(
-                            '$_selectedDuration',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  // Duration selector
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Duration (hours)',
+                          style: TextStyle(
+                              color: AppColors.secondaryText, fontSize: 16)),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildDurationButton(
+                            icon: Icons.remove,
+                            size: 40,
+                            onTap: _selectedDuration > 1
+                                ? () => setState(() => _selectedDuration--)
+                                : null,
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Text(
+                              '$_selectedDuration',
+                              style: const TextStyle(
+                                fontSize: 26,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.onBackground,
+                              ),
                             ),
                           ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.add_circle_outline),
-                          onPressed: _selectedDuration <
-                                  FutsalConstants.maxBookingHours
-                              ? () => setState(() => _selectedDuration++)
-                              : null,
-                          color: _selectedDuration <
-                                  FutsalConstants.maxBookingHours
-                              ? Colors.green
-                              : Colors.grey,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const Divider(),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        const Text('Price per hour'),
-                        if (isPeak) _buildPeakChip(),
-                      ],
-                    ),
-                    Text(
-                      'रू ${price.toStringAsFixed(0)}',
-                      style: TextStyle(
-                        color: isPeak ? Colors.red.shade700 : Colors.black,
-                        fontWeight: isPeak ? FontWeight.bold : FontWeight.normal,
+                          _buildDurationButton(
+                            icon: Icons.add,
+                            size: 40,
+                            onTap: _selectedDuration <
+                                    FutsalConstants.maxBookingHours
+                                ? () => setState(() => _selectedDuration++)
+                                : null,
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(color: AppColors.divider),
+                  const SizedBox(height: 16),
+                  // Total row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Total',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 20,
+                          color: AppColors.onBackground,
+                        ),
+                      ),
+                      Text(
+                        'रू ${total.toStringAsFixed(0)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                          fontSize: 24,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-
-          // Total
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Total',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              Text(
-                'रू ${total.toStringAsFixed(0)}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green,
-                  fontSize: 18,
-                ),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
       actions: [
         TextButton(
           onPressed: widget.isProcessing ? null : widget.onCancel,
-          child: const Text('Cancel'),
+          child: const Text('Cancel',
+              style: TextStyle(color: AppColors.secondaryText, fontSize: 16)),
         ),
         ElevatedButton(
           onPressed: widget.isProcessing
               ? null
               : () => widget.onConfirm(_selectedDuration),
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.green,
+            backgroundColor: AppColors.primary,
             foregroundColor: Colors.white,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
           ),
-          child: const Text('Confirm'),
+          child: const Text('Confirm Booking', style: TextStyle(fontSize: 18)),
         ),
       ],
+    );
+  }
+
+// Updated helpers
+  Widget _buildInfoRow(IconData icon, String text,
+      {FontWeight fontWeight = FontWeight.normal, double fontSize = 16}) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: AppColors.primary), // larger icon
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: fontSize,
+              fontWeight: fontWeight,
+              color: AppColors.onBackground,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPeakChip() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.accentCoral.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: AppColors.accentCoral.withOpacity(0.3)),
+      ),
+      child: const Text(
+        '🔥 Peak',
+        style: TextStyle(
+            fontSize: 12,
+            color: AppColors.accentCoral,
+            fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  Widget _buildDurationButton(
+      {required IconData icon, double size = 32, VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: onTap != null
+              ? AppColors.primary.withOpacity(0.1)
+              : AppColors.divider,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon,
+            size: size * 0.55,
+            color: onTap != null ? AppColors.primary : AppColors.secondaryText),
+      ),
     );
   }
 }

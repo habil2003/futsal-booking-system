@@ -29,18 +29,23 @@ import 'screens/admin/admin_all_futsals_screen.dart';
 import 'screens/admin/admin_bookings_screen.dart';
 import 'screens/admin/system_settings_screen.dart';
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final auth = AuthProvider();
+  await auth.tryAutoLogin();
+
+  runApp(MyApp(authProvider: auth));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final AuthProvider authProvider;
+  const MyApp({required this.authProvider, super.key});
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider.value(value: authProvider),
         ChangeNotifierProvider(create: (_) => FutsalProvider()),
         ChangeNotifierProvider(create: (_) => BookingProvider()),
         ChangeNotifierProvider(create: (_) => DashboardProvider()),
@@ -58,7 +63,9 @@ class MyApp extends StatelessWidget {
         title: 'Futsal Booking',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
-          primarySwatch: Colors.green,
+          colorScheme: ColorScheme.fromSeed(
+    seedColor: const Color(0xFF059669),
+  ),
           visualDensity: VisualDensity.adaptivePlatformDensity,
         ),
         home: const SplashScreen(),

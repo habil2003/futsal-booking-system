@@ -87,7 +87,7 @@ class SlotsGridWidget extends StatelessWidget {
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
-              fontSize: 13,
+              fontSize: 16,
             ),
           ),
         ),
@@ -95,7 +95,7 @@ class SlotsGridWidget extends StatelessWidget {
         Text(
           '$slotCount slots',
           style: TextStyle(
-            fontSize: 12,
+            fontSize: 16,
             color: Colors.grey.shade500,
           ),
         ),
@@ -112,7 +112,7 @@ Widget _buildCourtSlotsGrid(BuildContext context, List<Map<String, dynamic>> slo
     physics: const NeverScrollableScrollPhysics(),
     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
       crossAxisCount: crossAxisCount,
-      childAspectRatio: FutsalConstants.slotAspectRatio,
+      childAspectRatio: 0.95,
       crossAxisSpacing: 8,
       mainAxisSpacing: 8,
     ),
@@ -136,12 +136,12 @@ Widget _buildCourtSlotsGrid(BuildContext context, List<Map<String, dynamic>> slo
   final isLargeScreen = screenWidth > 800;
   
   // Responsive font sizes (bigger on large screens)
-  final timeFontSize = isLargeScreen ? 18.0 : 14.0;
-  final courtFontSize = isLargeScreen ? 12.0 : 10.0;
-  final priceFontSize = isLargeScreen ? 14.0 : 11.0;
-  final statusFontSize = isLargeScreen ? 10.0 : 8.0;
-  final peakFontSize = isLargeScreen ? 14.0 : 10.0;
-  final cardPadding = isLargeScreen ? 12.0 : 8.0;
+  final timeFontSize = isLargeScreen ? 18.0 : 16.0;
+  final courtFontSize = isLargeScreen ? 14.0 : 14.0;
+  final priceFontSize = isLargeScreen ? 18.0 : 16.0;
+  final statusFontSize = isLargeScreen ? 16.0 : 14.0;
+  final peakFontSize = isLargeScreen ? 14.0 : 14.0;
+  final cardPadding = isLargeScreen ? 6.0 : 4.0;
 
   Color backgroundColor;
   Color textColor;
@@ -201,7 +201,7 @@ Widget _buildCourtSlotsGrid(BuildContext context, List<Map<String, dynamic>> slo
               color: textColor,
             ),
           ),
-          SizedBox(height: isLargeScreen ? 8 : 4),
+          SizedBox(height: isLargeScreen ? 6 : 4),
           Text(
             getCourtNumber(slot),
             style: TextStyle(
@@ -209,7 +209,7 @@ Widget _buildCourtSlotsGrid(BuildContext context, List<Map<String, dynamic>> slo
               color: textColor.withOpacity(0.8),
             ),
           ),
-          SizedBox(height: isLargeScreen ? 8 : 4),
+          SizedBox(height: isLargeScreen ? 6 : 4),
           Text(
             'रू ${slot['price'] ?? 0}',
             style: TextStyle(

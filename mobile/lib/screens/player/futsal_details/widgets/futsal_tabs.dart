@@ -1,12 +1,12 @@
-// lib/screens/player/futsal_details/widgets/futsal_tabs.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../utils/responsive.dart';
+import '../../../../utils/app_colors.dart';
 import 'about_tab.dart';
-import 'slots_tab.dart';
 import 'reviews_tab.dart';
 import '../../../../models/futsal.dart';
 import '../../../../providers/court_provider.dart';
+import 'check_availability_screen.dart';   // 🆕 availability page
 
 class FutsalTabs extends StatefulWidget {
   final Futsal futsal;
@@ -30,11 +30,10 @@ class _FutsalTabsState extends State<FutsalTabs> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _tabController = TabController(
-      length: 3,
+      length: 2,                    // Only About and Reviews
       vsync: this,
-      initialIndex: widget.initialTabIndex,
+      initialIndex: widget.initialTabIndex > 1 ? 1 : widget.initialTabIndex, // prevent index out of range
     );
-    
     _courtsFuture = _fetchCourts();
   }
   
@@ -59,22 +58,23 @@ class _FutsalTabsState extends State<FutsalTabs> with TickerProviderStateMixin {
       builder: (context, snapshot) {
         return Column(
           children: [
+            // ── Tab Bar ──
             Container(
               color: Colors.white,
               child: TabBar(
                 controller: _tabController,
-                labelColor: Colors.green,
-                unselectedLabelColor: Colors.grey,
-                indicatorColor: Colors.green,
+                labelColor: AppColors.primary,
+                unselectedLabelColor: AppColors.secondaryText,
+                indicatorColor: AppColors.primary,
                 labelStyle: TextStyle(fontSize: tabFontSize),
                 unselectedLabelStyle: TextStyle(fontSize: tabFontSize),
                 tabs: const [
-                  Tab(text: 'About', icon: Icon(Icons.info)),
-                  Tab(text: 'Slots', icon: Icon(Icons.access_time)),
-                  Tab(text: 'Reviews', icon: Icon(Icons.star)),
+                  Tab(text: 'About', icon: Icon(Icons.info_outline)),
+                  Tab(text: 'Reviews', icon: Icon(Icons.star_border)),
                 ],
               ),
             ),
+            // ── Tab Content ──
             Expanded(
               child: TabBarView(
                 controller: _tabController,
@@ -83,9 +83,47 @@ class _FutsalTabsState extends State<FutsalTabs> with TickerProviderStateMixin {
                     futsal: widget.futsal,
                     isLoading: snapshot.connectionState != ConnectionState.done,
                   ),
-                  SlotsTab(futsal: widget.futsal),
                   ReviewsTab(futsal: widget.futsal),
                 ],
+              ),
+            ),
+            // ── Check Availability Button ──
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CheckAvailabilityScreen(futsal: widget.futsal),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Check Availability',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
               ),
             ),
           ],

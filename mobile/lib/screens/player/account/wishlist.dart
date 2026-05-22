@@ -5,18 +5,50 @@ import 'package:futsal_mobile/providers/futsal_provider.dart';
 import 'package:futsal_mobile/models/futsal.dart';
 import 'package:futsal_mobile/screens/player/futsal_details_screen.dart';
 
-class WishlistScreen extends StatelessWidget {
+class WishlistScreen extends StatefulWidget {
   const WishlistScreen({super.key});
 
   @override
+  State<WishlistScreen> createState() => _WishlistScreenState();
+}
+
+class _WishlistScreenState extends State<WishlistScreen> {
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    final favProvider = Provider.of<FavoriteProvider>(context, listen: false);
+    final futsalProvider = Provider.of<FutsalProvider>(context, listen: false);
+
+    // Load favourites first
+    await favProvider.loadFavorites();
+
+    // Ensure futsal list is available (will be fetched only if empty)
+    if (futsalProvider.futsals.isEmpty) {
+      await futsalProvider.fetchFutsals();
+    }
+
+    if (mounted) setState(() => _isLoading = false);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     final futsalProvider = Provider.of<FutsalProvider>(context);
     final favProvider = Provider.of<FavoriteProvider>(context);
 
-    // Keep only the futsals that are marked as favorite
     final allFutsals = futsalProvider.futsals;
-    final wishlist =
-        allFutsals.where((f) => favProvider.isFavorite(f.id)).toList();
+    final wishlist = allFutsals.where((f) => favProvider.isFavorite(f.id)).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -32,8 +64,7 @@ class WishlistScreen extends StatelessWidget {
                 children: [
                   Icon(Icons.favorite_border, size: 64, color: Colors.grey),
                   SizedBox(height: 16),
-                  Text('No favourites yet.',
-                      style: TextStyle(color: Colors.grey)),
+                  Text('No favourites yet.', style: TextStyle(color: Colors.grey)),
                 ],
               ),
             )
@@ -49,6 +80,7 @@ class WishlistScreen extends StatelessWidget {
   }
 
   Widget _buildWishlistCard(BuildContext context, Futsal futsal) {
+    // … (exactly the same as before) …
     final imageUrl = futsal.images.isNotEmpty
         ? futsal.images[0]
         : 'https://via.placeholder.com/300x180?text=Futsal';
@@ -71,13 +103,11 @@ class WishlistScreen extends StatelessWidget {
               width: 80,
               height: 80,
               color: Colors.green.shade50,
-              child: const Icon(Icons.sports_soccer,
-                  color: Colors.green, size: 36),
+              child: const Icon(Icons.sports_soccer, color: Colors.green, size: 36),
             ),
           ),
         ),
-        title: Text(futsal.name,
-            style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(futsal.name, style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -101,13 +131,10 @@ class WishlistScreen extends StatelessWidget {
               children: [
                 const Icon(Icons.star, size: 14, color: Colors.amber),
                 const SizedBox(width: 4),
-                Text(rating.toStringAsFixed(1),
-                    style: const TextStyle(fontSize: 13)),
+                Text(rating.toStringAsFixed(1), style: const TextStyle(fontSize: 13)),
                 const Spacer(),
                 Text(
-                  price != null
-                      ? 'Rs. ${price.toStringAsFixed(0)}/hr'
-                      : 'Price varies',
+                  price != null ? 'Rs. ${price.toStringAsFixed(0)}/hr' : 'Price varies',
                   style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -122,6 +149,8 @@ class WishlistScreen extends StatelessWidget {
           onPressed: () {
             Provider.of<FavoriteProvider>(context, listen: false)
                 .toggleFavorite(futsal.id);
+            // Optionally refresh the list after removal
+            setState(() {});
           },
         ),
         onTap: () {

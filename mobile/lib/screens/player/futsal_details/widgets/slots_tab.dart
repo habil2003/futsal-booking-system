@@ -123,7 +123,8 @@ class _SlotsTabState extends State<SlotsTab> with WidgetsBindingObserver {
 
       // Overwrite startTime with AM/PM format
       final List<Map<String, dynamic>> enrichedSlots = filteredSlots.map((slot) {
-        return {...slot, 'startTime': _formatToAmPm(slot['startTime'] ?? '')};
+        return {...slot, 'startTime': _formatToAmPm(slot['startTime'] ?? ''),
+        'endTime': _formatToAmPm(slot['endTime'] ?? ''),};
       }).toList();
 
       setState(() {
@@ -251,6 +252,7 @@ class _SlotsTabState extends State<SlotsTab> with WidgetsBindingObserver {
       builder: (dialogContext) => BookingConfirmationDialog(
         selectedSlot: _selectedSlot!,
         selectedDate: _selectedDate,
+        groundName: widget.futsal.name,  
         isProcessing: _isProcessing,
         onConfirm: (duration) {
           Navigator.pop(dialogContext);
@@ -540,7 +542,7 @@ class _SlotsTabState extends State<SlotsTab> with WidgetsBindingObserver {
     );
   }
 
-  // ============ UI BUILD ============
+  // UI BUILD 
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -557,6 +559,7 @@ class _SlotsTabState extends State<SlotsTab> with WidgetsBindingObserver {
         ),
         BookingBar(
           selectedSlot: _selectedSlot,
+           selectedDate: _selectedDate, 
           isProcessing: _isProcessing,
           onProceedToBooking: _proceedToBooking,
         ),
@@ -762,7 +765,7 @@ Widget _buildDateSelector() {
       children: [
         Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
         const SizedBox(width: 4),
-        Text(label, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+        Text(label, style: TextStyle(fontSize: 14, color: Colors.black87)),
       ],
     );
   }

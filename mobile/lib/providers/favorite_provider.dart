@@ -40,25 +40,27 @@ class FavoriteProvider extends ChangeNotifier {
     return _favorites.any((f) => f.futsalId == futsalId);
   }
 
-  // Add to favorites
   Future<bool> addFavorite(int futsalId) async {
-    try {
-      final response = await ApiService.post('favorites', {
-        'futsalId': futsalId,
-      });
+  try {
+    final response = await ApiService.post('favorites', {
+      'futsalId': futsalId,
+    });
 
-      if (response['status'] == 'success') {
-        // Add to local list
-        _favorites.add(Favorite.fromJson(response['favorite']));
-        notifyListeners();
-        return true;
-      }
-      return false;
-    } catch (e) {
-      debugPrint('Error adding favorite: $e');
-      return false;
+    if (response['status'] == 'success') {
+      _favorites.add(Favorite.fromJson(response['favorite']));
+      notifyListeners();
+      return true;
     }
+    // "Already in favorites" is not an error – just ignore
+    if (response['message'] == 'Already in favorites') {
+      return false;    // nothing to add, but don't show error
+    }
+    return false;
+  } catch (e) {
+    debugPrint('Error adding favorite: $e');
+    return false;
   }
+}
 
   // Remove from favorites
   Future<bool> removeFavorite(int futsalId) async {

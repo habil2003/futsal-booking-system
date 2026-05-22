@@ -26,7 +26,7 @@ class FutsalAppBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SliverAppBar(
-      expandedHeight: 300,
+      expandedHeight: 150,
       pinned: true,
       stretch: true,
       backgroundColor: Colors.green,
@@ -120,7 +120,7 @@ class FutsalAppBar extends StatelessWidget {
       left: 0,
       right: 0,
       child: Container(
-        height: 100,
+        height: 40,
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [

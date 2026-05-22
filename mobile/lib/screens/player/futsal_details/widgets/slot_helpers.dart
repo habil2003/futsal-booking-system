@@ -105,7 +105,7 @@ class SlotHelpers {
       child: Text(
         '🔥 Peak',
         style: TextStyle(
-          fontSize: 10,
+          fontSize: 12  ,
           color: Colors.red.shade700,
           fontWeight: FontWeight.bold,
         ),

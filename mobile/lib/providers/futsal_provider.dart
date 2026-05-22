@@ -18,9 +18,7 @@ class FutsalProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  // ============================================
   // FETCH ALL FUTSALS - For players
-  // ============================================
   Position? _playerPosition;
 Position? get playerPosition => _playerPosition;
 

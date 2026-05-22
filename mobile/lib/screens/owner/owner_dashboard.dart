@@ -17,6 +17,7 @@ import 'dashboard/widgets/quick_actions.dart';
 import 'dashboard/widgets/today_schedule.dart';
 import 'customer_screen.dart';
 import 'owner_setting.dart';
+import '../login_screen.dart';
 
 class OwnerDashboard extends StatefulWidget {
   const OwnerDashboard({super.key});
@@ -508,31 +509,45 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
 
   // ------------------------------------ Helper methods (mostly unchanged) ------------------------------------
   Future<void> _showLogoutConfirmation() async {
-    final bool? shouldLogout = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              style: TextButton.styleFrom(foregroundColor: Colors.grey),
-              child: const Text('CANCEL')),
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
-              child: const Text('LOGOUT')),
-        ],
-      ),
-    );
+  final bool? shouldLogout = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Logout'),
+      content: const Text('Are you sure you want to logout?'),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            style: TextButton.styleFrom(foregroundColor: Colors.grey),
+            child: const Text('CANCEL')),
+        TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('LOGOUT')),
+      ],
+    ),
+  );
 
-    if (shouldLogout == true && mounted) {
-      final auth = Provider.of<AuthProvider>(context, listen: false);
-      await auth.logout();
-      if (mounted) Navigator.pushReplacementNamed(context, '/login');
-    }
+  debugPrint('🔍 shouldLogout = $shouldLogout');
+  if (shouldLogout != true) return;
+
+  final auth = Provider.of<AuthProvider>(context, listen: false);
+  debugPrint('🔍 calling logout...');
+  await auth.logout();
+  debugPrint('🔍 logout done, mounted = $mounted');
+
+  if (!mounted) {
+    debugPrint('🔍 not mounted, aborting navigation');
+    return;
   }
+
+  debugPrint('🔍 navigating to LoginScreen');
+  Navigator.pushAndRemoveUntil(
+    context,
+    MaterialPageRoute(builder: (_) => const LoginScreen()),
+    (route) => false,
+  );
+}
 
   Future<void> _navigateToAddFutsal([Futsal? futsalToEdit]) async {
     final shouldRefresh = await Navigator.push(
