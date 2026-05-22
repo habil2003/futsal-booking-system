@@ -1,6 +1,7 @@
 import { prisma } from "../index.js";
 import axios from "axios";
-import { logActivity } from "../utils/activityLogger.js";   // 🆕 import
+import { logActivity } from "../utils/activityLogger.js";
+import { createNotification } from "../services/notification.service.js";
 
 /**
  * Create a new booking
@@ -130,6 +131,7 @@ export const createBooking = async (req, res) => {
       extraMeta: { bookingId: result.primaryBooking.id, amount: result.totalPrice },
     });
 
+    // ── Send response ──
     res.status(201).json({
       status: "success",
       booking: result.primaryBooking,
@@ -139,6 +141,35 @@ export const createBooking = async (req, res) => {
       slotCount: result.bookings.length,
       expiresIn: 300,
     });
+
+    // ── Notifications (non‑blocking) ──
+    try {
+      const booking = result.primaryBooking;
+      const futsalName = booking.slot.court.futsal.name;
+      const date = booking.slot.date;
+      const time = booking.slot.startTime;
+      const futsalId = booking.slot.court.futsalId;
+      const ownerId = booking.slot.court.futsal.ownerId;
+
+      await createNotification({
+        userId: req.user.id,
+        title: 'Booking Created',
+        message: `Your booking at ${futsalName} on ${date} (${time}) is pending.`,
+        type: 'booking_created',
+        data: { bookingId: booking.id },
+      });
+
+      await createNotification({
+        userId: ownerId,
+        title: 'New Booking Received',
+        message: `A new booking was made for ${futsalName} on ${date} (${time}).`,
+        type: 'owner_new_booking',
+        data: { bookingId: booking.id, futsalId },
+      });
+    } catch (notifErr) {
+      console.error('Notification error:', notifErr);
+    }
+
   } catch (error) {
     console.error("❌ CREATE BOOKING ERROR:", error);
     res.status(400).json({ status: "error", message: error.message });
@@ -233,12 +264,16 @@ export const paymentCallback = async (req, res) => {
     if (isSuccess) {
       const payment = await prisma.payment.findFirst({
         where: { transactionId: pidx },
-        include: { booking: true },
+        include: {
+          booking: {
+            include: {
+              slot: { include: { court: { include: { futsal: true } } } },
+            },
+          },
+        },
       });
 
       if (payment && payment.status !== "COMPLETED") {
-        console.log("✅ Payment successful, updating records...");
-
         const allGroupBookings = payment.booking.groupId
           ? await prisma.booking.findMany({
               where: { groupId: payment.booking.groupId },
@@ -265,7 +300,6 @@ export const paymentCallback = async (req, res) => {
           }),
         ]);
 
-        // ✅ Log completed booking
         await logActivity({
           type: 'BOOKING_COMPLETED',
           description: `Booking #${payment.booking.id} confirmed via Khalti`,
@@ -274,12 +308,24 @@ export const paymentCallback = async (req, res) => {
           status: 'completed',
           extraMeta: { bookingId: payment.booking.id },
         });
+
+        // Notification – payment success
+        try {
+          const b = payment.booking;
+          await createNotification({
+            userId: b.userId,
+            title: 'Payment Successful',
+            message: `Your payment for booking at ${b.slot.court.futsal.name} has been confirmed.`,
+            type: 'booking_confirmed',
+            data: { bookingId: b.id },
+          });
+        } catch (e) {
+          console.error('Notification error:', e);
+        }
       }
 
       return res.redirect(`${frontendUrl}/booking-history?payment=success`);
     } else {
-      console.log("❌ Payment not completed, status:", paymentStatus);
-
       const payment = await prisma.payment.findFirst({
         where: { transactionId: pidx },
         include: { booking: true },
@@ -394,7 +440,6 @@ export const initiatePayment = async (req, res) => {
     });
 
     // Create payment record with PENDING status
-    // REMOVED expiresAt field since it doesn't exist in your schema
     const payment = await prisma.payment.create({
       data: {
         bookingId: booking.id,
@@ -462,7 +507,7 @@ export const verifyPayment = async (req, res) => {
       include: {
         booking: {
           include: {
-            slot: true,
+            slot: { include: { court: { include: { futsal: true } } } },
             payment: true,
           },
         },
@@ -547,6 +592,20 @@ export const verifyPayment = async (req, res) => {
           data: { status: "BOOKED", lockedUntil: null },
         }),
       ]);
+
+      // Notification – payment success
+      try {
+        const b = payment.booking;
+        await createNotification({
+          userId: b.userId,
+          title: 'Payment Successful',
+          message: `Your payment for booking at ${b.slot.court.futsal.name} has been confirmed.`,
+          type: 'booking_confirmed',
+          data: { bookingId: b.id },
+        });
+      } catch (e) {
+        console.error('Notification error:', e);
+      }
 
       console.log("✅ Transaction completed successfully");
       return res.json({ status: "success" });
@@ -646,7 +705,6 @@ export const updatePaymentStatus = async (req, res) => {
   }
 };
 
-
 /**
  * User cancels booking
  */
@@ -655,7 +713,10 @@ export const userCancelBooking = async (req, res) => {
     const { bookingId } = req.params;
     const booking = await prisma.booking.findUnique({
       where: { id: parseInt(bookingId) },
-      include: { payment: true },
+      include: {
+        payment: true,
+        slot: { include: { court: { include: { futsal: true } } } },
+      },
     });
 
     if (!booking)
@@ -678,7 +739,6 @@ export const userCancelBooking = async (req, res) => {
       });
     });
 
-    // ✅ Log cancellation
     await logActivity({
       type: 'BOOKING_CANCELLED',
       description: `Booking #${booking.id} cancelled by user`,
@@ -687,6 +747,19 @@ export const userCancelBooking = async (req, res) => {
       status: 'cancelled',
       extraMeta: { bookingId: booking.id },
     });
+
+    // Notification – booking cancelled
+    try {
+      await createNotification({
+        userId: booking.userId,
+        title: 'Booking Cancelled',
+        message: `Your booking at ${booking.slot.court.futsal.name} on ${booking.slot.date} has been cancelled.`,
+        type: 'booking_cancelled',
+        data: { bookingId: booking.id },
+      });
+    } catch (notifErr) {
+      console.error('Notification error:', notifErr);
+    }
 
     res.json({ status: "success", message: "Booking cancelled successfully" });
   } catch (error) {
@@ -701,12 +774,11 @@ export const checkInBooking = async (req, res) => {
   try {
     const { bookingId } = req.params;
 
-    // ✅ FIX: Add 'payment' to the include
     const booking = await prisma.booking.findUnique({
       where: { id: parseInt(bookingId) },
-      include: { 
+      include: {
         slot: { include: { court: { include: { futsal: true } } } },
-        payment: true  // ← THIS WAS MISSING
+        payment: true,
       },
     });
 
@@ -721,7 +793,7 @@ export const checkInBooking = async (req, res) => {
     if (booking.status === "CANCELLED") {
       return res.status(400).json({ status: "error", message: "Cannot check in a cancelled booking" });
     }
-    
+
     if (booking.checkInTime) {
       return res.status(400).json({ status: "error", message: "Already checked in" });
     }
@@ -729,24 +801,13 @@ export const checkInBooking = async (req, res) => {
     const isKhalti = booking.paymentMethod === "KHALTI";
     const isPaid = booking.payment?.status === "COMPLETED";
 
-    console.log("🔵 Booking Info:", { 
-      id: booking.id, 
-      paymentMethod: booking.paymentMethod, 
-      paymentStatus: booking.payment?.status,
-      isKhalti, 
-      isPaid 
-    });
-
     let newStatus;
     if (isKhalti && isPaid) {
       newStatus = "COMPLETED";
-      console.log("🔵 Khalti paid booking - marking as COMPLETED");
     } else {
       newStatus = "CONFIRMED";
-      console.log("🔵 COD or unpaid Khalti - marking as CONFIRMED");
     }
 
-    // Update booking
     const updated = await prisma.booking.update({
       where: { id: parseInt(bookingId) },
       data: {
@@ -755,7 +816,6 @@ export const checkInBooking = async (req, res) => {
       },
     });
 
-    // ✅ Log check-in completion
     await logActivity({
       type: 'BOOKING_COMPLETED',
       description: `Booking #${booking.id} checked in by owner`,
@@ -764,6 +824,19 @@ export const checkInBooking = async (req, res) => {
       status: 'completed',
       extraMeta: { bookingId: booking.id },
     });
+
+    // Notification – booking confirmed
+    try {
+      await createNotification({
+        userId: booking.userId,
+        title: 'Booking Confirmed',
+        message: `Your booking at ${booking.slot.court.futsal.name} on ${booking.slot.date} has been confirmed.`,
+        type: 'booking_confirmed',
+        data: { bookingId: booking.id },
+      });
+    } catch (notifErr) {
+      console.error('Notification error:', notifErr);
+    }
 
     res.json({
       status: "success",
@@ -828,7 +901,6 @@ export const confirmCodPayment = async (req, res) => {
       });
     });
 
-    // ✅ Log COD completion
     await logActivity({
       type: 'BOOKING_COMPLETED',
       description: `Booking #${booking.id} completed via COD`,
@@ -837,6 +909,19 @@ export const confirmCodPayment = async (req, res) => {
       status: 'completed',
       extraMeta: { bookingId: booking.id },
     });
+
+    // Notification – booking completed
+    try {
+      await createNotification({
+        userId: booking.userId,
+        title: 'Booking Completed',
+        message: `Your booking at ${booking.slot.court.futsal.name} on ${booking.slot.date} has been completed. Thank you!`,
+        type: 'booking_completed',
+        data: { bookingId: booking.id },
+      });
+    } catch (notifErr) {
+      console.error('Notification error:', notifErr);
+    }
 
     res.json({
       status: "success",

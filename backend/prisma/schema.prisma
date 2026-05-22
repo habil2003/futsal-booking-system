@@ -8,8 +8,8 @@ datasource db {
 }
 
 model User {
-  id              Int           @id @default(autoincrement())
-  email           String        @unique
+  id              Int       @id @default(autoincrement())
+  email           String    @unique
   username        String? // unique username for all users
   password        String
   fullName        String
@@ -22,27 +22,27 @@ model User {
   city            String?
   province        String?
   // ... rest of the fields remain unchanged
-  role            Role          @default(PLAYER)
-  isApproved      Boolean       @default(false)
-  createdAt       DateTime      @default(now())
-  isActive        Boolean       @default(true)
-  isEmailVerified Boolean       @default(false)
+  role            Role      @default(PLAYER)
+  isApproved      Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  isActive        Boolean   @default(true)
+  isEmailVerified Boolean   @default(false)
   otp             String?
   otpExpiry       DateTime?
 
-  socialId       String?   @unique
-  socialProvider String?   // 'GOOGLE', 'FACEBOOK', 'APPLE'
+  socialId       String? @unique
+  socialProvider String? // 'GOOGLE', 'FACEBOOK', 'APPLE'
   profileImage   String?
 
-
-  ownerBlocks     Block[]       @relation("OwnerBlocks")
-  playerBlocks    Block[]       @relation("PlayerBlocks")
-  bookings        Booking[]
-  favorites       Favorite[]
-  ownedFutsals    Futsal[]      @relation("OwnerFutsals")
-  reviews         Review[]
-  teams           TeamMember[]
-  activities      ActivityLog[]
+  ownerBlocks   Block[]        @relation("OwnerBlocks")
+  playerBlocks  Block[]        @relation("PlayerBlocks")
+  bookings      Booking[]
+  favorites     Favorite[]
+  ownedFutsals  Futsal[]       @relation("OwnerFutsals")
+  reviews       Review[]
+  teams         TeamMember[]
+  activities    ActivityLog[]
+  notifications Notification[]
 }
 
 model Futsal {
@@ -302,4 +302,18 @@ model ActivityLog {
   status      String // e.g., 'completed', 'pending', 'registered'
   metadata    Json? // extra info (name, email, phone, bookingId, etc.)
   createdAt   DateTime @default(now())
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  title     String
+  message   String
+  type      String
+  data      Json?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
 }

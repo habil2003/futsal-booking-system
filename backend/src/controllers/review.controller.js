@@ -1,4 +1,5 @@
 import { prisma } from '../index.js';
+import { createNotification } from '../services/notification.service.js';
 
 /**
  * Create a review
@@ -59,9 +60,25 @@ export const createReview = async (req, res) => {
         comment: comment || null
       },
       include: {
-        user: { select: { id: true, fullName: true } }
+        user: { select: { id: true, fullName: true } },
+        futsal: { select: { name: true, ownerId: true } }
       }
     });
+
+    // ── Notification: notify futsal owner ──
+    try {
+      if (review.futsal) {
+        await createNotification({
+          userId: review.futsal.ownerId,
+          title: 'New Review',
+          message: `${review.user.fullName} left a ${review.rating}★ review on ${review.futsal.name}`,
+          type: 'new_review',
+          data: { reviewId: review.id, futsalId: review.futsalId }
+        });
+      }
+    } catch (notifErr) {
+      console.error('Notification error:', notifErr);
+    }
 
     res.status(201).json({
       status: 'success',
@@ -199,7 +216,8 @@ export const replyToReview = async (req, res) => {
     const review = await prisma.review.findUnique({
       where: { id: parseInt(id) },
       include: {
-        futsal: { select: { ownerId: true } }
+        futsal: { select: { ownerId: true, name: true } },
+        user: { select: { id: true, fullName: true } }
       }
     });
 
@@ -219,6 +237,19 @@ export const replyToReview = async (req, res) => {
         user: { select: { id: true, fullName: true } }
       }
     });
+
+    // ── Notification: notify the player who wrote the review ──
+    try {
+      await createNotification({
+        userId: review.user.id,
+        title: 'Owner replied to your review',
+        message: `${review.futsal.name} owner replied: "${reply}"`,
+        type: 'review_reply',
+        data: { reviewId: review.id, futsalId: review.futsalId }
+      });
+    } catch (notifErr) {
+      console.error('Notification error:', notifErr);
+    }
 
     res.json({ status: 'success', message: 'Reply added', review: updated });
 

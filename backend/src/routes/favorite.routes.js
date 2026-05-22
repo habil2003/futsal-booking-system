@@ -1,23 +1,11 @@
-import { Router } from 'express';
-import { authenticate } from '../middleware/auth.js';
-import {
-  getFavorites,
-  addFavorite,
-  removeFavorite
-} from '../controllers/favorite.controller.js';
+import express from "express";
+import { authenticate } from "../middleware/auth.js";
+import { addFavorite, getFavorites, removeFavorite } from "../controllers/favorite.controller.js";
 
-const router = Router();
+const router = express.Router();
 
-// All routes require authentication
-router.use(authenticate);
-
-// Get all favorites for current user
-router.get('/', getFavorites);
-
-// Add a favorite
-router.post('/', addFavorite);
-
-// Remove a favorite
-router.delete('/:futsalId', removeFavorite);
+router.post("/", authenticate, addFavorite);
+router.get("/", authenticate, getFavorites);
+router.delete("/:futsalId", authenticate, removeFavorite);
 
 export default router;

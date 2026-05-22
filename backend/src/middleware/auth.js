@@ -30,7 +30,7 @@ export const authenticate = async (req, res, next) => {
         phoneNumber: true,
       },
     });
-
+  
     if (!user) {
       return res.status(401).json({
         status: "error",
