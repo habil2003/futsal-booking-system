@@ -14,6 +14,7 @@ import 'admin_analytics_screen.dart';
 import 'manage_tournaments.dart';
 import 'admin_dashboard.dart';
 import 'recent_activity.dart';
+import '../login_screen.dart';
 
 class AdminAccountScreen extends StatefulWidget {
   const AdminAccountScreen({super.key});
@@ -1012,38 +1013,46 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
     );
   }
 
-  void _showLogoutConfirmation(
-      BuildContext context, AuthProvider authProvider) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30)),
-            ),
-            onPressed: () async {
-              Navigator.pop(context);
-              await authProvider.logout();
-              if (mounted) {
-                Navigator.pushNamedAndRemoveUntil(
-                    context, '/login', (route) => false);
-              }
-            },
-            child: const Text('Logout'),
-          ),
-        ],
-      ),
-    );
+ Future<void> _showLogoutConfirmation(BuildContext context, AuthProvider authProvider) async {
+  final bool? shouldLogout = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Logout'),
+      content: const Text('Are you sure you want to logout?'),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            style: TextButton.styleFrom(foregroundColor: Colors.grey),
+            child: const Text('CANCEL')),
+        TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('LOGOUT')),
+      ],
+    ),
+  );
+
+  debugPrint('🔍 Admin shouldLogout = $shouldLogout');
+  if (shouldLogout != true) return;
+
+  final auth = Provider.of<AuthProvider>(context, listen: false);
+  debugPrint('🔍 Admin calling logout...');
+  await auth.logout();
+  debugPrint('🔍 Admin logout done, mounted = $mounted');
+
+  if (!mounted) {
+    debugPrint('🔍 Admin not mounted, aborting navigation');
+    return;
   }
+
+  debugPrint('🔍 Admin navigating to LoginScreen');
+  Navigator.pushAndRemoveUntil(
+    context,
+    MaterialPageRoute(builder: (_) => const LoginScreen()),
+    (route) => false,
+  );
+}
 
   Widget _buildProfileInfoRow(IconData icon, String value) {
     return Row(

@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import '../services/api_service.dart';
 import '../models/user.dart';
 
@@ -107,6 +109,10 @@ class AuthProvider extends ChangeNotifier {
     await prefs.remove('user');
     _token = null;
     _user = null;
+
+      // Ignore social sign‑out errors (they don't affect token removal)
+  try { await GoogleSignIn().signOut(); } catch (_) {}
+  try { await FacebookAuth.instance.logOut(); } catch (_) {}
     notifyListeners();
   }
 
@@ -184,5 +190,28 @@ class AuthProvider extends ChangeNotifier {
     if (isOwner) return '/owner/dashboard';
     if (isPlayer) return '/player/home';
     return '/login';
+  }
+
+
+   Future<void> setUserAndToken(String token, Map<String, dynamic> user) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('token', token);
+    await prefs.setString('user', jsonEncode(user));
+    _token = token;
+    _user = User.fromJson(user);
+    notifyListeners();
+  }
+
+
+  Future<void> tryAutoLogin() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    final userJson = prefs.getString('user');
+
+    if (token != null && userJson != null) {
+      _token = token;
+      _user = User.fromJson(jsonDecode(userJson));
+      notifyListeners();
+    }
   }
 }

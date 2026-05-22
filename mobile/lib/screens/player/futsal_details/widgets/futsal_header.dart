@@ -26,7 +26,7 @@ class FutsalHeader extends StatelessWidget {
                   child: Text(
                     futsal.name,
                     style: const TextStyle(
-                      fontSize: 28,
+                      fontSize: 24,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -34,7 +34,7 @@ class FutsalHeader extends StatelessWidget {
                 _buildRatingBadge(context),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             _buildAddressRow(),
           ],
         ),
@@ -78,7 +78,7 @@ class FutsalHeader extends StatelessWidget {
             futsal.address,
             style: TextStyle(
               color: Colors.grey.shade600,
-              fontSize: 14,
+              fontSize: 16,
             ),
           ),
         ),

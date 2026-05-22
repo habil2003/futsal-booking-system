@@ -14,7 +14,7 @@ class ApiService {
   // ============================================
   // BASE HTTP METHODS
   // ============================================
-  
+
   static Future<Map<String, dynamic>> get(String endpoint) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
@@ -33,7 +33,8 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> post(String endpoint, Map<String, dynamic> data) async {
+  static Future<Map<String, dynamic>> post(
+      String endpoint, Map<String, dynamic> data) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     final response = await http.post(
@@ -51,7 +52,8 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> put(String endpoint, Map<String, dynamic> data) async {
+  static Future<Map<String, dynamic>> put(
+      String endpoint, Map<String, dynamic> data) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     final response = await http.put(
@@ -69,7 +71,8 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> patch(String endpoint, Map<String, dynamic> data) async {
+  static Future<Map<String, dynamic>> patch(
+      String endpoint, Map<String, dynamic> data) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     final response = await http.patch(
@@ -111,7 +114,7 @@ class ApiService {
   // ============================================
   // LIST METHODS
   // ============================================
-  
+
   static Future<List<dynamic>> getList(String endpoint) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
@@ -144,7 +147,7 @@ class ApiService {
   // ============================================
   // ADS METHODS
   // ============================================
-  
+
   static Future<List<dynamic>> getActiveAds() async {
     try {
       final response = await getList('ads/active');
@@ -155,7 +158,8 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> createAd(Map<String, dynamic> adData) async {
+  static Future<Map<String, dynamic>> createAd(
+      Map<String, dynamic> adData) async {
     try {
       return await post('ads', adData);
     } catch (e) {
@@ -166,8 +170,9 @@ class ApiService {
   // ============================================
   // AUTH METHODS
   // ============================================
-  
-  static Future<Map<String, dynamic>> login(String email, String password) async {
+
+  static Future<Map<String, dynamic>> login(
+      String email, String password) async {
     final response = await http.post(
       Uri.parse('$baseUrl/auth/login'),
       headers: {'Content-Type': 'application/json'},
@@ -180,7 +185,23 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> register(Map<String, dynamic> userData) async {
+  static Future<Map<String, dynamic>> socialLogin(
+      String provider, Map<String, dynamic> tokenData) async {
+    final url = provider == 'google'
+        ? '$baseUrl/auth/google' 
+        : '$baseUrl/auth/facebook';
+
+    final response = await http.post(
+      Uri.parse(url),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(tokenData),
+    );
+
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> register(
+      Map<String, dynamic> userData) async {
     final response = await http.post(
       Uri.parse('$baseUrl/auth/register'),
       headers: {'Content-Type': 'application/json'},
@@ -189,7 +210,8 @@ class ApiService {
     return json.decode(response.body);
   }
 
-  static Future<Map<String, dynamic>> verifyEmail(String email, String otp) async {
+  static Future<Map<String, dynamic>> verifyEmail(
+      String email, String otp) async {
     return await post('auth/verify-email', {'email': email, 'otp': otp});
   }
 
@@ -201,7 +223,8 @@ class ApiService {
     return await post('auth/forgot-password', {'email': email});
   }
 
-  static Future<Map<String, dynamic>> resetPassword(String email, String otp, String newPassword) async {
+  static Future<Map<String, dynamic>> resetPassword(
+      String email, String otp, String newPassword) async {
     return await post('auth/reset-password', {
       'email': email,
       'otp': otp,
@@ -212,7 +235,7 @@ class ApiService {
   // ============================================
   // FUTSAL METHODS
   // ============================================
-  
+
   static Future<List<dynamic>> getMyFutsals() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -236,7 +259,8 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> createFutsal(Map<String, dynamic> futsalData) async {
+  static Future<Map<String, dynamic>> createFutsal(
+      Map<String, dynamic> futsalData) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token');
@@ -263,7 +287,7 @@ class ApiService {
   // ============================================
   // COURT METHODS
   // ============================================
-  
+
   static Future<List<dynamic>> getCourts(int futsalId) async {
     try {
       return await getList('futsals/$futsalId/courts');
@@ -275,7 +299,7 @@ class ApiService {
   // ============================================
   // SLOT METHODS
   // ============================================
-  
+
   static Future<Map<String, dynamic>> lockSlot(int slotId) async {
     try {
       return await post('slots/$slotId/lock', {});
@@ -295,7 +319,7 @@ class ApiService {
   // ============================================
   // PLAYER BOOKING METHODS
   // ============================================
-  
+
   static Future<Map<String, dynamic>> getMyBookings() async {
     try {
       return await get('bookings/my-bookings');
@@ -304,7 +328,8 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> createBooking(Map<String, dynamic> bookingData) async {
+  static Future<Map<String, dynamic>> createBooking(
+      Map<String, dynamic> bookingData) async {
     try {
       return await post('bookings', bookingData);
     } catch (e) {
@@ -319,18 +344,24 @@ class ApiService {
   // ============================================
   // OWNER DASHBOARD METHODS
   // ============================================
-  
+
   static Future<Map<String, dynamic>> getDashboardStats(int futsalId) async {
     try {
       return await get('owner/dashboard/stats?futsalId=$futsalId');
     } catch (e) {
-      return {'totalCourts': 0, 'todayBookings': 0, 'todayRevenue': 0, 'activeBookings': 0};
+      return {
+        'totalCourts': 0,
+        'todayBookings': 0,
+        'todayRevenue': 0,
+        'activeBookings': 0
+      };
     }
   }
 
   static Future<List<dynamic>> getDashboardTodayBookings(int futsalId) async {
     try {
-      final response = await get('owner/dashboard/today-bookings?futsalId=$futsalId');
+      final response =
+          await get('owner/dashboard/today-bookings?futsalId=$futsalId');
       return response['bookings'] ?? [];
     } catch (e) {
       return [];
@@ -339,7 +370,8 @@ class ApiService {
 
   static Future<List<double>> getWeeklyRevenue(int futsalId) async {
     try {
-      final response = await get('owner/dashboard/weekly-revenue?futsalId=$futsalId');
+      final response =
+          await get('owner/dashboard/weekly-revenue?futsalId=$futsalId');
       final revenueList = response['revenue'] ?? [0, 0, 0, 0, 0, 0, 0];
       if (revenueList is List) {
         return revenueList.map((e) {
@@ -357,7 +389,8 @@ class ApiService {
 
   static Future<Map<String, int>> getPeakHours(int futsalId) async {
     try {
-      final response = await get('owner/dashboard/peak-hours?futsalId=$futsalId');
+      final response =
+          await get('owner/dashboard/peak-hours?futsalId=$futsalId');
       final peakData = response['peakHours'] ?? {};
       if (peakData is Map) {
         Map<String, int> result = {};
@@ -381,7 +414,7 @@ class ApiService {
   // ============================================
   // OWNER BOOKINGS METHODS
   // ============================================
-  
+
   static Future<List<dynamic>> getOwnerUpcomingBookings(int futsalId) async {
     try {
       final response = await get('owner/bookings/upcoming?futsalId=$futsalId');
@@ -391,9 +424,11 @@ class ApiService {
     }
   }
 
-  static Future<List<dynamic>> getOwnerMonthBookings(int futsalId, int year, int month) async {
+  static Future<List<dynamic>> getOwnerMonthBookings(
+      int futsalId, int year, int month) async {
     try {
-      final response = await get('owner/bookings/month?futsalId=$futsalId&year=$year&month=$month');
+      final response = await get(
+          'owner/bookings/month?futsalId=$futsalId&year=$year&month=$month');
       return response['bookings'] ?? [];
     } catch (e) {
       return [];
@@ -415,7 +450,7 @@ class ApiService {
   // ============================================
   // OWNER BOOKING ACTIONS
   // ============================================
-  
+
   static Future<Map<String, dynamic>> checkInBooking(int bookingId) async {
     return await put('owner/bookings/$bookingId/checkin', {});
   }
@@ -428,9 +463,11 @@ class ApiService {
     return await put('owner/bookings/$bookingId/cancel', {});
   }
 
-  static Future<Map<String, dynamic>> updatePaymentStatus(int bookingId, String status) async {
+  static Future<Map<String, dynamic>> updatePaymentStatus(
+      int bookingId, String status) async {
     try {
-      return await patch('owner/bookings/$bookingId/payment', {'paymentStatus': status});
+      return await patch(
+          'owner/bookings/$bookingId/payment', {'paymentStatus': status});
     } catch (e) {
       return {'status': 'error', 'message': e.toString()};
     }
@@ -439,11 +476,12 @@ class ApiService {
   // ============================================
   // OWNER CUSTOMER METHODS
   // ============================================
-  
+
   static Future<Map<String, dynamic>> getFutsalCustomers(int futsalId) async {
     try {
       final response = await get('owner/customers?futsalId=$futsalId');
-      return response['data'] ?? {'customers': [], 'frequentPlayers': [], 'stats': {}};
+      return response['data'] ??
+          {'customers': [], 'frequentPlayers': [], 'stats': {}};
     } catch (e) {
       return {'customers': [], 'frequentPlayers': [], 'stats': {}};
     }
@@ -452,7 +490,7 @@ class ApiService {
   // ============================================
   // OWNER ANALYTICS METHODS
   // ============================================
-  
+
   static Future<Map<String, dynamic>> getRevenueSummary(int futsalId) async {
     try {
       return await get('owner/analytics/revenue-summary?futsalId=$futsalId');
@@ -461,17 +499,21 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> getPerformanceMetrics(int futsalId) async {
+  static Future<Map<String, dynamic>> getPerformanceMetrics(
+      int futsalId) async {
     try {
-      return await get('owner/analytics/performance-metrics?futsalId=$futsalId');
+      return await get(
+          'owner/analytics/performance-metrics?futsalId=$futsalId');
     } catch (e) {
       return {'status': 'error', 'data': {}};
     }
   }
 
-  static Future<Map<String, dynamic>> getMonthlyRevenue(int futsalId, {int months = 6}) async {
+  static Future<Map<String, dynamic>> getMonthlyRevenue(int futsalId,
+      {int months = 6}) async {
     try {
-      return await get('owner/analytics/monthly-revenue?futsalId=$futsalId&months=$months');
+      return await get(
+          'owner/analytics/monthly-revenue?futsalId=$futsalId&months=$months');
     } catch (e) {
       return {'status': 'error', 'data': []};
     }
@@ -488,8 +530,9 @@ class ApiService {
   // ============================================
   // OWNER BLOCK METHODS
   // ============================================
-  
-  static Future<Map<String, dynamic>> getBlockedPlayers({required int futsalId}) async {
+
+  static Future<Map<String, dynamic>> getBlockedPlayers(
+      {required int futsalId}) async {
     try {
       return await get('owner/blocks?futsalId=$futsalId');
     } catch (e) {
@@ -538,7 +581,7 @@ class ApiService {
   // ============================================
   // ADMIN METHODS
   // ============================================
-  
+
   static Future<Map<String, dynamic>> getAdminDashboard() async {
     return await get('admin/dashboard');
   }
@@ -588,14 +631,15 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> updateAdminProfile(Map<String, dynamic> data) async {
+  static Future<Map<String, dynamic>> updateAdminProfile(
+      Map<String, dynamic> data) async {
     return await put('admin/profile', data);
   }
 
   // ============================================
   // SYSTEM SETTINGS
   // ============================================
-  
+
   static Future<Map<String, dynamic>> getSystemSettings() async {
     try {
       return await get('admin/settings');
@@ -604,7 +648,8 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> updateSystemSettings(Map<String, dynamic> data) async {
+  static Future<Map<String, dynamic>> updateSystemSettings(
+      Map<String, dynamic> data) async {
     try {
       return await put('admin/settings', data);
     } catch (e) {
@@ -615,8 +660,9 @@ class ApiService {
   // ============================================
   // TOURNAMENT METHODS
   // ============================================
-  
-  static Future<Map<String, dynamic>> createTournament(Map<String, dynamic> tournamentData) async {
+
+  static Future<Map<String, dynamic>> createTournament(
+      Map<String, dynamic> tournamentData) async {
     try {
       return await post('tournaments', tournamentData);
     } catch (e) {
@@ -642,7 +688,8 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> getTournamentById(int tournamentId) async {
+  static Future<Map<String, dynamic>> getTournamentById(
+      int tournamentId) async {
     try {
       return await get('tournaments/$tournamentId');
     } catch (e) {
@@ -650,7 +697,8 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> updateTournament(int tournamentId, Map<String, dynamic> tournamentData) async {
+  static Future<Map<String, dynamic>> updateTournament(
+      int tournamentId, Map<String, dynamic> tournamentData) async {
     try {
       return await put('tournaments/$tournamentId', tournamentData);
     } catch (e) {
@@ -666,9 +714,11 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> updateTournamentStatus(int tournamentId, String status) async {
+  static Future<Map<String, dynamic>> updateTournamentStatus(
+      int tournamentId, String status) async {
     try {
-      return await patch('tournaments/$tournamentId/status', {'status': status});
+      return await patch(
+          'tournaments/$tournamentId/status', {'status': status});
     } catch (e) {
       return {'status': 'error', 'message': e.toString()};
     }
@@ -677,8 +727,9 @@ class ApiService {
   // ============================================
   // TEAM MANAGEMENT
   // ============================================
-  
-  static Future<Map<String, dynamic>> addTeam(int tournamentId, Map<String, dynamic> teamData) async {
+
+  static Future<Map<String, dynamic>> addTeam(
+      int tournamentId, Map<String, dynamic> teamData) async {
     try {
       return await post('tournaments/$tournamentId/teams', teamData);
     } catch (e) {
@@ -695,7 +746,8 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> updateTeam(int teamId, Map<String, dynamic> teamData) async {
+  static Future<Map<String, dynamic>> updateTeam(
+      int teamId, Map<String, dynamic> teamData) async {
     try {
       return await put('teams/$teamId', teamData);
     } catch (e) {
@@ -714,7 +766,7 @@ class ApiService {
   // ============================================
   // FIXTURE MANAGEMENT
   // ============================================
-  
+
   static Future<Map<String, dynamic>> generateFixtures(int tournamentId) async {
     try {
       return await post('tournaments/$tournamentId/generate-fixtures', {});
@@ -732,7 +784,8 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> updateMatchScore(int matchId, Map<String, dynamic> scoreData) async {
+  static Future<Map<String, dynamic>> updateMatchScore(
+      int matchId, Map<String, dynamic> scoreData) async {
     try {
       return await patch('matches/$matchId/score', scoreData);
     } catch (e) {
@@ -740,7 +793,8 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> updateMatchStatus(int matchId, String status) async {
+  static Future<Map<String, dynamic>> updateMatchStatus(
+      int matchId, String status) async {
     try {
       return await patch('matches/$matchId/status', {'status': status});
     } catch (e) {
@@ -760,10 +814,11 @@ class ApiService {
   // ============================================
   // ADMIN ANALYTICS (GAURAV'S METHODS)
   // ============================================
-  
+
   static Future<List<dynamic>> getRevenueOverTimeAdmin(String range) async {
     try {
-      final response = await get('admin/analytics/revenue-over-time?range=$range');
+      final response =
+          await get('admin/analytics/revenue-over-time?range=$range');
       return response['data'] ?? [];
     } catch (e) {
       return [];
@@ -772,7 +827,8 @@ class ApiService {
 
   static Future<List<dynamic>> getBookingsOverTimeAdmin(String range) async {
     try {
-      final response = await get('admin/analytics/bookings-over-time?range=$range');
+      final response =
+          await get('admin/analytics/bookings-over-time?range=$range');
       return response['data'] ?? [];
     } catch (e) {
       return [];
@@ -808,7 +864,8 @@ class ApiService {
 
   static Future<List<dynamic>> getTopPlayers({int limit = 10}) async {
     try {
-      final response = await get('admin/analytics/users/top-players?limit=$limit');
+      final response =
+          await get('admin/analytics/users/top-players?limit=$limit');
       return response['data'] ?? [];
     } catch (e) {
       return [];
@@ -836,7 +893,7 @@ class ApiService {
   // ============================================
   // IMAGE UPLOAD
   // ============================================
-  
+
   static Future<List<String>> uploadImages(List<XFile> imageFiles) async {
     try {
       final prefs = await SharedPreferences.getInstance();

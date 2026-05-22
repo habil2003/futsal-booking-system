@@ -71,22 +71,17 @@ final List<OnboardingItem> _items = const [
     });
   }
 
-  Future<void> _finishOnboarding() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('onboarding_complete', true);
+ Future<void> _finishOnboarding() async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setBool('onboarding_complete', true);
 
-    final auth = Provider.of<AuthProvider>(context, listen: false);
-    if (!mounted) return;
+  if (!mounted) return;
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => (auth.isAuthenticated && auth.isPlayer)
-            ? const PlayerHomeScreen()
-            : const LoginScreen(),
-      ),
-    );
-  }
+  Navigator.pushReplacement(
+    context,
+    MaterialPageRoute(builder: (_) => const PlayerHomeScreen()),
+  );
+}
 
   @override
   Widget build(BuildContext context) {

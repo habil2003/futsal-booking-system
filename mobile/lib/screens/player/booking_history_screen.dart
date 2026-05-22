@@ -114,13 +114,13 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Bookings'),
-        backgroundColor: Colors.green,
+         backgroundColor: const Color(0xFF059669), 
         foregroundColor: Colors.white,
         elevation: 0,
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
-            Tab(text: 'UPCOMING', icon: Icon(Icons.upcoming)),
+            Tab(text: 'RECENT BOOKINGS', icon: Icon(Icons.upcoming)),
             Tab(text: 'PAST', icon: Icon(Icons.history)),
             Tab(text: 'CANCELLED', icon: Icon(Icons.cancel)),
           ],

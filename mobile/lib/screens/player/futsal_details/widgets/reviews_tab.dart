@@ -212,7 +212,7 @@ class _ReviewsTabState extends State<ReviewsTab> {
                       Text(
                         DateFormatter.formatDateMedium(review.createdAt),
                         style: TextStyle(
-                          fontSize: 10,
+                          fontSize: 12,
                           color: Colors.grey.shade500,
                         ),
                       ),

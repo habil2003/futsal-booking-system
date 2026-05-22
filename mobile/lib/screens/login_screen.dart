@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/gestures.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 
 // --- Custom Widgets ---
 import '../../widgets/auth/auth_logo.dart';
@@ -16,6 +18,12 @@ import '../screens/auth/otp_screen.dart';
 import '../screens/owner/owner_dashboard.dart';
 import '../screens/admin/admin_account.dart';
 import '../screens/player/home_screen.dart';
+import '../../providers/favorite_provider.dart';
+
+
+// Social sign‑in packages
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 
 class LoginScreenArguments {
   final String? email;
@@ -58,7 +66,8 @@ class _LoginScreenState extends State<LoginScreen>
   bool _forgotPasswordSubmitting = false;
   bool _rememberMe = false;
   bool _showForgotPassword = false;
-  bool _acceptTerms = false;                                 
+  bool _acceptTerms = false;    
+   bool _socialLoading = false;                             
 
   // Business type dropdown
   String _selectedBusinessType = 'Individual Owner';
@@ -180,6 +189,121 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
+// 🔥 Google Sign‑In
+  // ────────────────────────────────────────────────
+  Future<void> _handleGoogleSignIn() async {
+    setState(() => _socialLoading = true);
+    try {
+      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      if (googleUser == null) {
+        setState(() => _socialLoading = false);
+        return; // user cancelled
+      }
+
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+      final idToken = googleAuth.idToken;
+      if (idToken == null) {
+        throw Exception('No ID token returned');
+      }
+
+      // Call our backend
+      final response = await ApiService.socialLogin('google', {
+        'idToken': idToken,
+      });
+
+      if (!mounted) return;
+      setState(() => _socialLoading = false);
+
+      if (response['status'] == 'success') {
+        await _handleSocialAuthSuccess(response);
+      } else {
+        _showErrorSnackBar(response['message'] ?? 'Google sign‑in failed');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _socialLoading = false);
+        _showErrorSnackBar("Google sign‑in error: ${e.toString()}");
+      }
+    }
+  }
+
+  // ────────────────────────────────────────────────
+  // 🔥 Facebook Sign‑In
+  // ────────────────────────────────────────────────
+  Future<void> _handleFacebookSignIn() async {
+    setState(() => _socialLoading = true);
+    try {
+      final LoginResult result = await FacebookAuth.instance.login(
+        permissions: ['email', 'public_profile'],
+      );
+
+      if (result.status == LoginStatus.cancelled) {
+        setState(() => _socialLoading = false);
+        return;
+      }
+
+      if (result.status != LoginStatus.success) {
+        throw Exception('Facebook login failed: ${result.message}');
+      }
+
+      final accessToken = result.accessToken?.tokenString;
+      if (accessToken == null) {
+        throw Exception('No access token returned');
+      }
+
+      // Call our backend
+      final response = await ApiService.socialLogin('facebook', {
+        'accessToken': accessToken,
+      });
+
+      if (!mounted) return;
+      setState(() => _socialLoading = false);
+
+      if (response['status'] == 'success') {
+        await _handleSocialAuthSuccess(response);
+      } else {
+        _showErrorSnackBar(response['message'] ?? 'Facebook sign‑in failed');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _socialLoading = false);
+        _showErrorSnackBar("Facebook sign‑in error: ${e.toString()}");
+      }
+    }
+  }
+
+
+  //  Common handler after social auth success
+  
+  Future<void> _handleSocialAuthSuccess(Map<String, dynamic> response) async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    await auth.setUserAndToken(response['token'], response['user']);
+    
+    // Navigate based on role (same as normal login)
+    if (auth.isPlayer) {
+       await Provider.of<FavoriteProvider>(context, listen: false).loadFavorites();
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const PlayerHomeScreen()),
+        (route) => false,
+      );
+    } else if (auth.isOwner) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const OwnerDashboard()),
+        (route) => false,
+      );
+    } else if (auth.isAdmin) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const AdminAccountScreen()),
+        (route) => false,
+      );
+    }
+  }
+
+
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
@@ -225,6 +349,7 @@ class _LoginScreenState extends State<LoginScreen>
   final auth = Provider.of<AuthProvider>(context, listen: false);
 
   if (auth.isPlayer) {
+    await Provider.of<FavoriteProvider>(context, listen: false).loadFavorites();
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => const PlayerHomeScreen()),
@@ -417,6 +542,8 @@ class _LoginScreenState extends State<LoginScreen>
               isLogin: _isLogin,
               onPressed: _submit,
             ),
+          const SizedBox(height: 24),                     
+          _buildSocialSignInSection(), 
             const SizedBox(height: 16),
             _buildToggleAuthMode(),
           ],
@@ -453,6 +580,75 @@ class _LoginScreenState extends State<LoginScreen>
             recognizer: TapGestureRecognizer()..onTap = _toggleAuthMode,
           ),
         ],
+      ),
+    );
+  }
+
+Widget _buildSocialSignInSection() {
+    return Column(
+      children: [
+        const Row(
+          children: [
+            Expanded(child: Divider()),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Text('or continue with',
+                  style: TextStyle(color: Colors.grey)),
+            ),
+            Expanded(child: Divider()),
+          ],
+        ),
+        const SizedBox(height: 20),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Google Button
+            _buildSocialButton(
+              icon: 'assets/google_logo.png',   // add your own asset
+              assetIcon: false,
+              iconData: Icons.g_mobiledata,      // fallback icon
+              color: Colors.red,
+              onPressed: _handleGoogleSignIn,
+            ),
+            const SizedBox(width: 20),
+            // Facebook Button
+            _buildSocialButton(
+              icon: 'assets/facebook_logo.png',
+              assetIcon: false,
+              iconData: Icons.facebook,
+              color: const Color(0xFF1877F2),
+              onPressed: _handleFacebookSignIn,
+            ),
+          ],
+        ),
+        if (_socialLoading)
+          const Padding(
+            padding: EdgeInsets.only(top: 16),
+            child: CircularProgressIndicator(),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildSocialButton({
+    required String icon,
+    required bool assetIcon,
+    required IconData iconData,
+    required Color color,
+    required VoidCallback onPressed,
+  }) {
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: assetIcon
+            ? Image.asset(icon, height: 24, width: 24)
+            : Icon(iconData, color: color, size: 28),
       ),
     );
   }
