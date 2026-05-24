@@ -1,25 +1,34 @@
 import { 
   verifyGoogleToken,
+  verifyGoogleAccessToken,  // ← ADD THIS LINE
   verifyFacebookToken,
   findOrCreateSocialUser,
   generateAuthToken
 } from '../services/socialAuth.service.js';
 
 // ============================================
-// GOOGLE LOGIN
+// GOOGLE LOGIN (UPDATED - Accepts both token types)
 // ============================================
 export const googleLogin = async (req, res) => {
   try {
-    const { idToken } = req.body;
+    // Accept either idToken OR accessToken
+    const { idToken, accessToken } = req.body;
+    const token = idToken || accessToken;
 
-    if (!idToken) {
+    if (!token) {
       return res.status(400).json({ 
         status: 'error', 
-        message: 'ID token is required' 
+        message: 'Token is required' 
       });
     }
 
-    const payload = await verifyGoogleToken(idToken);
+    // Try to verify as idToken first
+    let payload = await verifyGoogleToken(token);
+    
+    // If that fails, try as accessToken
+    if (!payload) {
+      payload = await verifyGoogleAccessToken(token);
+    }
 
     if (!payload || !payload.email) {
       return res.status(401).json({ 
@@ -36,12 +45,12 @@ export const googleLogin = async (req, res) => {
     };
 
     const user = await findOrCreateSocialUser(profile, 'GOOGLE');
-    const token = generateAuthToken(user);
+    const authToken = generateAuthToken(user);
 
     res.json({
       status: 'success',
       message: 'Google login successful',
-      token,
+      token: authToken,
       user: {
         id: user.id,
         email: user.email,
@@ -116,3 +125,5 @@ export const facebookLogin = async (req, res) => {
     });
   }
 };
+
+

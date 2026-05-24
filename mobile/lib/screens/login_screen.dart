@@ -4,6 +4,8 @@ import 'package:flutter/gestures.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
+import 'dart:html' as html;
+import 'dart:async';
 
 // --- Custom Widgets ---
 import '../../widgets/auth/auth_logo.dart';
@@ -19,7 +21,6 @@ import '../screens/owner/owner_dashboard.dart';
 import '../screens/admin/admin_account.dart';
 import '../screens/player/home_screen.dart';
 import '../../providers/favorite_provider.dart';
-
 
 // Social sign‑in packages
 import 'package:google_sign_in/google_sign_in.dart';
@@ -53,7 +54,7 @@ class _LoginScreenState extends State<LoginScreen>
 
   // Optional business controllers
   final _businessNameController = TextEditingController();
-  final _businessTypeController = TextEditingController(); 
+  final _businessTypeController = TextEditingController();
   final _panVatController = TextEditingController();
   final _addressController = TextEditingController();
   final _cityController = TextEditingController();
@@ -66,8 +67,8 @@ class _LoginScreenState extends State<LoginScreen>
   bool _forgotPasswordSubmitting = false;
   bool _rememberMe = false;
   bool _showForgotPassword = false;
-  bool _acceptTerms = false;    
-   bool _socialLoading = false;                             
+  bool _acceptTerms = false;
+  bool _socialLoading = false;
 
   // Business type dropdown
   String _selectedBusinessType = 'Individual Owner';
@@ -98,6 +99,20 @@ class _LoginScreenState extends State<LoginScreen>
         });
       }
     });
+
+    // Initialize Facebook SDK
+    _initFacebookSDK();
+  }
+
+  void _initFacebookSDK() {
+    // Use the package's built-in initialization
+    FacebookAuth.instance.webAndDesktopInitialize(
+      appId: '1524694529192803',
+      cookie: true,
+      xfbml: true,
+      version: 'v18.0',
+    );
+    print('✅ Facebook SDK initialized via package');
   }
 
   Future<void> _loadRememberedEmail() async {
@@ -153,7 +168,11 @@ class _LoginScreenState extends State<LoginScreen>
       if (!mounted) return;
       setState(() => _forgotPasswordSubmitting = false);
       if (response['status'] == 'success') {
-        Navigator.push(context, MaterialPageRoute(builder: (_) => OtpScreen(email: email, type: OtpScreenType.passwordReset)));
+        Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => OtpScreen(
+                    email: email, type: OtpScreenType.passwordReset)));
         _toggleForgotPassword();
       } else {
         _showErrorSnackBar(response['message'] ?? "Something went wrong");
@@ -193,21 +212,42 @@ class _LoginScreenState extends State<LoginScreen>
   // ────────────────────────────────────────────────
   Future<void> _handleGoogleSignIn() async {
     setState(() => _socialLoading = true);
+
     try {
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      // Configure Google Sign-In for web
+      final GoogleSignIn googleSignIn = GoogleSignIn(
+        scopes: ['email', 'profile'],
+      );
+
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+
       if (googleUser == null) {
         setState(() => _socialLoading = false);
-        return; // user cancelled
+        return; // User cancelled
       }
 
+      // For web, we need to get the auth headers differently
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
-      final idToken = googleAuth.idToken;
-      if (idToken == null) {
-        throw Exception('No ID token returned');
+
+      // On web, idToken might be null - use accessToken as fallback
+      String? token = googleAuth.idToken;
+      String? accessToken = googleAuth.accessToken;
+
+      print('🔵 ID Token: ${token != null ? "Present" : "NULL"}');
+      print('🔵 Access Token: ${accessToken != null ? "Present" : "NULL"}');
+
+      if (token == null && accessToken == null) {
+        throw Exception('No token returned from Google');
       }
 
-      // Call our backend
+      // Use idToken if available, otherwise use accessToken
+      final idToken = token ?? accessToken;
+
+      print('📦 Token being sent: ${idToken?.substring(0, 50)}...');
+      print('📦 Token type: ${token == null ? "accessToken" : "idToken"}');
+
+      // Call backend
       final response = await ApiService.socialLogin('google', {
         'idToken': idToken,
       });
@@ -218,12 +258,13 @@ class _LoginScreenState extends State<LoginScreen>
       if (response['status'] == 'success') {
         await _handleSocialAuthSuccess(response);
       } else {
-        _showErrorSnackBar(response['message'] ?? 'Google sign‑in failed');
+        _showErrorSnackBar(response['message'] ?? 'Google sign-in failed');
       }
     } catch (e) {
+      print('❌ Google Sign-In Error: $e');
       if (mounted) {
         setState(() => _socialLoading = false);
-        _showErrorSnackBar("Google sign‑in error: ${e.toString()}");
+        _showErrorSnackBar("Google sign-in error: ${e.toString()}");
       }
     }
   }
@@ -233,29 +274,39 @@ class _LoginScreenState extends State<LoginScreen>
   // ────────────────────────────────────────────────
   Future<void> _handleFacebookSignIn() async {
     setState(() => _socialLoading = true);
+
     try {
+      print('Starting Facebook login...');
+
       final LoginResult result = await FacebookAuth.instance.login(
         permissions: ['email', 'public_profile'],
       );
 
+      print('Login result status: ${result.status}');
+
       if (result.status == LoginStatus.cancelled) {
+        print('User cancelled login');
         setState(() => _socialLoading = false);
         return;
       }
 
       if (result.status != LoginStatus.success) {
-        throw Exception('Facebook login failed: ${result.message}');
+        throw Exception('Login failed: ${result.message}');
       }
 
       final accessToken = result.accessToken?.tokenString;
+      print('Access token obtained: ${accessToken != null}');
+
       if (accessToken == null) {
-        throw Exception('No access token returned');
+        throw Exception('No access token');
       }
 
-      // Call our backend
+      // Send to backend
       final response = await ApiService.socialLogin('facebook', {
         'accessToken': accessToken,
       });
+
+      print('Backend response status: ${response['status']}');
 
       if (!mounted) return;
       setState(() => _socialLoading = false);
@@ -263,26 +314,26 @@ class _LoginScreenState extends State<LoginScreen>
       if (response['status'] == 'success') {
         await _handleSocialAuthSuccess(response);
       } else {
-        _showErrorSnackBar(response['message'] ?? 'Facebook sign‑in failed');
+        _showErrorSnackBar(response['message'] ?? 'Facebook sign-in failed');
       }
     } catch (e) {
+      print('❌ Facebook error: $e');
       if (mounted) {
         setState(() => _socialLoading = false);
-        _showErrorSnackBar("Facebook sign‑in error: ${e.toString()}");
+        _showErrorSnackBar("Facebook error: ${e.toString()}");
       }
     }
   }
-
-
   //  Common handler after social auth success
-  
+
   Future<void> _handleSocialAuthSuccess(Map<String, dynamic> response) async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     await auth.setUserAndToken(response['token'], response['user']);
-    
+
     // Navigate based on role (same as normal login)
     if (auth.isPlayer) {
-       await Provider.of<FavoriteProvider>(context, listen: false).loadFavorites();
+      await Provider.of<FavoriteProvider>(context, listen: false)
+          .loadFavorites();
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const PlayerHomeScreen()),
@@ -303,12 +354,12 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
     if (!_isLogin && _selectedRole == 'OWNER' && !_acceptTerms) {
-      _showErrorSnackBar("Please accept the Terms & Conditions and Commission Policy");
+      _showErrorSnackBar(
+          "Please accept the Terms & Conditions and Commission Policy");
       return;
     }
 
@@ -336,7 +387,8 @@ class _LoginScreenState extends State<LoginScreen>
       }
 
       final response = _isLogin
-          ? await auth.login(_emailController.text.trim(), _passwordController.text.trim())
+          ? await auth.login(
+              _emailController.text.trim(), _passwordController.text.trim())
           : await auth.register(regData);
 
       if (!mounted) return;
@@ -344,36 +396,47 @@ class _LoginScreenState extends State<LoginScreen>
 
       if (response['status'] == 'success') {
         if (_isLogin) {
-  await _handleRememberMe(_emailController.text.trim());
-  _passwordController.clear();
-  final auth = Provider.of<AuthProvider>(context, listen: false);
+          await _handleRememberMe(_emailController.text.trim());
+          _passwordController.clear();
+          final auth = Provider.of<AuthProvider>(context, listen: false);
 
-  if (auth.isPlayer) {
-    await Provider.of<FavoriteProvider>(context, listen: false).loadFavorites();
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const PlayerHomeScreen()),
-      (route) => false,
-    );
-  } else if (auth.isOwner) {
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const OwnerDashboard()),
-      (route) => false,
-    );
-  } else if (auth.isAdmin) {
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const AdminAccountScreen()),
-      (route) => false,
-    );
-  }
-} else {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => OtpScreen(email: _emailController.text.trim(), type: OtpScreenType.emailVerification)));
+          if (auth.isPlayer) {
+            await Provider.of<FavoriteProvider>(context, listen: false)
+                .loadFavorites();
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (_) => const PlayerHomeScreen()),
+              (route) => false,
+            );
+          } else if (auth.isOwner) {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (_) => const OwnerDashboard()),
+              (route) => false,
+            );
+          } else if (auth.isAdmin) {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (_) => const AdminAccountScreen()),
+              (route) => false,
+            );
+          }
+        } else {
+          Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => OtpScreen(
+                      email: _emailController.text.trim(),
+                      type: OtpScreenType.emailVerification)));
         }
       } else if (response['requiresVerification'] == true) {
         _showErrorSnackBar("Email not verified. Redirecting...");
-        Navigator.push(context, MaterialPageRoute(builder: (_) => OtpScreen(email: _emailController.text.trim(), type: OtpScreenType.emailVerification)));
+        Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => OtpScreen(
+                    email: _emailController.text.trim(),
+                    type: OtpScreenType.emailVerification)));
       } else {
         _showErrorSnackBar(response['message'] ?? "Authentication failed");
       }
@@ -409,14 +472,19 @@ class _LoginScreenState extends State<LoginScreen>
         leading: Padding(
           padding: const EdgeInsets.only(left: 8.0),
           child: InkWell(
-            onTap: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const PlayerHomeScreen())),
+            onTap: () => Navigator.pushReplacement(context,
+                MaterialPageRoute(builder: (_) => const PlayerHomeScreen())),
             borderRadius: BorderRadius.circular(30),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(Icons.arrow_back_ios, color: Colors.green, size: 18),
                 const SizedBox(width: 4),
-                Text('Back', style: TextStyle(color: Colors.green.shade700, fontSize: 17, fontWeight: FontWeight.w500)),
+                Text('Back',
+                    style: TextStyle(
+                        color: Colors.green.shade700,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w500)),
               ],
             ),
           ),
@@ -490,7 +558,8 @@ class _LoginScreenState extends State<LoginScreen>
               nameController: _nameController,
               selectedRole: _selectedRole,
               rememberMe: _rememberMe,
-              onRememberMeChanged: () => setState(() => _rememberMe = !_rememberMe),
+              onRememberMeChanged: () =>
+                  setState(() => _rememberMe = !_rememberMe),
               onForgotPassword: _toggleForgotPassword,
               onRoleChanged: (role) => setState(() => _selectedRole = role),
             ),
@@ -498,7 +567,8 @@ class _LoginScreenState extends State<LoginScreen>
             // 🆕 Owner extra fields (only in register mode)
             if (!_isLogin && _selectedRole == 'OWNER') ...[
               const SizedBox(height: 16),
-              const Text('Business Details (optional)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+              const Text('Business Details (optional)',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
               const SizedBox(height: 8),
               _buildTextField(_businessNameController, 'Business/Futsal Name'),
               const SizedBox(height: 12),
@@ -509,7 +579,9 @@ class _LoginScreenState extends State<LoginScreen>
                   border: OutlineInputBorder(),
                 ),
                 items: const [
-                  DropdownMenuItem(value: 'Individual Owner', child: Text('Individual Owner')),
+                  DropdownMenuItem(
+                      value: 'Individual Owner',
+                      child: Text('Individual Owner')),
                   DropdownMenuItem(value: 'Company', child: Text('Company')),
                 ],
                 onChanged: (val) {
@@ -530,7 +602,8 @@ class _LoginScreenState extends State<LoginScreen>
               CheckboxListTile(
                 value: _acceptTerms,
                 onChanged: (val) => setState(() => _acceptTerms = val ?? false),
-                title: const Text('I accept the Terms & Conditions and Commission Policy'),
+                title: const Text(
+                    'I accept the Terms & Conditions and Commission Policy'),
                 controlAffinity: ListTileControlAffinity.leading,
                 contentPadding: EdgeInsets.zero,
               ),
@@ -542,8 +615,8 @@ class _LoginScreenState extends State<LoginScreen>
               isLogin: _isLogin,
               onPressed: _submit,
             ),
-          const SizedBox(height: 24),                     
-          _buildSocialSignInSection(), 
+            const SizedBox(height: 24),
+            _buildSocialSignInSection(),
             const SizedBox(height: 16),
             _buildToggleAuthMode(),
           ],
@@ -568,7 +641,9 @@ class _LoginScreenState extends State<LoginScreen>
         style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
         children: [
           TextSpan(
-            text: _isLogin ? "Don't have an account? " : "Already have an account? ",
+            text: _isLogin
+                ? "Don't have an account? "
+                : "Already have an account? ",
           ),
           TextSpan(
             text: _isLogin ? 'Sign Up' : 'Login',
@@ -584,7 +659,7 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-Widget _buildSocialSignInSection() {
+  Widget _buildSocialSignInSection() {
     return Column(
       children: [
         const Row(
@@ -604,9 +679,9 @@ Widget _buildSocialSignInSection() {
           children: [
             // Google Button
             _buildSocialButton(
-              icon: 'assets/google_logo.png',   // add your own asset
+              icon: 'assets/google_logo.png', // add your own asset
               assetIcon: false,
-              iconData: Icons.g_mobiledata,      // fallback icon
+              iconData: Icons.g_mobiledata, // fallback icon
               color: Colors.red,
               onPressed: _handleGoogleSignIn,
             ),

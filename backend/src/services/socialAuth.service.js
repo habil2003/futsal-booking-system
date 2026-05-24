@@ -95,3 +95,23 @@ export const findOrCreateSocialUser = async (profile, provider) => {
   console.log(`✨ Created new ${provider} PLAYER: ${email}`);
   return newUser;
 };
+
+
+// Add this function to verify Google Access Token
+export const verifyGoogleAccessToken = async (accessToken) => {
+  try {
+    const response = await axios.get(
+      `https://www.googleapis.com/oauth2/v3/userinfo?access_token=${accessToken}`
+    );
+    return {
+      sub: response.data.sub,
+      email: response.data.email,
+      name: response.data.name,
+      picture: response.data.picture,
+      email_verified: response.data.email_verified
+    };
+  } catch (error) {
+    console.error('Google access token verification failed:', error.message);
+    return null;
+  }
+};
