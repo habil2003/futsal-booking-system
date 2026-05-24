@@ -174,23 +174,70 @@ export const deleteUser = async (req, res, next) => {
   try {
     const userId = parseInt(req.params.id);
 
-    // Check if user exists
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       return res.status(404).json({ status: "error", message: "User not found" });
     }
 
-    // Optional: Prevent deleting your own admin account
     if (userId === req.user.id) {
       return res.status(400).json({ status: "error", message: "Cannot delete your own account" });
     }
 
-    // Delete user (Prisma will cascade delete related records if schema allows)
+    // 1. Get all bookings for this user first (to delete their payments)
+    const userBookings = await prisma.booking.findMany({
+      where: { userId: userId },
+      select: { id: true }
+    });
+    
+    const bookingIds = userBookings.map(b => b.id);
+    
+    // 2. Delete payments linked to these bookings
+    if (bookingIds.length > 0) {
+      await prisma.payment.deleteMany({
+        where: { bookingId: { in: bookingIds } }
+      });
+    }
+    
+    // 3. Delete reviews (they have bookingId foreign key)
+    await prisma.review.deleteMany({ where: { userId: userId } });
+    
+    // 4. Delete favorites
+    await prisma.favorite.deleteMany({ where: { userId: userId } });
+    
+    // 5. Delete blocks
+    await prisma.block.deleteMany({ where: { playerId: userId } });
+    await prisma.block.deleteMany({ where: { ownerId: userId } });
+    
+    // 6. Delete team memberships
+    await prisma.teamMember.deleteMany({ where: { userId: userId } });
+    
+    // 7. Delete activity logs
+    await prisma.activityLog.deleteMany({ where: { userId: userId } });
+    
+    // 8. Delete bookings (now that payments are gone)
+    await prisma.booking.deleteMany({ where: { userId: userId } });
+    
+    // 9. Delete futsals (and related courts/slots)
+    const userFutsals = await prisma.futsal.findMany({ 
+      where: { ownerId: userId }, 
+      select: { id: true } 
+    });
+    
+    for (const futsal of userFutsals) {
+      await prisma.timeSlot.deleteMany({ 
+        where: { court: { futsalId: futsal.id } } 
+      });
+      await prisma.court.deleteMany({ where: { futsalId: futsal.id } });
+    }
+    await prisma.futsal.deleteMany({ where: { ownerId: userId } });
+    
+    // 10. Finally delete the user
     await prisma.user.delete({ where: { id: userId } });
 
     res.json({ status: "success", message: "User deleted successfully" });
   } catch (error) {
-    next(error);
+    console.error('Delete user error:', error);
+    res.status(500).json({ status: "error", message: error.message });
   }
 };
 
@@ -378,6 +425,7 @@ export const getAllFutsals = async (req, res, next) => {
 export const getAllBookings = async (req, res, next) => {
   try {
     const { status, from, to, page = 1, limit = 20 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const where = {};
 
@@ -386,45 +434,53 @@ export const getAllBookings = async (req, res, next) => {
     }
 
     if (from && to) {
-      where.slot = {
-        date: {
-          gte: new Date(from),
-          lte: new Date(to),
-        },
+      where.bookingDate = {
+        gte: new Date(from),
+        lte: new Date(to),
       };
     }
 
-    const total = await prisma.booking.count({ where });
-
+    // Get data first (no COUNT)
     const bookings = await prisma.booking.findMany({
       where,
       include: {
-        user: { select: { id: true, fullName: true, email: true } },
+        user: { select: { fullName: true, email: true } },
         slot: {
           include: {
             court: {
               include: {
-                futsal: { select: { id: true, name: true } },
-              },
-            },
-          },
+                futsal: { select: { name: true } }
+              }
+            }
+          }
         },
-        payment: true,
+        payment: { select: { status: true, method: true } }
       },
       orderBy: { bookingDate: 'desc' },
-      skip: (parseInt(page) - 1) * parseInt(limit),
+      skip,
       take: parseInt(limit),
     });
 
-    const formatted = bookings.map(b => ({
+    // Get total count ONLY if needed (for pagination)
+    let total;
+    if (status !== 'ALL') {
+      // For filtered views, just use bookings.length as total
+      total = bookings.length;
+    } else {
+      // For 'ALL', still need count for pagination
+      // But we can cache it in the future
+      total = await prisma.booking.count({ where });
+    }
+
+    const formattedBookings = bookings.map(b => ({
       id: b.id,
-      playerName: b.user.fullName,
-      playerEmail: b.user.email,
-      futsalName: b.slot.court.futsal.name,
-      courtNumber: b.slot.court.courtNumber,
-      date: b.slot.date,
-      startTime: b.slot.startTime,
-      endTime: b.slot.endTime,
+      playerName: b.user?.fullName || 'N/A',
+      playerEmail: b.user?.email || 'N/A',
+      futsalName: b.slot?.court?.futsal?.name || 'N/A',
+      courtNumber: b.slot?.court?.courtNumber || 'N/A',
+      date: b.slot?.date,
+      startTime: b.slot?.startTime,
+      endTime: b.slot?.endTime,
       totalPrice: b.totalPrice,
       paymentMethod: b.paymentMethod,
       paymentStatus: b.payment?.status ?? 'PENDING',
@@ -437,9 +493,10 @@ export const getAllBookings = async (req, res, next) => {
       total,
       page: parseInt(page),
       totalPages: Math.ceil(total / parseInt(limit)),
-      bookings: formatted,
+      bookings: formattedBookings,
     });
   } catch (error) {
+    console.error('Get all bookings error:', error);
     next(error);
   }
 };

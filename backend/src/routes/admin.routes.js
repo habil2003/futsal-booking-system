@@ -17,7 +17,7 @@ import {
   updateAdminProfile,
   editUser,
   deleteUser,
-  changeUserRole,   // ✅ Add this
+  changeUserRole,
 } from "../controllers/admin.controller.js";
 
 const router = express.Router();

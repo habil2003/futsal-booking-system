@@ -15,6 +15,7 @@ import 'manage_tournaments.dart';
 import 'admin_dashboard.dart';
 import 'recent_activity.dart';
 import '../login_screen.dart';
+import '../../widgets/admin/notification_bottom_sheet.dart';
 
 class AdminAccountScreen extends StatefulWidget {
   const AdminAccountScreen({super.key});
@@ -672,9 +673,55 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
                     ),
                   ),
                   const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.notifications_outlined),
-                    onPressed: () {},
+                  Consumer<AdminProvider>(
+                    builder: (context, adminProvider, _) {
+                      return Stack(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.notifications_outlined),
+                            onPressed: () {
+                              showModalBottomSheet(
+                                context: context,
+                                isScrollControlled: true,
+                                shape: const RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.vertical(
+                                      top: Radius.circular(20)),
+                                ),
+                                builder: (ctx) =>
+                                    const NotificationBottomSheet(),
+                              );
+                            },
+                          ),
+                          if (adminProvider.unreadNotificationCount > 0)
+                            Positioned(
+                              right: 8,
+                              top: 8,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(
+                                  color: Colors.red,
+                                  shape: BoxShape.circle,
+                                ),
+                                constraints: const BoxConstraints(
+                                  minWidth: 16,
+                                  minHeight: 16,
+                                ),
+                                child: Text(
+                                  adminProvider.unreadNotificationCount > 9
+                                      ? '9+'
+                                      : '${adminProvider.unreadNotificationCount}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
+                    },
                   ),
                 ],
               ),

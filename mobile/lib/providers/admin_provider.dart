@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../services/notification_service.dart';
 
 class AdminProvider with ChangeNotifier {
   bool isLoading = false;
@@ -16,6 +17,8 @@ class AdminProvider with ChangeNotifier {
   int totalOwners = 0;
   int totalPlayers = 0;
   int totalBookings = 0;
+  int _unreadNotificationCount = 0;
+int get unreadNotificationCount => _unreadNotificationCount;
 
   // ============================================
   // LISTS
@@ -66,6 +69,7 @@ class AdminProvider with ChangeNotifier {
 
       _recentActivities = activities.cast<Map<String, dynamic>>();
 
+      await checkUnreadNotifications();
       await loadPendingFutsals();
     } catch (e) {
       error = e.toString();
@@ -75,6 +79,48 @@ class AdminProvider with ChangeNotifier {
       notifyListeners();
     }
   }
+
+  Future<void> checkUnreadNotifications() async {
+  final lastSeen = await NotificationService.getLastSeen();
+  
+  if (_recentActivities.isEmpty) {
+    _unreadNotificationCount = 0;
+    notifyListeners();
+    return;
+  }
+  
+  if (lastSeen == null) {
+    // Never seen before, all are unread
+    _unreadNotificationCount = _recentActivities.length;
+    notifyListeners();
+    return;
+  }
+  
+  // Count activities newer than last seen
+  int count = 0;
+  for (var activity in _recentActivities) {
+    final createdAt = activity['createdAt'];
+    if (createdAt != null) {
+      try {
+        final activityDate = DateTime.parse(createdAt);
+        if (activityDate.isAfter(lastSeen)) {
+          count++;
+        }
+      } catch (e) {
+        // Skip invalid dates
+      }
+    }
+  }
+  
+  _unreadNotificationCount = count;
+  notifyListeners();
+}
+
+Future<void> markNotificationsAsRead() async {
+  await NotificationService.markAsRead();
+  _unreadNotificationCount = 0;
+  notifyListeners();
+}
 
   // ============================================
   // FUTSALS
@@ -272,6 +318,82 @@ class AdminProvider with ChangeNotifier {
   }
 
   // ============================================
+  // EDIT USER (Update name and phone)
+  // ============================================
+  Future<Map<String, dynamic>> editUser(
+    int userId,
+    String fullName,
+    String phoneNumber,
+  ) async {
+    try {
+      final response = await ApiService.patch(
+        'admin/users/$userId/edit',
+        {
+          'fullName': fullName,
+          'phoneNumber': phoneNumber,
+        },
+      );
+
+      if (response['status'] == 'success') {
+        final index = _allUsers.indexWhere((u) => u['id'] == userId);
+
+        if (index != -1) {
+          _allUsers[index]['fullName'] = fullName;
+          _allUsers[index]['phoneNumber'] = phoneNumber;
+        }
+
+        notifyListeners();
+      }
+
+      return response;
+    } catch (e) {
+      return {
+        'status': 'error',
+        'message': e.toString(),
+      };
+    }
+  }
+
+  // ============================================
+  // CHANGE USER ROLE
+  // ============================================
+  Future<Map<String, dynamic>> changeUserRole(
+    int userId,
+    String newRole,
+  ) async {
+    try {
+      final response = await ApiService.patch(
+        'admin/users/$userId/change-role',
+        {'role': newRole},
+      );
+
+      if (response['status'] == 'success') {
+        final index = _allUsers.indexWhere((u) => u['id'] == userId);
+
+        if (index != -1) {
+          _allUsers[index]['role'] = newRole;
+
+          // If changing to OWNER, isApproved becomes false
+          if (newRole == 'OWNER') {
+            _allUsers[index]['isApproved'] = false;
+          } else {
+            _allUsers[index]['isApproved'] = true;
+          }
+        }
+
+        notifyListeners();
+      }
+
+      return response;
+    } catch (e) {
+      return {
+        'status': 'error',
+        'message': e.toString(),
+      };
+    }
+  }
+
+  // ============================================
   // BOOKINGS
   // ============================================
   Future<void> loadAllBookings({
@@ -280,6 +402,7 @@ class AdminProvider with ChangeNotifier {
     String? to,
     int page = 1,
   }) async {
+    final stopwatch = Stopwatch()..start();
     try {
       final response = await ApiService.getAdminBookings(
         status: status,
@@ -302,6 +425,10 @@ class AdminProvider with ChangeNotifier {
       _allBookings = [];
       notifyListeners();
     }
+    stopwatch.stop();
+    print('⏱️ API call took: ${stopwatch.elapsedMilliseconds}ms');
+    print(
+        '📊 Returned: ${_allBookings.length} bookings of $totalBookingsCount total');
   }
 
   // ============================================

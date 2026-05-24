@@ -636,6 +636,33 @@ class ApiService {
     return await put('admin/profile', data);
   }
 
+    // ============================================
+  // ADMIN USER MANAGEMENT METHODS (ADD THESE)
+  // ============================================
+  
+  static Future<Map<String, dynamic>> editUser(int userId, String fullName, String phoneNumber) async {
+    return await patch('admin/users/$userId/edit', {
+      'fullName': fullName,
+      'phoneNumber': phoneNumber,
+    });
+  }
+
+  static Future<Map<String, dynamic>> deleteUser(int userId) async {
+    return await delete('admin/users/$userId');
+  }
+
+  static Future<Map<String, dynamic>> toggleUserStatus(int userId, bool isActive) async {
+    return await patch('admin/users/$userId/toggle-status', {
+      'isActive': isActive,
+    });
+  }
+
+  static Future<Map<String, dynamic>> changeUserRole(int userId, String role) async {
+    return await patch('admin/users/$userId/change-role', {
+      'role': role,
+    });
+  }
+
   // ============================================
   // SYSTEM SETTINGS
   // ============================================

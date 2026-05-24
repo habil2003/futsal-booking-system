@@ -511,19 +511,14 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                             child: Row(
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
+                                                // Edit button
                                                 IconButton(
                                                   icon: const Icon(Icons.edit,
                                                       size: 18),
                                                   tooltip: 'Edit',
-                                                  onPressed: () {
-                                                    ScaffoldMessenger.of(
-                                                            context)
-                                                        .showSnackBar(
-                                                      SnackBar(
-                                                          content: Text(
-                                                              'Edit $fullName – coming soon')),
-                                                    );
-                                                  },
+                                                  onPressed: () =>
+                                                      _showEditDialog(
+                                                          user, adminProvider),
                                                 ),
                                                 IconButton(
                                                   icon: const Icon(Icons.delete,
@@ -692,6 +687,18 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                                     }
                                                   },
                                                 ),
+
+                                                // Change Role button
+                                                IconButton(
+                                                  icon: const Icon(
+                                                      Icons.swap_horiz,
+                                                      size: 18,
+                                                      color: Colors.blue),
+                                                  tooltip: 'Change Role',
+                                                  onPressed: () =>
+                                                      _showChangeRoleDialog(
+                                                          user, adminProvider),
+                                                ),
                                                 // Approve owner (if pending)
                                                 if (isOwner && !isApproved)
                                                   IconButton(
@@ -744,6 +751,139 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
             ],
           );
         },
+      ),
+    );
+  }
+
+  void _showChangeRoleDialog(
+      Map<String, dynamic> user, AdminProvider adminProvider) {
+    String selectedRole = user['role'] ?? 'PLAYER';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Change User Role'),
+        content: StatefulBuilder(
+          builder: (ctx, setState) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RadioListTile(
+                title: const Text('Player'),
+                value: 'PLAYER',
+                groupValue: selectedRole,
+                onChanged: (v) => setState(() => selectedRole = v!),
+              ),
+              RadioListTile(
+                title: const Text('Owner'),
+                value: 'OWNER',
+                groupValue: selectedRole,
+                onChanged: (v) => setState(() => selectedRole = v!),
+              ),
+              RadioListTile(
+                title: const Text('Admin'),
+                value: 'ADMIN',
+                groupValue: selectedRole,
+                onChanged: (v) => setState(() => selectedRole = v!),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('CANCEL'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+
+              // Show loading
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Changing role...')),
+              );
+
+              final result = await adminProvider.changeUserRole(
+                user['id'],
+                selectedRole,
+              );
+
+              if (mounted) {
+                ScaffoldMessenger.of(context).clearSnackBars();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(result['message'] ?? 'Role changed'),
+                    backgroundColor: result['status'] == 'success'
+                        ? Colors.green
+                        : Colors.red,
+                  ),
+                );
+              }
+            },
+            child: const Text('CHANGE ROLE'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditDialog(Map<String, dynamic> user, AdminProvider adminProvider) {
+    final nameController = TextEditingController(text: user['fullName'] ?? '');
+    final phoneController =
+        TextEditingController(text: user['phoneNumber'] ?? '');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit User'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: 'Full Name'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: phoneController,
+              decoration: const InputDecoration(labelText: 'Phone Number'),
+              keyboardType: TextInputType.phone,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('CANCEL'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Saving...')),
+              );
+
+              final result = await adminProvider.editUser(
+                user['id'],
+                nameController.text,
+                phoneController.text,
+              );
+
+              if (mounted) {
+                ScaffoldMessenger.of(context).clearSnackBars();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(result['message'] ?? 'User updated'),
+                    backgroundColor: result['status'] == 'success'
+                        ? Colors.green
+                        : Colors.red,
+                  ),
+                );
+              }
+            },
+            child: const Text('SAVE'),
+          ),
+        ],
       ),
     );
   }
