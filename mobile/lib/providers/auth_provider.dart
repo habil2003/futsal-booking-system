@@ -104,17 +104,31 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('token');
-    await prefs.remove('user');
-    _token = null;
-    _user = null;
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.remove('token');
+  await prefs.remove('user');
+  _token = null;
+  _user = null;
 
-      // Ignore social sign‑out errors (they don't affect token removal)
-  try { await GoogleSignIn().signOut(); } catch (_) {}
-  try { await FacebookAuth.instance.logOut(); } catch (_) {}
-    notifyListeners();
-  }
+  // Only sign out from Google if currently signed in
+  try {
+    final googleSignIn = GoogleSignIn();
+    if (await googleSignIn.isSignedIn()) {
+      await googleSignIn.signOut();
+    }
+  } catch (_) {}
+
+  // Only sign out from Facebook if there is an access token
+  try {
+    final facebookAuth = FacebookAuth.instance;
+    final accessToken = await facebookAuth.accessToken;
+    if (accessToken != null) {
+      await facebookAuth.logOut();
+    }
+  } catch (_) {}
+
+  notifyListeners();
+}
 
   Future<void> checkAuth() async {
     final prefs = await SharedPreferences.getInstance();

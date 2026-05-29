@@ -10,7 +10,6 @@ import 'bookings_screen.dart';
 import '../owner/tournament_list_screen.dart';
 import 'owner_reviews_screen.dart';
 import 'analytics_screen.dart';
-import 'blocked_players_screen.dart';
 import 'dashboard/widgets/dashboard_futsal_card.dart';
 import 'dashboard/widgets/stats_card.dart';
 import 'dashboard/widgets/quick_actions.dart';
@@ -18,6 +17,8 @@ import 'dashboard/widgets/today_schedule.dart';
 import 'customer_screen.dart';
 import 'owner_setting.dart';
 import '../login_screen.dart';
+import 'owner_notification_screen.dart';
+import '../../services/api_service.dart';      // 🆕 for unread count
 
 class OwnerDashboard extends StatefulWidget {
   const OwnerDashboard({super.key});
@@ -28,18 +29,20 @@ class OwnerDashboard extends StatefulWidget {
 
 class _OwnerDashboardState extends State<OwnerDashboard> {
   Futsal? _selectedFutsal;
-  String _selectedMenu = 'Dashboard'; // active sidebar item
+  String _selectedMenu = 'Dashboard';
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  // Sidebar items
+  int _unreadNotifications = 0;                   // 🆕 badge count
+
+  // Sidebar items – Tournaments replaces Blocked Players
   static const List<Map<String, dynamic>> _menuItems = [
     {'title': 'Dashboard', 'icon': Icons.dashboard},
     {'title': 'My Grounds', 'icon': Icons.sports_soccer},
     {'title': 'Bookings', 'icon': Icons.book_online},
     {'title': 'Earnings', 'icon': Icons.attach_money},
     {'title': 'Reviews', 'icon': Icons.star},
-    {'title': 'Blocked Players', 'icon': Icons.block},
+    {'title': 'Tournaments', 'icon': Icons.emoji_events},
     {'title': 'Customers', 'icon': Icons.people},
     {'title': 'Notifications', 'icon': Icons.notifications},
     {'title': 'Settings', 'icon': Icons.settings},
@@ -50,7 +53,20 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadAllData();
+      _loadUnreadCount();               // fetch badge on start
     });
+  }
+
+  /// Fetches unread notification count from the backend
+  Future<void> _loadUnreadCount() async {
+    try {
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      if (!auth.isAuthenticated) return;
+      final response = await ApiService.get('notifications/unread-count');
+      if (mounted && response['status'] == 'success') {
+        setState(() => _unreadNotifications = response['unreadCount'] ?? 0);
+      }
+    } catch (_) { /* silently ignore */ }
   }
 
   Future<void> _loadAllData() async {
@@ -80,7 +96,6 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
 
   void _onMenuSelected(String menu) {
     setState(() => _selectedMenu = menu);
-    // Close drawer on mobile after selection
     if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
       Navigator.pop(context);
     }
@@ -97,7 +112,6 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
       child: Column(
         children: [
           const SizedBox(height: 40),
-          // Logo / title
           Padding(
             padding: const EdgeInsets.all(16),
             child: Text('Owner Panel',
@@ -113,9 +127,20 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
               itemBuilder: (ctx, index) {
                 final item = _menuItems[index];
                 final isSelected = item['title'] == _selectedMenu;
+                // Show badge only on the Notifications item
+                final showBadge =
+                    item['title'] == 'Notifications' && _unreadNotifications > 0;
                 return ListTile(
-                  leading: Icon(item['icon'],
-                      color: isSelected ? Colors.white : Colors.white70),
+                  leading: showBadge
+                      ? Badge(
+                          label: Text('$_unreadNotifications',
+                              style: const TextStyle(
+                                  fontSize: 10, color: Colors.white)),
+                          child: Icon(item['icon'],
+                              color: isSelected ? Colors.white : Colors.white70),
+                        )
+                      : Icon(item['icon'],
+                          color: isSelected ? Colors.white : Colors.white70),
                   title: Text(item['title'],
                       style: TextStyle(
                           color: isSelected ? Colors.white : Colors.white70)),
@@ -128,7 +153,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
               },
             ),
           ),
-          // Logout button at bottom
+          // Logout button
           ListTile(
             leading: Icon(Icons.logout, color: Colors.red.shade300),
             title: Text('Logout', style: TextStyle(color: Colors.red.shade300)),
@@ -140,7 +165,6 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     );
   }
 
-  // ------------------------------------ App Bar for Mobile (with hamburger and title) ------------------------------------
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       title: Text(_selectedMenu),
@@ -169,10 +193,23 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
             ],
           ),
         ),
+        // Notification icon with badge
         IconButton(
-          icon: const Icon(Icons.sports_soccer),
-          onPressed: () => Navigator.pushReplacementNamed(context, '/home'),
-          tooltip: 'Switch to Player Mode',
+          icon: _unreadNotifications > 0
+              ? Badge(
+                  label: Text('$_unreadNotifications',
+                      style: const TextStyle(fontSize: 10, color: Colors.white)),
+                  child: const Icon(Icons.notifications_outlined),
+                )
+              : const Icon(Icons.notifications_outlined),
+          onPressed: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const OwnerNotificationScreen()),
+            );
+            _loadUnreadCount();   // refresh after returning
+          },
+          tooltip: 'Notifications',
         ),
         IconButton(
           icon: const Icon(Icons.refresh),
@@ -183,7 +220,6 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     );
   }
 
-  // ------------------------------------ Build method (responsive layout) ------------------------------------
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 700;
@@ -192,14 +228,12 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
 
     return WillPopScope(
       onWillPop: () async {
-        // Ask for logout before closing
         final shouldLogout = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
             title: const Text('Exit Dashboard'),
             content: const Text('Do you want to logout?'),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             actions: [
               TextButton(
                   onPressed: () => Navigator.pop(ctx, false),
@@ -212,8 +246,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                   if (mounted) Navigator.pop(ctx, true);
                 },
                 style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: const Text('LOGOUT'),
-              ),
+                child: const Text('LOGOUT')),
             ],
           ),
         );
@@ -229,11 +262,8 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
         drawer: isMobile ? Drawer(child: _buildSidebar()) : null,
         body: Row(
           children: [
-            if (!isMobile)
-              _buildSidebar(), // permanent sidebar on desktop/tablet
-            Expanded(
-              child: _buildBody(),
-            ),
+            if (!isMobile) _buildSidebar(),
+            Expanded(child: _buildBody()),
           ],
         ),
         floatingActionButton: _selectedMenu == 'My Grounds'
@@ -248,7 +278,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     );
   }
 
-  // ------------------------------------ Body content based on selected menu ------------------------------------
+  // ------------------------------------ Body content (updated) ------------------------------------
   Widget _buildBody() {
     final futsalProvider = Provider.of<FutsalProvider>(context);
     final dashboardProvider = Provider.of<DashboardProvider>(context);
@@ -273,18 +303,15 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
           return OwnerReviewsScreen(
               futsalId: _selectedFutsal!.id, futsalName: _selectedFutsal!.name);
         return const Center(child: Text('No futsal selected'));
-      case 'Blocked Players':
-        if (_selectedFutsal != null)
-          return BlockedPlayersScreen(
-              futsalId: _selectedFutsal!.id, futsalName: _selectedFutsal!.name);
-        return const Center(child: Text('No futsal selected'));
+      case 'Tournaments':
+        return const TournamentListScreen();
       case 'Customers':
         if (_selectedFutsal != null)
           return CustomersScreen(
               futsalId: _selectedFutsal!.id, futsalName: _selectedFutsal!.name);
         return const Center(child: Text('Select a futsal first'));
       case 'Notifications':
-        return const Center(child: Text('Notifications coming soon'));
+        return const OwnerNotificationScreen();
       case 'Settings':
         return const OwnerSettingsScreen();
       default:
@@ -292,7 +319,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     }
   }
 
-  // ------------------------------------ Dashboard content (original) ------------------------------------
+  // ------------------------------------ Dashboard content ------------------------------------
   Widget _buildDashboardContent(
       FutsalProvider futsalProvider, DashboardProvider dashboardProvider) {
     if (futsalProvider.isLoading && futsalProvider.myFutsals.isEmpty) {
@@ -364,7 +391,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
             totalCourts: dashboardProvider.totalCourts,
             todayBookings: dashboardProvider.todayBookings,
             todayRevenue: dashboardProvider.todayRevenue,
-            activeBookings: dashboardProvider.activeBookings, // Changed
+            activeBookings: dashboardProvider.activeBookings,
             isLoading: dashboardProvider.isLoading,
             error: dashboardProvider.error,
             onRetry: _loadAllData,
@@ -390,9 +417,13 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                                       const TournamentListScreen())),
                           onAnalytics: () =>
                               _navigateToAnalytics(_selectedFutsal!),
-                          onReviews: () => _navigateToReviews(_selectedFutsal!),
-                          onBlocked: () =>
-                              _navigateToBlockedPlayers(_selectedFutsal!),
+                          onReviews: () =>
+                              _navigateToReviews(_selectedFutsal!),
+                          onBlocked: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) =>
+                                      const TournamentListScreen())),
                         ),
                       ),
                       const SizedBox(width: 16),
@@ -418,16 +449,23 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                       onTournaments: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (_) => const TournamentListScreen())),
-                      onAnalytics: () => _navigateToAnalytics(_selectedFutsal!),
-                      onReviews: () => _navigateToReviews(_selectedFutsal!),
-                      onBlocked: () =>
-                          _navigateToBlockedPlayers(_selectedFutsal!),
+                              builder: (_) =>
+                                  const TournamentListScreen())),
+                      onAnalytics: () =>
+                          _navigateToAnalytics(_selectedFutsal!),
+                      onReviews: () =>
+                          _navigateToReviews(_selectedFutsal!),
+                      onBlocked: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) =>
+                                  const TournamentListScreen())),
                     ),
                     const SizedBox(height: 16),
                     TodaySchedule(
                       bookings: dashboardProvider.todayBookingsList,
-                      onViewAll: () => _navigateToBookings(_selectedFutsal!),
+                      onViewAll: () =>
+                          _navigateToBookings(_selectedFutsal!),
                       maxBookingsToShow: 3,
                     ),
                   ],
@@ -462,7 +500,8 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                       futsal: futsal,
                       onEdit: () => _navigateToAddFutsal(futsal),
                       onDelete: () => _showDeleteDialog(futsal),
-                      onManageCourts: () => _navigateToCourtManagement(futsal),
+                      onManageCourts: () =>
+                          _navigateToCourtManagement(futsal),
                       onViewBookings: () => _navigateToBookings(futsal),
                       onViewReviews: () => _navigateToReviews(futsal),
                       onToggleActive: () => _toggleActive(futsal),
@@ -482,7 +521,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     );
   }
 
-  // ------------------------------------ My Grounds content (just the futsal list with management) ------------------------------------
+  // ------------------------------------ My Grounds content ------------------------------------
   Widget _buildMyGroundsContent() {
     final futsalProvider = Provider.of<FutsalProvider>(context);
     if (futsalProvider.myFutsals.isEmpty) {
@@ -507,47 +546,38 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     );
   }
 
-  // ------------------------------------ Helper methods (mostly unchanged) ------------------------------------
+  // ------------------------------------ Helper methods ------------------------------------
   Future<void> _showLogoutConfirmation() async {
-  final bool? shouldLogout = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('Logout'),
-      content: const Text('Are you sure you want to logout?'),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      actions: [
-        TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            style: TextButton.styleFrom(foregroundColor: Colors.grey),
-            child: const Text('CANCEL')),
-        TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('LOGOUT')),
-      ],
-    ),
-  );
+    final bool? shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              style: TextButton.styleFrom(foregroundColor: Colors.grey),
+              child: const Text('CANCEL')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('LOGOUT')),
+        ],
+      ),
+    );
 
-  debugPrint('🔍 shouldLogout = $shouldLogout');
-  if (shouldLogout != true) return;
-
-  final auth = Provider.of<AuthProvider>(context, listen: false);
-  debugPrint('🔍 calling logout...');
-  await auth.logout();
-  debugPrint('🔍 logout done, mounted = $mounted');
-
-  if (!mounted) {
-    debugPrint('🔍 not mounted, aborting navigation');
-    return;
+    if (shouldLogout == true && mounted) {
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      await auth.logout();
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    }
   }
-
-  debugPrint('🔍 navigating to LoginScreen');
-  Navigator.pushAndRemoveUntil(
-    context,
-    MaterialPageRoute(builder: (_) => const LoginScreen()),
-    (route) => false,
-  );
-}
 
   Future<void> _navigateToAddFutsal([Futsal? futsalToEdit]) async {
     final shouldRefresh = await Navigator.push(
@@ -625,14 +655,6 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
         MaterialPageRoute(
             builder: (_) =>
                 AnalyticsScreen(futsalId: futsal.id, futsalName: futsal.name)));
-  }
-
-  void _navigateToBlockedPlayers(Futsal futsal) {
-    Navigator.push(
-        context,
-        MaterialPageRoute(
-            builder: (_) => BlockedPlayersScreen(
-                futsalId: futsal.id, futsalName: futsal.name)));
   }
 
   Future<void> _deleteFutsal(Futsal futsal) async {

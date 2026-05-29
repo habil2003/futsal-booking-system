@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/api_service.dart';
 import '../../providers/auth_provider.dart';
-import '../../utils/app_colors.dart';            // ensure this file exists with the class
+import '../../utils/app_colors.dart';   // ensure this file exists with AppColors
 
 class NotificationScreen extends StatefulWidget {
   const NotificationScreen({super.key});
@@ -29,25 +29,27 @@ class _NotificationScreenState extends State<NotificationScreen> {
     }
 
     try {
-      // The backend returns a plain array
       final response = await ApiService.getList('notifications/my');
+      if (!mounted) return;
       setState(() {
         _notifications = response.cast<Map<String, dynamic>>();
         _isLoading = false;
       });
+      // 🔥 Automatically mark all as read after loading
+      _markAllAsRead();
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading notifications: $e')),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading notifications: $e')),
+      );
     }
   }
 
   Future<void> _markAsRead(int id) async {
     try {
       await ApiService.patch('notifications/$id/read', {});
+      if (!mounted) return;
       setState(() {
         final idx = _notifications.indexWhere((n) => n['id'] == id);
         if (idx != -1) {
@@ -62,6 +64,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
   Future<void> _markAllAsRead() async {
     try {
       await ApiService.patch('notifications/read-all', {});
+      if (!mounted) return;
       setState(() {
         for (var n in _notifications) {
           n['isRead'] = true;
@@ -81,6 +84,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
         backgroundColor: Colors.white,
         foregroundColor: AppColors.onBackground,
         elevation: 0.5,
+        // The "Mark all read" button can stay, but it's now redundant.
         actions: [
           if (_notifications.any((n) => n['isRead'] == false))
             TextButton(

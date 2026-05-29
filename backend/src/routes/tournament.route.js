@@ -17,7 +17,7 @@ router.get('/published', getPublishedTournaments);
 
 // Admin only
 router.use(authenticate);
-router.use(authorize('ADMIN'));
+router.use(authorize( 'OWNER','ADMIN' )); // Only owners can manage tournaments
 
 router.get('/futsals/dropdown', getFutsalsForDropdown);
 router.post('/', adUpload.single('image'), createTournament);

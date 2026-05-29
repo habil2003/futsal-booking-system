@@ -5,6 +5,7 @@ import {
   markAsRead,
   markAllAsRead,
   broadcastToUsers,
+  getUnreadCount
 } from '../controllers/notification.controller.js';
 
 const router = express.Router();
@@ -13,7 +14,7 @@ const router = express.Router();
 router.get('/my', authenticate, getMyNotifications);
 router.patch('/:id/read', authenticate, markAsRead);
 router.patch('/read-all', authenticate, markAllAsRead);
-
+router.get('/unread-count', authenticate, getUnreadCount);
 // Only Admin can broadcast
 router.post('/broadcast', authenticate, authorize('ADMIN'), broadcastToUsers);
 
