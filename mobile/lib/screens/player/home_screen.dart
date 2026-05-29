@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 import '../../services/api_service.dart';
 import '../../models/futsal.dart';
 import '../../providers/auth_provider.dart';
@@ -59,6 +61,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
   Position? _userPosition;
   bool _isGettingLocation = false;
   double _distanceRadius = 5.0;
+  String? _locationName; // real city name (e.g., "Kathmandu")
 
   late Future<List<Map<String, dynamic>>> futureAds = _fetchAds();
   late Future<List<Map<String, dynamic>>> futureTournaments =
@@ -69,6 +72,9 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
   static const _filterKey = 'home_filter';
   static const _radiusKey = 'home_radius';
   static const _showFiltersKey = 'home_show_filters';
+
+  // 🆕 Badge count for player notifications
+  int _unreadNotifications = 0;
 
   double _sp(double baseSize) {
     final width = MediaQuery.of(context).size.width;
@@ -82,12 +88,25 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     _loadFilterPreferences();
     _refreshAll();
     _startAdAutoScroll();
+    _loadUnreadCount(); // 🆕 fetch badge on start
   }
 
   @override
   void dispose() {
     _adController.dispose();
     super.dispose();
+  }
+
+  // 🆕 Fetch unread notification count from backend
+  Future<void> _loadUnreadCount() async {
+    try {
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      if (!auth.isAuthenticated) return;
+      final response = await ApiService.get('notifications/unread-count');
+      if (mounted && response['status'] == 'success') {
+        setState(() => _unreadNotifications = response['unreadCount'] ?? 0);
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadFilterPreferences() async {
@@ -204,6 +223,29 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     return months[month - 1];
   }
 
+  // ─── Reverse geocoding helper ───
+  Future<String?> _fetchCityName(double lat, double lng) async {
+    final url = Uri.parse(
+      'https://nominatim.openstreetmap.org/reverse?lat=$lat&lon=$lng&format=json&accept-language=en',
+    );
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final address = data['address'] as Map<String, dynamic>?;
+        if (address != null) {
+          return address['city'] ??
+              address['town'] ??
+              address['village'] ??
+              address['county'] ??
+              address['state'] ??
+              'Current location';
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Future<void> _getUserLocation() async {
     setState(() => _isGettingLocation = true);
     try {
@@ -227,6 +269,11 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
         timeLimit: const Duration(seconds: 20),
       );
       setState(() => _userPosition = position);
+
+      // Fetch readable city name
+      final city = await _fetchCityName(position.latitude, position.longitude);
+      if (mounted) setState(() => _locationName = city);
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -265,12 +312,8 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
   List<Futsal> get _filteredFutsals {
     final futsalProvider = Provider.of<FutsalProvider>(context, listen: false);
     var futsals = List<Futsal>.from(futsalProvider.futsals);
-
-    // Sort by rating (highest first) – this makes Top Grounds show the best‑rated
     futsals
         .sort((a, b) => (b.averageRating ?? 0).compareTo(a.averageRating ?? 0));
-
-    // Apply location radius filter if user has set a position
     if (_userPosition != null) {
       for (var f in futsals) {
         if (f.latitude != null && f.longitude != null) {
@@ -286,7 +329,6 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
           .where((f) => f.distance == null || f.distance! <= _distanceRadius)
           .toList();
     }
-
     return futsals;
   }
 
@@ -297,9 +339,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
         context,
         MaterialPageRoute(builder: (_) => const LoginScreen()),
       );
-      if (didLogin == true) {
-        _proceedToBooking(context, futsal);
-      }
+      if (didLogin == true) _proceedToBooking(context, futsal);
     } else {
       _proceedToBooking(context, futsal);
     }
@@ -355,6 +395,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     );
   }
 
+  // ─────────── HOME TAB ───────────
   Widget _buildHomeTab() {
     return Container(
       color: AppColors.background,
@@ -425,10 +466,8 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                     color: AppColors.secondaryText, fontSize: _sp(14))),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: () {
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const LoginScreen()));
-              },
+              onPressed: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const LoginScreen())),
               style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white),
@@ -456,10 +495,8 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                     color: AppColors.secondaryText, fontSize: _sp(14))),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: () {
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const LoginScreen()));
-              },
+              onPressed: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const LoginScreen())),
               style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white),
@@ -472,6 +509,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     return AccountSetting();
   }
 
+  // ─────────── SLIVER APP BAR (badge on notification icon) ───────────
   Widget _buildSliverAppBar() {
     return SliverAppBar(
       automaticallyImplyLeading: false,
@@ -493,48 +531,43 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // ── "Hey, Name" on the same line ──
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.baseline,
                     textBaseline: TextBaseline.alphabetic,
                     children: [
-                      Text(
-                        'Hey, ',
-                        style: TextStyle(
-                          color: AppColors.secondaryText,
-                          fontSize: _sp(18),
-                          fontWeight: FontWeight.w400,
-                        ),
-                      ),
-                      Text(
-                        name,
-                        style: TextStyle(
-                          color: AppColors.onBackground,
-                          fontSize: _sp(22),
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      Text('Hey, ',
+                          style: TextStyle(
+                              color: AppColors.secondaryText,
+                              fontSize: _sp(18),
+                              fontWeight: FontWeight.w400)),
+                      Text(name,
+                          style: TextStyle(
+                              color: AppColors.onBackground,
+                              fontSize: _sp(22),
+                              fontWeight: FontWeight.bold)),
                     ],
                   ),
                   const SizedBox(height: 6),
-                  // ── Current location (or “Add location” if not set) ──
+                  // ── Real‑time location ──
                   GestureDetector(
-                    onTap: _userPosition == null ? _getUserLocation : null,
+                    onTap: () {
+                      if (_userPosition == null || _locationName == null)
+                        _getUserLocation();
+                    },
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          Icons.location_on_outlined,
-                          size: 16,
-                          color: _userPosition != null
-                              ? AppColors.primary
-                              : AppColors.secondaryText,
-                        ),
+                        Icon(Icons.location_on_outlined,
+                            size: 16,
+                            color: _userPosition != null
+                                ? AppColors.primary
+                                : AppColors.secondaryText),
                         const SizedBox(width: 4),
                         Text(
-                          _userPosition != null
-                              ? 'Current location'
-                              : 'Add location',
+                          _locationName ??
+                              (_userPosition != null
+                                  ? 'Current location'
+                                  : 'Add location'),
                           style: TextStyle(
                             color: _userPosition != null
                                 ? AppColors.primary
@@ -559,14 +592,11 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                           fontSize: _sp(16),
                           fontWeight: FontWeight.w400)),
                   const SizedBox(height: 2),
-                  Text(
-                    'Perfect Futsal ⚽',
-                    style: TextStyle(
-                      color: AppColors.onBackground,
-                      fontSize: _sp(26),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  Text('Perfect Futsal ⚽',
+                      style: TextStyle(
+                          color: AppColors.onBackground,
+                          fontSize: _sp(26),
+                          fontWeight: FontWeight.bold)),
                 ],
               );
             }
@@ -574,34 +604,52 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
         ),
       ),
       actions: [
-        // 1. Notification bell
+        // 🆕 Notification bell with badge
         IconButton(
-          icon: const Icon(Icons.notifications_outlined,
-              color: AppColors.onBackground),
-          onPressed: () {
-            Navigator.push(
+          icon: _unreadNotifications > 0
+              ? Badge(
+                  label: Text('$_unreadNotifications',
+                      style:
+                          const TextStyle(fontSize: 10, color: Colors.white)),
+                  child: const Icon(Icons.notifications_outlined,
+                      color: AppColors.onBackground),
+                )
+              : const Icon(Icons.notifications_outlined,
+                  color: AppColors.onBackground),
+          onPressed: () async {
+            await Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const NotificationScreen()),
             );
+            _loadUnreadCount(); // refresh after returning
           },
         ),
-        // 2. Favourite heart (only when logged in)
         Consumer<AuthProvider>(
           builder: (_, auth, __) {
             if (!auth.isAuthenticated) return const SizedBox.shrink();
-            return IconButton(
-              icon: const Icon(Icons.favorite_border,
-                  color: AppColors.onBackground),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const WishlistScreen()),
+            return Consumer<FavoriteProvider>(
+              builder: (context, favProvider, _) {
+                final count = favProvider.favorites.length;
+                return IconButton(
+                  icon: count > 0
+                      ? Badge(
+                          label: Text('$count',
+                              style: const TextStyle(
+                                  fontSize: 10, color: Colors.white)),
+                          child: const Icon(Icons.favorite_border,
+                              color: AppColors.onBackground),
+                        )
+                      : const Icon(Icons.favorite_border,
+                          color: AppColors.onBackground),
+                  onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const WishlistScreen())),
                 );
               },
             );
           },
         ),
-        // 3. Profile avatar (or login button)
         Consumer<AuthProvider>(
           builder: (_, auth, __) => Container(
             margin: const EdgeInsets.only(right: 16),
@@ -675,50 +723,41 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                     itemBuilder: (BuildContext context) => [
                       PopupMenuItem<String>(
                         value: 'filters',
-                        child: Row(
-                          children: [
-                            Icon(Icons.filter_list,
-                                color: AppColors.onBackground),
-                            SizedBox(width: 12),
-                            Text(
-                                _showFilters ? 'Hide Filters' : 'Show Filters'),
-                          ],
-                        ),
+                        child: Row(children: [
+                          Icon(Icons.filter_list,
+                              color: AppColors.onBackground),
+                          SizedBox(width: 12),
+                          Text(_showFilters ? 'Hide Filters' : 'Show Filters'),
+                        ]),
                       ),
                       PopupMenuItem<String>(
                         value: 'profile',
-                        child: Row(
-                          children: [
-                            Icon(Icons.person_outline,
-                                color: AppColors.onBackground),
-                            SizedBox(width: 12),
-                            Text('My Profile'),
-                          ],
-                        ),
+                        child: Row(children: [
+                          Icon(Icons.person_outline,
+                              color: AppColors.onBackground),
+                          SizedBox(width: 12),
+                          Text('My Profile'),
+                        ]),
                       ),
                       if (auth.isOwner || auth.isAdmin)
                         PopupMenuItem<String>(
                           value: 'dashboard',
-                          child: Row(
-                            children: [
-                              Icon(Icons.dashboard,
-                                  color: AppColors.onBackground),
-                              SizedBox(width: 12),
-                              Text('Dashboard'),
-                            ],
-                          ),
+                          child: Row(children: [
+                            Icon(Icons.dashboard,
+                                color: AppColors.onBackground),
+                            SizedBox(width: 12),
+                            Text('Dashboard'),
+                          ]),
                         ),
                       PopupMenuDivider(),
                       PopupMenuItem<String>(
                         value: 'logout',
-                        child: Row(
-                          children: [
-                            Icon(Icons.logout, color: AppColors.accentCoral),
-                            SizedBox(width: 12),
-                            Text('Logout',
-                                style: TextStyle(color: AppColors.accentCoral)),
-                          ],
-                        ),
+                        child: Row(children: [
+                          Icon(Icons.logout, color: AppColors.accentCoral),
+                          SizedBox(width: 12),
+                          Text('Logout',
+                              style: TextStyle(color: AppColors.accentCoral)),
+                        ]),
                       ),
                     ],
                   )
@@ -746,6 +785,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     );
   }
 
+  // ─────────── SEARCH BAR ───────────
   Widget _buildSearchBar() {
     return GestureDetector(
       onTap: () => setState(() => _currentNavIndex = 1),
@@ -767,14 +807,11 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
             Icon(Icons.search_rounded, color: AppColors.primary, size: 24),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                'Search by name or location...',
-                style: TextStyle(
-                  color: AppColors.secondaryText,
-                  fontSize: _sp(15),
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
+              child: Text('Search by name or location...',
+                  style: TextStyle(
+                      color: AppColors.secondaryText,
+                      fontSize: _sp(15),
+                      fontWeight: FontWeight.w400)),
             ),
             Container(
               margin: const EdgeInsets.only(right: 8),
@@ -793,6 +830,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     );
   }
 
+  // ─────────── FUTSAL LIST SECTION ───────────
   Widget _buildFutsalListSection(String title,
       {required int maxCount, int skipCount = 0}) {
     final allFutsals = _filteredFutsals;
@@ -800,7 +838,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     if (sliced.isEmpty) return const SizedBox.shrink();
 
     return Padding(
-      padding: const EdgeInsets.only(left: 16),
+      padding: const EdgeInsets.only(left: 16, top: 16, bottom: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -848,6 +886,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     );
   }
 
+  // ─────────── SQUARE CARD ───────────
   Widget _buildSquareFutsalCard(Futsal futsal) {
     final imageUrl = futsal.images.isNotEmpty
         ? futsal.images[0]
@@ -863,10 +902,9 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: AppColors.shadow,
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
+                color: AppColors.shadow,
+                blurRadius: 12,
+                offset: const Offset(0, 4))
           ],
         ),
         clipBehavior: Clip.antiAlias,
@@ -893,9 +931,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                   child: Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: Colors.black38,
-                      shape: BoxShape.circle,
-                    ),
+                        color: Colors.black38, shape: BoxShape.circle),
                     child: Consumer<FavoriteProvider>(
                       builder: (context, fav, _) {
                         final isFav = fav.isFavorite(futsal.id);
@@ -926,10 +962,10 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                             }
                           },
                           child: Icon(
-                            isFav ? Icons.favorite : Icons.favorite_border,
-                            color: isFav ? AppColors.accentCoral : Colors.white,
-                            size: 18,
-                          ),
+                              isFav ? Icons.favorite : Icons.favorite_border,
+                              color:
+                                  isFav ? AppColors.accentCoral : Colors.white,
+                              size: 18),
                         );
                       },
                     ),
@@ -956,14 +992,12 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                           size: 14, color: AppColors.secondaryText),
                       const SizedBox(width: 4),
                       Expanded(
-                        child: Text(
-                          futsal.address.split(',').first,
-                          style: TextStyle(
-                              fontSize: _sp(12),
-                              color: AppColors.secondaryText),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        child: Text(futsal.address.split(',').first,
+                            style: TextStyle(
+                                fontSize: _sp(12),
+                                color: AppColors.secondaryText),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
                       ),
                     ],
                   ),
@@ -1011,16 +1045,15 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     );
   }
 
+  // ─────────── AD CAROUSEL ───────────
   Widget _buildAdCarousel() {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: futureAds,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting)
           return _buildAdShimmer();
-        }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return SizedBox.shrink();
-        }
+        if (!snapshot.hasData || snapshot.data!.isEmpty)
+          return const SizedBox.shrink();
         final ads = snapshot.data!;
         return Column(
           children: [
@@ -1038,20 +1071,19 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(
-                ads.length,
-                (index) => AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  width: _currentAdIndex == index ? 24 : 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: _currentAdIndex == index
-                        ? AppColors.primary
-                        : AppColors.divider,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-              ),
+                  ads.length,
+                  (index) => AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        width: _currentAdIndex == index ? 24 : 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: _currentAdIndex == index
+                              ? AppColors.primary
+                              : AppColors.divider,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      )),
             ),
           ],
         );
@@ -1066,10 +1098,9 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: AppColors.shadow,
-            blurRadius: 12,
-            offset: const Offset(0, 6),
-          ),
+              color: AppColors.shadow,
+              blurRadius: 12,
+              offset: const Offset(0, 6))
         ],
       ),
       child: ClipRRect(
@@ -1085,7 +1116,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                   end: Alignment.centerRight,
                   colors: [
                     AppColors.cardDark1.withOpacity(0.85),
-                    AppColors.cardDark2.withOpacity(0.5),
+                    AppColors.cardDark2.withOpacity(0.5)
                   ],
                 ),
               ),
@@ -1136,22 +1167,19 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       height: 200,
       decoration: BoxDecoration(
-        color: AppColors.divider,
-        borderRadius: BorderRadius.circular(24),
-      ),
+          color: AppColors.divider, borderRadius: BorderRadius.circular(24)),
     );
   }
 
+  // ─────────── TOURNAMENTS SECTION ───────────
   Widget _buildTournamentsSection() {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: futureTournaments,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting)
           return _buildHorizontalShimmer();
-        }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return SizedBox.shrink();
-        }
+        if (!snapshot.hasData || snapshot.data!.isEmpty)
+          return const SizedBox.shrink();
         final tournaments = snapshot.data!;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1190,27 +1218,25 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                     margin: const EdgeInsets.only(right: 16, bottom: 8),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
-                        colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
+                          colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight),
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF4F46E5).withOpacity(0.3),
-                          blurRadius: 12,
-                          offset: const Offset(0, 6),
-                        )
+                            color: const Color(0xFF4F46E5).withOpacity(0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 6))
                       ],
                     ),
                     child: Stack(
                       children: [
                         Positioned(
-                          right: -20,
-                          bottom: -20,
-                          child: Icon(Icons.emoji_events,
-                              size: 100, color: Colors.white.withOpacity(0.1)),
-                        ),
+                            right: -20,
+                            bottom: -20,
+                            child: Icon(Icons.emoji_events,
+                                size: 100,
+                                color: Colors.white.withOpacity(0.1))),
                         Padding(
                           padding: const EdgeInsets.all(20),
                           child: Column(
@@ -1222,29 +1248,25 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                                       fontSize: _sp(18),
                                       fontWeight: FontWeight.bold)),
                               const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  Icon(Icons.calendar_today_rounded,
-                                      size: 16, color: Colors.white70),
-                                  const SizedBox(width: 6),
-                                  Text(t['date'],
-                                      style: TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: _sp(13))),
-                                ],
-                              ),
+                              Row(children: [
+                                Icon(Icons.calendar_today_rounded,
+                                    size: 16, color: Colors.white70),
+                                const SizedBox(width: 6),
+                                Text(t['date'],
+                                    style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: _sp(13))),
+                              ]),
                               const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  Icon(Icons.emoji_events_rounded,
-                                      size: 16, color: AppColors.accentAmber),
-                                  const SizedBox(width: 6),
-                                  Text('Prize: ${t['prize']}',
-                                      style: TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: _sp(13))),
-                                ],
-                              ),
+                              Row(children: [
+                                Icon(Icons.emoji_events_rounded,
+                                    size: 16, color: AppColors.accentAmber),
+                                const SizedBox(width: 6),
+                                Text('Prize: ${t['prize']}',
+                                    style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: _sp(13))),
+                              ]),
                               const Spacer(),
                               SizedBox(
                                 width: double.infinity,
@@ -1288,35 +1310,32 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(width: 150, height: 20, color: AppColors.divider),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           Row(
             children: List.generate(
-              3,
-              (index) => Container(
-                width: 200,
-                height: 180,
-                margin: const EdgeInsets.only(right: 16),
-                decoration: BoxDecoration(
-                  color: AppColors.divider,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-              ),
-            ),
+                3,
+                (index) => Container(
+                      width: 200,
+                      height: 180,
+                      margin: const EdgeInsets.only(right: 16),
+                      decoration: BoxDecoration(
+                          color: AppColors.divider,
+                          borderRadius: BorderRadius.circular(20)),
+                    )),
           ),
         ],
       ),
     );
   }
 
+  // ─────────── ACTION BUTTONS ───────────
   Widget _buildActionButtons() {
     return Consumer<AuthProvider>(
       builder: (context, auth, _) {
         if (auth.isAuthenticated) return const SizedBox.shrink();
         final isDesktop = Responsive.isDesktop(context);
         final buttonPadding = EdgeInsets.symmetric(
-          horizontal: isDesktop ? 24 : 20,
-          vertical: isDesktop ? 18 : 14,
-        );
+            horizontal: isDesktop ? 24 : 20, vertical: isDesktop ? 18 : 14);
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
           child: Column(
@@ -1344,9 +1363,8 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                         MaterialPageRoute(
                           builder: (_) => const LoginScreen(),
                           settings: const RouteSettings(
-                            arguments: LoginScreenArguments(
-                                isLogin: true, selectedRole: 'PLAYER'),
-                          ),
+                              arguments: LoginScreenArguments(
+                                  isLogin: true, selectedRole: 'PLAYER')),
                         ),
                       );
                     },
@@ -1371,9 +1389,8 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                         MaterialPageRoute(
                           builder: (_) => const LoginScreen(),
                           settings: RouteSettings(
-                            arguments: LoginScreenArguments(
-                                isLogin: false, selectedRole: 'OWNER'),
-                          ),
+                              arguments: LoginScreenArguments(
+                                  isLogin: false, selectedRole: 'OWNER')),
                         ),
                       );
                     },

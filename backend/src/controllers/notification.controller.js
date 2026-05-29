@@ -55,3 +55,14 @@ export const broadcastToUsers = async (req, res) => {
     res.status(500).json({ status: 'error', message: error.message });
   }
 };
+
+export const getUnreadCount = async (req, res) => {
+  try {
+    const count = await prisma.notification.count({
+      where: { userId: req.user.id, isRead: false },
+    });
+    res.json({ status: 'success', unreadCount: count });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+};
