@@ -24,9 +24,9 @@ class _ManageTournamentsScreenState extends State<ManageTournamentsScreen> {
   Future<void> _loadTournaments() async {
     setState(() => _isLoadingTournaments = true);
     try {
-      final response = await ApiService.getList('tournaments');
+      final response = await ApiService.get('tournaments');
       setState(() {
-        _tournaments = response.cast<Map<String, dynamic>>();
+        _tournaments = List<Map<String, dynamic>>.from(response['tournaments'] ?? []);
       });
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -106,6 +106,9 @@ class _ManageTournamentsScreenState extends State<ManageTournamentsScreen> {
     final String status = tournament['status'] ?? 'DRAFT';
     final int maxTeams = tournament['maxTeams'] ?? 0;
     final int? teamCount = tournament['_count']?['teams'];
+    final futsal = tournament['futsal'];
+    final futsalName = futsal?['name'] ?? 'Unknown Futsal';
+    final ownerId = futsal?['ownerId'] ?? 'N/A';
 
     Color _getStatusColor(String status) {
       switch (status.toUpperCase()) {
@@ -209,14 +212,14 @@ class _ManageTournamentsScreenState extends State<ManageTournamentsScreen> {
             ),
             const SizedBox(height: 4),
 
-            // Futsal Name (Owner)
+            // Futsal Name
             Row(
               children: [
                 const Icon(Icons.sports_soccer, size: 14, color: Colors.grey),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
-                    tournament['futsal']?['name'] ?? 'Unknown Futsal',
+                    futsalName,
                     style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                   ),
                 ),
@@ -265,7 +268,7 @@ class _ManageTournamentsScreenState extends State<ManageTournamentsScreen> {
 
             const SizedBox(height: 12),
 
-            // Owner/Owner Info
+            // Owner Info
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
@@ -278,7 +281,7 @@ class _ManageTournamentsScreenState extends State<ManageTournamentsScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Owner ID: ${tournament['futsal']?['ownerId'] ?? 'N/A'}',
+                      'Owner ID: $ownerId',
                       style: const TextStyle(fontSize: 11, color: Colors.blue),
                     ),
                   ),

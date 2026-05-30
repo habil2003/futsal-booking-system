@@ -58,14 +58,10 @@ class _AddTeamsScreenState extends State<AddTeamsScreen>
     try {
       print('📋 Loading teams for tournament ${widget.tournamentId}');
 
-      // Load teams by status in parallel
       final results = await Future.wait([
-        ApiService.getList(
-            'tournaments/${widget.tournamentId}/teams/status/PENDING'),
-        ApiService.getList(
-            'tournaments/${widget.tournamentId}/teams/status/APPROVED'),
-        ApiService.getList(
-            'tournaments/${widget.tournamentId}/teams/status/REJECTED'),
+        ApiService.getList('tournaments/${widget.tournamentId}/teams/status/PENDING'),
+        ApiService.getList('tournaments/${widget.tournamentId}/teams/status/APPROVED'),
+        ApiService.getList('tournaments/${widget.tournamentId}/teams/status/REJECTED'),
       ]);
 
       print('📋 PENDING: ${results[0].length} teams');
@@ -94,9 +90,7 @@ class _AddTeamsScreenState extends State<AddTeamsScreen>
         title: const Text('Approve Team'),
         content: Text('Approve team "${team.name}" to join the tournament?'),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
@@ -111,13 +105,12 @@ class _AddTeamsScreenState extends State<AddTeamsScreen>
     setState(() => _isLoading = true);
 
     try {
-      final response = await ApiService.patch('teams/${team.id}/approve', {});
+      // FIXED: Correct endpoint with 'tournaments/' prefix
+      final response = await ApiService.patch('tournaments/teams/${team.id}/approve', {});
 
       if (response['status'] == 'success') {
-        // Move team from pending to approved
         setState(() {
           _pendingTeams.removeWhere((t) => t.id == team.id);
-          // Create updated team with new status
           final approvedTeam = Team(
             id: team.id,
             tournamentId: team.tournamentId,
@@ -129,6 +122,7 @@ class _AddTeamsScreenState extends State<AddTeamsScreen>
             jerseyColor: team.jerseyColor,
             registeredAt: team.registeredAt,
             status: 'APPROVED',
+            createdAt: team.createdAt,
           );
           _approvedTeams.add(approvedTeam);
           _isLoading = false;
@@ -176,15 +170,12 @@ class _AddTeamsScreenState extends State<AddTeamsScreen>
                   hintText: 'Why is this team being rejected?',
                   border: OutlineInputBorder(),
                 ),
-                onChanged: (value) =>
-                    setDialogState(() => rejectReason = value),
+                onChanged: (value) => setDialogState(() => rejectReason = value),
               ),
             ],
           ),
           actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true),
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
@@ -200,8 +191,8 @@ class _AddTeamsScreenState extends State<AddTeamsScreen>
     setState(() => _isLoading = true);
 
     try {
-      final response =
-          await ApiService.patch('tournaments/teams/${team.id}/approve', {});
+      // FIXED: Correct endpoint with 'reject' not 'approve'
+      final response = await ApiService.patch('tournaments/teams/${team.id}/reject', {'reason': rejectReason});
 
       if (response['status'] == 'success') {
         setState(() {
@@ -217,6 +208,7 @@ class _AddTeamsScreenState extends State<AddTeamsScreen>
             jerseyColor: team.jerseyColor,
             registeredAt: team.registeredAt,
             status: 'REJECTED',
+            createdAt: team.createdAt,
           );
           _rejectedTeams.add(rejectedTeam);
           _isLoading = false;
@@ -264,9 +256,7 @@ class _AddTeamsScreenState extends State<AddTeamsScreen>
           'Generate ${widget.tournamentType == TournamentType.knockout ? 'knockout bracket' : 'round robin fixtures'} with ${_approvedTeams.length} approved teams?',
         ),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
@@ -293,7 +283,6 @@ class _AddTeamsScreenState extends State<AddTeamsScreen>
         ),
       );
 
-      // Refresh tournament data
       await provider.loadTournament(widget.tournamentId);
 
       Navigator.pop(context);
@@ -309,8 +298,7 @@ class _AddTeamsScreenState extends State<AddTeamsScreen>
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) =>
-                RoundRobinLeaderboard(tournamentId: widget.tournamentId),
+            builder: (_) => RoundRobinLeaderboard(tournamentId: widget.tournamentId),
           ),
         );
       }
@@ -356,14 +344,12 @@ class _AddTeamsScreenState extends State<AddTeamsScreen>
             TextButton.icon(
               onPressed: _generateFixtures,
               icon: const Icon(Icons.sports_soccer, color: Colors.white),
-              label: const Text('Generate Fixtures',
-                  style: TextStyle(color: Colors.white)),
+              label: const Text('Generate Fixtures', style: TextStyle(color: Colors.white)),
             ),
         ],
       ),
       body: Column(
         children: [
-          // Summary Header
           Container(
             padding: const EdgeInsets.all(12),
             color: Colors.green.shade50,
@@ -379,32 +365,27 @@ class _AddTeamsScreenState extends State<AddTeamsScreen>
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
-                          color: (_approvedTeams.length < widget.maxTeams)
-                              ? Colors.green.shade800
-                              : Colors.red.shade800,
+                          color: (_approvedTeams.length < widget.maxTeams) ? Colors.green.shade800 : Colors.red.shade800,
                         ),
                       ),
                       if (_approvedTeams.length < widget.maxTeams)
                         Text(
                           '${widget.maxTeams - _approvedTeams.length} spots remaining',
-                          style: TextStyle(
-                              fontSize: 12, color: Colors.green.shade600),
+                          style: TextStyle(fontSize: 12, color: Colors.green.shade600),
                         ),
                     ],
                   ),
                 ),
                 if (_pendingTeams.isNotEmpty)
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: Colors.orange.shade100,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
                       '${_pendingTeams.length} pending approval',
-                      style: TextStyle(
-                          fontSize: 12, color: Colors.orange.shade800),
+                      style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
                     ),
                   ),
               ],
@@ -436,8 +417,7 @@ class _AddTeamsScreenState extends State<AddTeamsScreen>
 
           Expanded(
             child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(color: Colors.green))
+                ? const Center(child: CircularProgressIndicator(color: Colors.green))
                 : TabBarView(
                     controller: _tabController,
                     children: [
@@ -514,22 +494,16 @@ class _AddTeamsScreenState extends State<AddTeamsScreen>
                   decoration: BoxDecoration(
                     color: isPending
                         ? Colors.orange.shade100
-                        : (team.status == 'APPROVED'
-                            ? Colors.green.shade100
-                            : Colors.red.shade100),
+                        : (team.status == 'APPROVED' ? Colors.green.shade100 : Colors.red.shade100),
                     borderRadius: BorderRadius.circular(25),
                   ),
                   child: Icon(
                     isPending
                         ? Icons.pending
-                        : (team.status == 'APPROVED'
-                            ? Icons.check_circle
-                            : Icons.cancel),
+                        : (team.status == 'APPROVED' ? Icons.check_circle : Icons.cancel),
                     color: isPending
                         ? Colors.orange
-                        : (team.status == 'APPROVED'
-                            ? Colors.green
-                            : Colors.red),
+                        : (team.status == 'APPROVED' ? Colors.green : Colors.red),
                     size: 28,
                   ),
                 ),
@@ -565,14 +539,11 @@ class _AddTeamsScreenState extends State<AddTeamsScreen>
                   ),
                 ),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: isPending
                         ? Colors.orange.shade100
-                        : (team.status == 'APPROVED'
-                            ? Colors.green.shade100
-                            : Colors.red.shade100),
+                        : (team.status == 'APPROVED' ? Colors.green.shade100 : Colors.red.shade100),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
@@ -582,16 +553,13 @@ class _AddTeamsScreenState extends State<AddTeamsScreen>
                       fontWeight: FontWeight.bold,
                       color: isPending
                           ? Colors.orange.shade800
-                          : (team.status == 'APPROVED'
-                              ? Colors.green.shade800
-                              : Colors.red.shade800),
+                          : (team.status == 'APPROVED' ? Colors.green.shade800 : Colors.red.shade800),
                     ),
                   ),
                 ),
               ],
             ),
 
-            // Players section
             if (team.players != null && team.players!.isNotEmpty) ...[
               const SizedBox(height: 12),
               const Divider(),
@@ -610,25 +578,21 @@ class _AddTeamsScreenState extends State<AddTeamsScreen>
                 runSpacing: 4,
                 children: team.players!.map((playerName) {
                   return Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: Text(
                       playerName,
-                      style:
-                          TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
                     ),
                   );
                 }).toList(),
               ),
             ],
 
-            // Action buttons for pending teams
-            if (isPending &&
-                widget.tournamentStatus == TournamentStatus.draft) ...[
+            if (isPending && widget.tournamentStatus == TournamentStatus.draft) ...[
               const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,

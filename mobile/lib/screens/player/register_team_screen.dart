@@ -92,19 +92,33 @@ class _RegisterTeamScreenState extends State<RegisterTeamScreen> {
       setState(() => _isLoading = false);
       
       if (response['status'] == 'success') {
-        // Show success and go back
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(response['message'] ?? 'Team registered successfully!'),
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.pop(context, true); // Return true to indicate registration success
+        Navigator.pop(context, true);
       } else {
+        String errorMessage = response['message'] ?? 'Registration failed';
+        
+        if (errorMessage.contains('full') || errorMessage.contains('Maximum teams')) {
+          errorMessage = '🏆 Tournament is full! No more teams can register.';
+        } else if (errorMessage.contains('already registered')) {
+          errorMessage = '⚠️ You have already registered a team in this tournament.';
+        } else if (errorMessage.contains('name already taken')) {
+          errorMessage = '📛 Team name is already taken. Please choose another name.';
+        } else if (errorMessage.contains('not open')) {
+          errorMessage = '🔒 Tournament registration is not open yet.';
+        } else if (errorMessage.contains('started')) {
+          errorMessage = '⏰ Tournament has already started. Registration closed.';
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(response['message'] ?? 'Registration failed'),
+            content: Text(errorMessage),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
@@ -112,7 +126,7 @@ class _RegisterTeamScreenState extends State<RegisterTeamScreen> {
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error: $e'),
+          content: Text('Network error: Please try again'),
           backgroundColor: Colors.red,
         ),
       );

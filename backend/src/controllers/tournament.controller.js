@@ -500,18 +500,18 @@ export const getPublishedTournaments = async (req, res) => {
     const tournaments = await prisma.tournament.findMany({
       where: {
         isPublished: true,
-        // REMOVED: status: { not: "DRAFT" }
       },
-      include: { futsal: { select: { id: true, name: true } } },
+      include: { 
+        futsal: { select: { id: true, name: true } },
+        _count: { select: { teams: true } }  // ← ADD THIS to get team count
+      },
       orderBy: { startDate: "asc" },
     });
-    console.log(`📋 Found ${tournaments.length} published tournaments`); // Debug
+    console.log(`📋 Found ${tournaments.length} published tournaments`);
     res.json({ status: "success", tournaments });
   } catch (error) {
     console.error("Get published tournaments error:", error);
-    res
-      .status(500)
-      .json({ status: "error", message: "Failed to fetch tournaments" });
+    res.status(500).json({ status: "error", message: "Failed to fetch tournaments" });
   }
 };
 
@@ -1267,7 +1267,7 @@ export const getTeamsByStatus = async (req, res) => {
         },
       },
       orderBy: {
-        createdAt: "asc",
+        id: "asc",  // Changed from createdAt to id
       },
     });
 

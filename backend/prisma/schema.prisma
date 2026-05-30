@@ -257,6 +257,8 @@ model Match {
   matchDate    DateTime
   homeScore    Int?
   awayScore    Int?
+  homePenalty  Int?        // ← ADD THIS
+  awayPenalty  Int?        // ← ADD THIS
   status       MatchStatus @default(SCHEDULED)
   round        String
 

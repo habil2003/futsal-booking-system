@@ -15,15 +15,13 @@ class PlayerTournamentDetailsScreen extends StatefulWidget {
   });
 
   @override
-  State<PlayerTournamentDetailsScreen> createState() =>
-      _PlayerTournamentDetailsScreenState();
+  State<PlayerTournamentDetailsScreen> createState() => _PlayerTournamentDetailsScreenState();
 }
 
-class _PlayerTournamentDetailsScreenState
-    extends State<PlayerTournamentDetailsScreen>
+class _PlayerTournamentDetailsScreenState extends State<PlayerTournamentDetailsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-
+  
   List<dynamic> _matches = [];
   List<dynamic> _standings = [];
   List<dynamic> _teams = [];
@@ -51,12 +49,9 @@ class _PlayerTournamentDetailsScreenState
 
     try {
       // Fetch matches, standings, and teams in parallel
-      final matchesResponse = await ApiService.getList(
-          'tournaments/${widget.tournamentId}/matches');
-      final standingsResponse =
-          await ApiService.get('tournaments/${widget.tournamentId}/standings');
-      final teamsResponse =
-          await ApiService.getList('tournaments/${widget.tournamentId}/teams');
+      final matchesResponse = await ApiService.getList('tournaments/${widget.tournamentId}/matches');
+      final standingsResponse = await ApiService.get('tournaments/${widget.tournamentId}/standings');
+      final teamsResponse = await ApiService.getList('tournaments/${widget.tournamentId}/teams');
 
       setState(() {
         _matches = matchesResponse;
@@ -97,8 +92,7 @@ class _PlayerTournamentDetailsScreenState
         ],
       ),
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.primary))
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : _error != null
               ? _buildErrorView()
               : TabBarView(
@@ -172,17 +166,13 @@ class _PlayerTournamentDetailsScreenState
 
     // Define round order for display
     final List<String> roundOrder = [];
-    if (groupedMatches.containsKey('ROUND_OF_32'))
-      roundOrder.add('ROUND_OF_32');
-    if (groupedMatches.containsKey('ROUND_OF_16'))
-      roundOrder.add('ROUND_OF_16');
-    if (groupedMatches.containsKey('QUARTER_FINAL'))
-      roundOrder.add('QUARTER_FINAL');
+    if (groupedMatches.containsKey('ROUND_OF_32')) roundOrder.add('ROUND_OF_32');
+    if (groupedMatches.containsKey('ROUND_OF_16')) roundOrder.add('ROUND_OF_16');
+    if (groupedMatches.containsKey('QUARTER_FINAL')) roundOrder.add('QUARTER_FINAL');
     if (groupedMatches.containsKey('SEMI_FINAL')) roundOrder.add('SEMI_FINAL');
     if (groupedMatches.containsKey('FINAL')) roundOrder.add('FINAL');
-    if (groupedMatches.containsKey('GROUP_STAGE'))
-      roundOrder.add('GROUP_STAGE');
-
+    if (groupedMatches.containsKey('GROUP_STAGE')) roundOrder.add('GROUP_STAGE');
+    
     // Add any remaining rounds not in order
     for (final round in groupedMatches.keys) {
       if (!roundOrder.contains(round)) {
@@ -270,8 +260,7 @@ class _PlayerTournamentDetailsScreenState
     final awayTeam = match['awayTeam']?['name'] ?? 'TBD';
     final homeScore = match['homeScore'];
     final awayScore = match['awayScore'];
-    final matchDate =
-        match['matchDate'] != null ? DateTime.parse(match['matchDate']) : null;
+    final matchDate = match['matchDate'] != null ? DateTime.parse(match['matchDate']) : null;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -296,7 +285,7 @@ class _PlayerTournamentDetailsScreenState
                 ),
               ),
             const SizedBox(height: 8),
-
+            
             // Match
             Row(
               children: [
@@ -312,11 +301,9 @@ class _PlayerTournamentDetailsScreenState
                 ),
                 Container(
                   width: 60,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color:
-                        isCompleted ? AppColors.primary : Colors.grey.shade200,
+                    color: isCompleted ? AppColors.primary : Colors.grey.shade200,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Center(
@@ -331,8 +318,7 @@ class _PlayerTournamentDetailsScreenState
                           )
                         : const Text(
                             'vs',
-                            style: TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.bold),
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                           ),
                   ),
                 ),
@@ -348,7 +334,7 @@ class _PlayerTournamentDetailsScreenState
                 ),
               ],
             ),
-
+            
             if (!isCompleted && matchDate != null) ...[
               const SizedBox(height: 8),
               Text(
@@ -477,18 +463,15 @@ class _PlayerTournamentDetailsScreenState
       children: [
         // Quarter Finals
         if (_matches.any((m) => m['round'] == 'QUARTER_FINAL'))
-          _buildBracketRound('Quarter Finals',
-              _matches.where((m) => m['round'] == 'QUARTER_FINAL').toList()),
-
+          _buildBracketRound('Quarter Finals', _matches.where((m) => m['round'] == 'QUARTER_FINAL').toList()),
+        
         // Semi Finals
         if (_matches.any((m) => m['round'] == 'SEMI_FINAL'))
-          _buildBracketRound('Semi Finals',
-              _matches.where((m) => m['round'] == 'SEMI_FINAL').toList()),
-
+          _buildBracketRound('Semi Finals', _matches.where((m) => m['round'] == 'SEMI_FINAL').toList()),
+        
         // Final
         if (_matches.any((m) => m['round'] == 'FINAL'))
-          _buildBracketRound(
-              'Final', _matches.where((m) => m['round'] == 'FINAL').toList()),
+          _buildBracketRound('Final', _matches.where((m) => m['round'] == 'FINAL').toList()),
       ],
     );
   }
@@ -514,9 +497,9 @@ class _PlayerTournamentDetailsScreenState
           ),
         ),
         ...matches.map((match) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _buildMatchCard(match),
-            )),
+          padding: const EdgeInsets.only(bottom: 12),
+          child: _buildMatchCard(match),
+        )),
         const SizedBox(height: 16),
       ],
     );

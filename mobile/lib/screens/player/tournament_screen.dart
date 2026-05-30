@@ -63,8 +63,7 @@ class _TournamentsScreenState extends State<TournamentsScreen>
     List<Map<String, dynamic>> filtered = _allTournaments;
     if (status != 'All') {
       filtered = filtered
-          .where((t) =>
-              (t['status'] as String).toUpperCase() == status.toUpperCase())
+          .where((t) => (t['status'] as String).toUpperCase() == status.toUpperCase())
           .toList();
     }
     if (_searchQuery.isNotEmpty) {
@@ -79,18 +78,8 @@ class _TournamentsScreenState extends State<TournamentsScreen>
 
   String _monthAbbr(int month) {
     const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec'
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
     ];
     return months[month - 1];
   }
@@ -154,22 +143,18 @@ class _TournamentsScreenState extends State<TournamentsScreen>
             style: const TextStyle(fontSize: 16, color: AppColors.onBackground),
             decoration: InputDecoration(
               hintText: 'Search tournaments...',
-              hintStyle:
-                  TextStyle(color: AppColors.secondaryText, fontSize: 15),
-              prefixIcon: const Icon(Icons.search_rounded,
-                  color: AppColors.primary, size: 22),
+              hintStyle: TextStyle(color: AppColors.secondaryText, fontSize: 15),
+              prefixIcon: const Icon(Icons.search_rounded, color: AppColors.primary, size: 22),
               suffixIcon: _searchQuery.isNotEmpty
                   ? IconButton(
-                      icon: const Icon(Icons.clear,
-                          color: AppColors.secondaryText, size: 20),
+                      icon: const Icon(Icons.clear, color: AppColors.secondaryText, size: 20),
                       onPressed: () {
                         setState(() => _searchQuery = '');
                       },
                     )
                   : null,
               border: InputBorder.none,
-              contentPadding:
-                  const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+              contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
             ),
           ),
         ),
@@ -194,8 +179,7 @@ class _TournamentsScreenState extends State<TournamentsScreen>
         ),
       ),
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.primary))
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : TabBarView(
               controller: _tabController,
               children: [
@@ -285,8 +269,7 @@ class _TournamentsScreenState extends State<TournamentsScreen>
                 Align(
                   alignment: Alignment.topRight,
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: statusColor.withOpacity(0.25),
                       borderRadius: BorderRadius.circular(12),
@@ -314,8 +297,7 @@ class _TournamentsScreenState extends State<TournamentsScreen>
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    const Icon(Icons.calendar_today_rounded,
-                        size: 14, color: Colors.white70),
+                    const Icon(Icons.calendar_today_rounded, size: 14, color: Colors.white70),
                     const SizedBox(width: 6),
                     Text(
                       dateStr,
@@ -326,8 +308,7 @@ class _TournamentsScreenState extends State<TournamentsScreen>
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    const Icon(Icons.emoji_events_rounded,
-                        size: 14, color: Colors.amber),
+                    const Icon(Icons.emoji_events_rounded, size: 14, color: Colors.amber),
                     const SizedBox(width: 6),
                     Text(
                       'Prize: ${tournament['prize']}',
@@ -450,19 +431,15 @@ class _TournamentsScreenState extends State<TournamentsScreen>
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                           ),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 20, vertical: 10),
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                         ),
-                        child: const Text('Register',
-                            style: TextStyle(fontWeight: FontWeight.w600)),
+                        child: const Text('Register', style: TextStyle(fontWeight: FontWeight.w600)),
                       ),
                     
-                    if (tournament['status'] == 'ONGOING' ||
-                        tournament['status'] == 'COMPLETED')
+                    if (tournament['status'] == 'ONGOING' || tournament['status'] == 'COMPLETED')
                       const SizedBox(width: 8),
                     
-                    if (tournament['status'] == 'ONGOING' ||
-                        tournament['status'] == 'COMPLETED')
+                    if (tournament['status'] == 'ONGOING' || tournament['status'] == 'COMPLETED')
                       OutlinedButton(
                         onPressed: () {
                           Navigator.push(
@@ -482,8 +459,7 @@ class _TournamentsScreenState extends State<TournamentsScreen>
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                           ),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 20, vertical: 10),
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                         ),
                         child: const Text('View Details'),
                       ),

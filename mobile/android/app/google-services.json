@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "760957087921",
+    "project_id": "futsal-booking-system-b77d1",
+    "storage_bucket": "futsal-booking-system-b77d1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:760957087921:android:d212086986a8f312967290",
+        "android_client_info": {
+          "package_name": "com.example.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCPyb0kGomNaSaGshIN_l2734fhMN31dwI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

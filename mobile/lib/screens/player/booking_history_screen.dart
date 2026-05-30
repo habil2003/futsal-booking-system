@@ -4,10 +4,10 @@ import 'package:provider/provider.dart';
 import '../../providers/booking_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/booking.dart';
+import '../../models/futsal.dart';
 import '../../utils/date_formatter.dart';
 import '../../providers/review_provider.dart';
 import 'futsal_details_screen.dart';
-import '../../models/futsal.dart';
 import '../../services/api_service.dart';
 
 class BookingHistoryScreen extends StatefulWidget {
@@ -41,8 +41,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
   }
 
   Future<void> _loadBookings() async {
-    final bookingProvider =
-        Provider.of<BookingProvider>(context, listen: false);
+    final bookingProvider = Provider.of<BookingProvider>(context, listen: false);
     await bookingProvider.loadUserBookings();
   }
 
@@ -100,12 +99,8 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
     if (_searchQuery.isEmpty) return bookings;
 
     return bookings.where((booking) {
-      return booking.futsalName
-              .toLowerCase()
-              .contains(_searchQuery.toLowerCase()) ||
-          booking.futsalAddress
-              .toLowerCase()
-              .contains(_searchQuery.toLowerCase());
+      return booking.futsalName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          booking.futsalAddress.toLowerCase().contains(_searchQuery.toLowerCase());
     }).toList();
   }
 
@@ -169,8 +164,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
           ),
           Expanded(
             child: bookingProvider.isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(color: Colors.green))
+                ? const Center(child: CircularProgressIndicator(color: Colors.green))
                 : TabBarView(
                     controller: _tabController,
                     children: [
@@ -193,10 +187,6 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
       ),
     );
   }
-
-  // Rest of your methods (_buildBookingsList, _buildBookingCard, etc.)
-  // Keep all the existing methods below unchanged
-  // (They don't contain dart:html)
 
   Widget _buildBookingsList(List<Booking> bookings, String type) {
     if (bookings.isEmpty) {
@@ -264,8 +254,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
                           ? Colors.green.shade50
                           : Colors.orange.shade50
                       : Colors.red.shade50,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(15)),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
             ),
             child: Row(
               children: [
@@ -323,8 +312,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
                         color: Colors.green.shade100,
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(Icons.sports_soccer,
-                          color: Colors.green, size: 30),
+                      child: const Icon(Icons.sports_soccer, color: Colors.green, size: 30),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -333,21 +321,17 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
                         children: [
                           Text(
                             booking.futsalName,
-                            style: const TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.bold),
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              const Icon(Icons.location_on,
-                                  size: 12, color: Colors.grey),
+                              const Icon(Icons.location_on, size: 12, color: Colors.grey),
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
                                   booking.futsalAddress,
-                                  style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey.shade600),
+                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -370,8 +354,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.calendar_today,
-                              size: 14, color: Colors.green),
+                          const Icon(Icons.calendar_today, size: 14, color: Colors.green),
                           const SizedBox(width: 8),
                           Text(
                             DateFormatter.formatDateFull(booking.date),
@@ -382,8 +365,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          const Icon(Icons.access_time,
-                              size: 14, color: Colors.green),
+                          const Icon(Icons.access_time, size: 14, color: Colors.green),
                           const SizedBox(width: 8),
                           Text(
                             '${booking.startTime} - ${booking.endTime}',
@@ -394,8 +376,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          const Icon(Icons.sports_soccer,
-                              size: 14, color: Colors.green),
+                          const Icon(Icons.sports_soccer, size: 14, color: Colors.green),
                           const SizedBox(width: 8),
                           Text(
                             'Court ${booking.courtNumber}',
@@ -415,8 +396,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
                       children: [
                         Text(
                           'Total Amount',
-                          style: TextStyle(
-                              fontSize: 12, color: Colors.grey.shade600),
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                         ),
                         Text(
                           'रू ${booking.totalAmount}',
@@ -436,8 +416,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
                             style: OutlinedButton.styleFrom(
                               foregroundColor: Colors.red,
                               side: const BorderSide(color: Colors.red),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                             ),
                             child: const Text('Cancel'),
                           ),
@@ -449,8 +428,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.green,
                               foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                             ),
                             child: const Text('Details'),
                           ),
@@ -467,8 +445,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.amber,
                                 side: const BorderSide(color: Colors.amber),
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8)),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                               ),
                             ),
                           const SizedBox(width: 8),
@@ -477,8 +454,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.green,
                               foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                             ),
                             child: const Text('Book Again'),
                           ),
@@ -500,6 +476,162 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
         ],
       ),
     );
+  }
+
+  void _showBookingDetailsDialog(Booking booking) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.receipt_long, color: Colors.green),
+            const SizedBox(width: 8),
+            const Text('Booking Details'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildDetailRow('Booking ID', '#${booking.id}'),
+              const Divider(),
+              _buildDetailRow('Futsal', booking.futsalName),
+              _buildDetailRow('Address', booking.futsalAddress),
+              const Divider(),
+              _buildDetailRow('Court', booking.courtNumber),
+              _buildDetailRow('Date', DateFormatter.formatDateFull(booking.date)),
+              _buildDetailRow('Time', '${booking.startTime} - ${booking.endTime}'),
+              _buildDetailRow('Duration', booking.duration),
+              const Divider(),
+              _buildDetailRow('Payment', booking.paymentMethod),
+              _buildDetailRow('Amount', 'रू ${booking.totalAmount}'),
+              _buildDetailRow('Payment Status', booking.paymentStatus),
+              const Divider(),
+              _buildDetailRow('Booking Status', booking.statusText, color: booking.statusColor),
+              if (booking.bookedBy != null)
+                _buildDetailRow('Booked By', booking.bookedBy!),
+              if (booking.customerName != null)
+                _buildDetailRow('Customer', booking.customerName!),
+              if (booking.customerPhone != null)
+                _buildDetailRow('Phone', booking.customerPhone!),
+              if (booking.isCheckedIn)
+                _buildDetailRow('Check-in', 
+                    '${booking.checkInTime!.day}/${booking.checkInTime!.month}/${booking.checkInTime!.year} ${booking.checkInTime!.hour}:${booking.checkInTime!.minute.toString().padLeft(2, '0')}'),
+              if (booking.isCheckedOut)
+                _buildDetailRow('Check-out', 
+                    '${booking.checkOutTime!.day}/${booking.checkOutTime!.month}/${booking.checkOutTime!.year} ${booking.checkOutTime!.hour}:${booking.checkOutTime!.minute.toString().padLeft(2, '0')}'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+          if (!booking.isCancelled && booking.statusText != 'Completed')
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _showCancelDialog(booking);
+              },
+              icon: const Icon(Icons.cancel, size: 18),
+              label: const Text('Cancel'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          if (!booking.isCancelled && booking.paymentStatus != 'paid')
+            OutlinedButton.icon(
+              onPressed: () {
+                Navigator.pop(ctx);
+                // Navigate to payment
+              },
+              icon: const Icon(Icons.payment, size: 18),
+              label: const Text('Pay Now'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.orange,
+                side: const BorderSide(color: Colors.orange),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, {Color? color}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              '$label:',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(color: color ?? Colors.black87),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _bookAgain(Booking booking) async {
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(
+        child: CircularProgressIndicator(color: Colors.green),
+      ),
+    );
+
+    try {
+      // Fetch futsal details by ID
+      final response = await ApiService.get('futsals/${booking.futsalId}');
+      
+      if (!mounted) return;
+      Navigator.pop(context); // Close loading dialog
+      
+      if (response['status'] == 'success') {
+        final futsal = Futsal.fromJson(response['futsal']);
+        
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => FutsalDetailsScreen(
+              futsal: futsal,
+              initialTabIndex: 1, // 1 = Slots tab (booking)
+            ),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not load futsal details'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _showCancelDialog(Booking booking) {
@@ -576,8 +708,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) =>
-          const Center(child: CircularProgressIndicator(color: Colors.green)),
+      builder: (ctx) => const Center(child: CircularProgressIndicator(color: Colors.green)),
     );
 
     final provider = Provider.of<BookingProvider>(context, listen: false);
@@ -642,8 +773,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
                   maxLines: 3,
                   decoration: InputDecoration(
                     hintText: 'Share your experience...',
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10)),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                 ),
               ],
@@ -671,8 +801,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
     );
   }
 
-  Future<void> _submitReview(
-      Booking booking, double rating, String comment) async {
+  Future<void> _submitReview(Booking booking, double rating, String comment) async {
     final reviewProvider = Provider.of<ReviewProvider>(context, listen: false);
     if (!booking.isCompleted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -695,167 +824,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(result['message']),
-        backgroundColor:
-            result['status'] == 'success' ? Colors.green : Colors.red,
-      ),
-    );
-  }
-
-  void _bookAgain(Booking booking) async {
-    // Show loading indicator
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => const Center(
-        child: CircularProgressIndicator(color: Colors.green),
-      ),
-    );
-
-    try {
-      // Fetch futsal details by ID
-      final response = await ApiService.get('futsals/${booking.futsalId}');
-
-      if (!mounted) return;
-      Navigator.pop(context); // Close loading dialog
-
-      if (response['status'] == 'success') {
-        final futsal = Futsal.fromJson(response['futsal']);
-
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => FutsalDetailsScreen(
-              futsal: futsal,
-              initialTabIndex: 1, // 1 = Slots tab (booking)
-            ),
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not load futsal details'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        Navigator.pop(context); // Close loading dialog
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  void _showBookingDetailsDialog(Booking booking) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Row(
-          children: [
-            const Icon(Icons.receipt_long, color: Colors.green),
-            const SizedBox(width: 8),
-            const Text('Booking Details'),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildDetailRow('Booking ID', '#${booking.id}'),
-              const Divider(),
-              _buildDetailRow('Futsal', booking.futsalName),
-              _buildDetailRow('Address', booking.futsalAddress),
-              const Divider(),
-              _buildDetailRow('Court', booking.courtNumber),
-              _buildDetailRow(
-                  'Date', DateFormatter.formatDateFull(booking.date)),
-              _buildDetailRow(
-                  'Time', '${booking.startTime} - ${booking.endTime}'),
-              _buildDetailRow('Duration', booking.duration),
-              const Divider(),
-              _buildDetailRow('Payment', booking.paymentMethod),
-              _buildDetailRow('Amount', 'रू ${booking.totalAmount}'),
-              _buildDetailRow('Payment Status', booking.paymentStatus),
-              const Divider(),
-              _buildDetailRow('Booking Status', booking.statusText,
-                  color: booking.statusColor),
-              if (booking.bookedBy != null)
-                _buildDetailRow('Booked By', booking.bookedBy!),
-              if (booking.customerName != null)
-                _buildDetailRow('Customer', booking.customerName!),
-              if (booking.customerPhone != null)
-                _buildDetailRow('Phone', booking.customerPhone!),
-              if (booking.isCheckedIn)
-                _buildDetailRow('Check-in',
-                    DateFormatter.formatDateTime(booking.checkInTime!)),
-              if (booking.isCheckedOut)
-                _buildDetailRow('Check-out',
-                    DateFormatter.formatDateTime(booking.checkOutTime!)),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close'),
-          ),
-          if (!booking.isCancelled && booking.statusText != 'Completed')
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.pop(ctx);
-                _showCancelDialog(booking);
-              },
-              icon: const Icon(Icons.cancel, size: 18),
-              label: const Text('Cancel'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-              ),
-            ),
-          if (!booking.isCancelled && booking.paymentStatus != 'paid')
-            OutlinedButton.icon(
-              onPressed: () {
-                Navigator.pop(ctx);
-                // Navigate to payment
-              },
-              icon: const Icon(Icons.payment, size: 18),
-              label: const Text('Pay Now'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.orange,
-                side: const BorderSide(color: Colors.orange),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value, {Color? color}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(
-              '$label:',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: TextStyle(color: color ?? Colors.black87),
-            ),
-          ),
-        ],
+        backgroundColor: result['status'] == 'success' ? Colors.green : Colors.red,
       ),
     );
   }

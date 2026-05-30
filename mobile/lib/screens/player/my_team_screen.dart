@@ -295,25 +295,53 @@ class _MyTeamScreenState extends State<MyTeamScreen> {
 
           const SizedBox(height: 16),
 
-          // Info Note
+          // Status Info Note
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.green.shade50,
+              color: (_team?['status'] == 'APPROVED') 
+                  ? Colors.green.shade50 
+                  : (_team?['status'] == 'REJECTED')
+                      ? Colors.red.shade50
+                      : Colors.orange.shade50,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.green.shade200),
+              border: Border.all(
+                color: (_team?['status'] == 'APPROVED') 
+                    ? Colors.green.shade200 
+                    : (_team?['status'] == 'REJECTED')
+                        ? Colors.red.shade200
+                        : Colors.orange.shade200,
+              ),
             ),
             child: Row(
               children: [
-                Icon(Icons.info_outline, color: Colors.green.shade700),
+                Icon(
+                  (_team?['status'] == 'APPROVED') 
+                      ? Icons.check_circle
+                      : (_team?['status'] == 'REJECTED')
+                          ? Icons.cancel
+                          : Icons.pending,
+                  color: (_team?['status'] == 'APPROVED') 
+                      ? Colors.green.shade700
+                      : (_team?['status'] == 'REJECTED')
+                          ? Colors.red.shade700
+                          : Colors.orange.shade700,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Your team registration is pending approval from the tournament organizer. '
-                    'You will be notified once your team is confirmed.',
+                    _team?['status'] == 'APPROVED'
+                        ? '✅ Your team has been approved! You can now participate in the tournament.'
+                        : (_team?['status'] == 'REJECTED')
+                            ? '❌ Your team registration was rejected. Please contact the tournament organizer.'
+                            : '⏳ Your team registration is pending approval from the tournament organizer.',
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.green.shade700,
+                      color: (_team?['status'] == 'APPROVED') 
+                          ? Colors.green.shade700
+                          : (_team?['status'] == 'REJECTED')
+                              ? Colors.red.shade700
+                              : Colors.orange.shade700,
                     ),
                   ),
                 ),

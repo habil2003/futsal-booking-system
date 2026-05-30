@@ -11,6 +11,7 @@ class Team {
   final String? jerseyColor;
   final DateTime registeredAt;
   final String status;
+  final DateTime createdAt;
 
   // Tournament statistics
   final int? matchesPlayed;
@@ -20,7 +21,7 @@ class Team {
   final int? goalsFor;
   final int? goalsAgainst;
   final int? points;
-  final String? groupName; // For group stage tournaments
+  final String? groupName;
   final int? groupPosition;
 
   Team({
@@ -34,6 +35,7 @@ class Team {
     this.jerseyColor,
     required this.registeredAt,
     required this.status,
+    required this.createdAt,
     this.matchesPlayed,
     this.wins,
     this.draws,
@@ -89,6 +91,9 @@ class Team {
           ? DateTime.parse(json['registeredAt'])
           : DateTime.now(),
       status: json['status'] ?? 'PENDING',
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'])
+          : DateTime.now(),
       matchesPlayed: json['matchesPlayed'],
       wins: json['wins'],
       draws: json['draws'],
@@ -113,6 +118,7 @@ class Team {
       'jerseyColor': jerseyColor,
       'registeredAt': registeredAt.toIso8601String(),
       'status': status,
+      'createdAt': createdAt.toIso8601String(),
       'matchesPlayed': matchesPlayed,
       'wins': wins,
       'draws': draws,
@@ -135,7 +141,8 @@ class Team {
     List<String>? players,
     String? jerseyColor,
     DateTime? registeredAt,
-    String? status, // ← ADD THIS
+    String? status,
+    DateTime? createdAt,
     int? matchesPlayed,
     int? wins,
     int? draws,
@@ -156,7 +163,8 @@ class Team {
       players: players ?? this.players,
       jerseyColor: jerseyColor ?? this.jerseyColor,
       registeredAt: registeredAt ?? this.registeredAt,
-      status: status ?? this.status, // ← ADD THIS
+      status: status ?? this.status,
+      createdAt: createdAt ?? this.createdAt,
       matchesPlayed: matchesPlayed ?? this.matchesPlayed,
       wins: wins ?? this.wins,
       draws: draws ?? this.draws,
@@ -188,4 +196,31 @@ class Team {
   }
 
   bool get hasStatistics => matchesPlayed != null && matchesPlayed! > 0;
+
+  // Status helpers
+  bool get isPending => status == 'PENDING';
+  bool get isApproved => status == 'APPROVED';
+  bool get isRejected => status == 'REJECTED';
+
+  Color get statusColor {
+    switch (status) {
+      case 'APPROVED':
+        return Colors.green;
+      case 'REJECTED':
+        return Colors.red;
+      default:
+        return Colors.orange;
+    }
+  }
+
+  String get statusDisplay {
+    switch (status) {
+      case 'APPROVED':
+        return 'Approved';
+      case 'REJECTED':
+        return 'Rejected';
+      default:
+        return 'Pending';
+    }
+  }
 }
