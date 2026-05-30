@@ -10,6 +10,7 @@ class Team {
   final List<String>? players;
   final String? jerseyColor;
   final DateTime registeredAt;
+  final String status;
 
   // Tournament statistics
   final int? matchesPlayed;
@@ -32,6 +33,7 @@ class Team {
     this.players,
     this.jerseyColor,
     required this.registeredAt,
+    required this.status,
     this.matchesPlayed,
     this.wins,
     this.draws,
@@ -51,7 +53,6 @@ class Team {
       playerNames = playersList
           .map((p) {
             if (p is String) return p;
-            // Backend returns TeamMember objects
             return p['playerName']?.toString() ?? '';
           })
           .where((name) => name.isNotEmpty)
@@ -87,6 +88,7 @@ class Team {
       registeredAt: json['registeredAt'] != null
           ? DateTime.parse(json['registeredAt'])
           : DateTime.now(),
+      status: json['status'] ?? 'PENDING',
       matchesPlayed: json['matchesPlayed'],
       wins: json['wins'],
       draws: json['draws'],
@@ -100,27 +102,28 @@ class Team {
   }
 
   Map<String, dynamic> toJson() {
-  return {
-    'id': id,
-    'tournamentId': tournamentId,
-    'name': name,
-    'logo': logo,
-    'captainName': captainName,
-    'captainPhone': captainPhone,
-    'players': players,
-    'jerseyColor': jerseyColor,
-    'registeredAt': registeredAt.toIso8601String(),
-    'matchesPlayed': matchesPlayed,
-    'wins': wins,
-    'draws': draws,
-    'losses': losses,
-    'goalsFor': goalsFor,
-    'goalsAgainst': goalsAgainst,
-    'points': points,
-    'groupName': groupName,
-    'groupPosition': groupPosition,
-  };
-}
+    return {
+      'id': id,
+      'tournamentId': tournamentId,
+      'name': name,
+      'logo': logo,
+      'captainName': captainName,
+      'captainPhone': captainPhone,
+      'players': players,
+      'jerseyColor': jerseyColor,
+      'registeredAt': registeredAt.toIso8601String(),
+      'status': status,
+      'matchesPlayed': matchesPlayed,
+      'wins': wins,
+      'draws': draws,
+      'losses': losses,
+      'goalsFor': goalsFor,
+      'goalsAgainst': goalsAgainst,
+      'points': points,
+      'groupName': groupName,
+      'groupPosition': groupPosition,
+    };
+  }
 
   Team copyWith({
     int? id,
@@ -132,6 +135,7 @@ class Team {
     List<String>? players,
     String? jerseyColor,
     DateTime? registeredAt,
+    String? status, // ← ADD THIS
     int? matchesPlayed,
     int? wins,
     int? draws,
@@ -152,6 +156,7 @@ class Team {
       players: players ?? this.players,
       jerseyColor: jerseyColor ?? this.jerseyColor,
       registeredAt: registeredAt ?? this.registeredAt,
+      status: status ?? this.status, // ← ADD THIS
       matchesPlayed: matchesPlayed ?? this.matchesPlayed,
       wins: wins ?? this.wins,
       draws: draws ?? this.draws,

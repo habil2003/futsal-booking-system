@@ -4,8 +4,8 @@ import 'package:flutter/gestures.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
-import 'dart:html' as html;
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 // --- Custom Widgets ---
 import '../../widgets/auth/auth_logo.dart';
@@ -104,16 +104,16 @@ class _LoginScreenState extends State<LoginScreen>
     _initFacebookSDK();
   }
 
-  void _initFacebookSDK() {
-    // Use the package's built-in initialization
+void _initFacebookSDK() {
+  if (kIsWeb) {
     FacebookAuth.instance.webAndDesktopInitialize(
       appId: '1524694529192803',
       cookie: true,
       xfbml: true,
       version: 'v18.0',
     );
-    print('✅ Facebook SDK initialized via package');
   }
+}
 
   Future<void> _loadRememberedEmail() async {
     final prefs = await SharedPreferences.getInstance();

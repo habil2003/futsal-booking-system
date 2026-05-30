@@ -89,7 +89,7 @@ export const getDashboardStats = async (req, res) => {
       totalCourts,
       todayBookings,
       todayRevenue: todayRevenue._sum?.totalPrice || 0,
-      activeBookings,  // Changed from pendingApprovals
+      activeBookings, // Changed from pendingApprovals
     });
   } catch (error) {
     console.error("Get dashboard stats error:", error);
@@ -281,7 +281,7 @@ export const getPeakHours = async (req, res) => {
             futsalId: parseInt(futsalId),
           },
         },
-        status: { in: ['CONFIRMED', 'COMPLETED'] }
+        status: { in: ["CONFIRMED", "COMPLETED"] },
       },
       include: {
         slot: {
@@ -496,7 +496,9 @@ export const getOwnerPastBookings = async (req, res) => {
     const { futsalId } = req.query;
 
     if (!futsalId) {
-      return res.status(400).json({ status: "error", message: "Futsal ID required" });
+      return res
+        .status(400)
+        .json({ status: "error", message: "Futsal ID required" });
     }
 
     // Verify ownership
@@ -505,7 +507,9 @@ export const getOwnerPastBookings = async (req, res) => {
     });
 
     if (!futsal) {
-      return res.status(404).json({ status: "error", message: "Futsal not found" });
+      return res
+        .status(404)
+        .json({ status: "error", message: "Futsal not found" });
     }
 
     // ✅ REMOVE the date filter - just get all COMPLETED and CANCELLED bookings
@@ -578,7 +582,7 @@ export const getFutsalCustomers = async (req, res) => {
       });
     }
 
-    // Get all bookings for this futsal with user details
+    // Get ALL bookings for this futsal (no filter yet)
     const bookings = await prisma.booking.findMany({
       where: {
         slot: {
@@ -601,9 +605,10 @@ export const getFutsalCustomers = async (req, res) => {
             date: true,
           },
         },
+        payment: true,
       },
       orderBy: {
-        bookingDate: 'desc',
+        bookingDate: "desc",
       },
     });
 
@@ -618,16 +623,23 @@ export const getFutsalCustomers = async (req, res) => {
       },
     });
 
-    const blockedPlayerIds = new Set(blockedPlayers.map(b => b.playerId));
+    const blockedPlayerIds = new Set(blockedPlayers.map((b) => b.playerId));
 
-    // Aggregate customer data
+    // Aggregate customer data - ONLY count CONFIRMED/COMPLETED bookings
     const customerMap = new Map();
 
-    bookings.forEach(booking => {
+    bookings.forEach((booking) => {
       if (!booking.user) return;
 
+      // Skip cancelled bookings for spending calculations
+      const isValidBooking =
+        booking.status === "CONFIRMED" || booking.status === "COMPLETED";
+
+      // For total bookings count, count all non-cancelled
+      const isNonCancelled = booking.status !== "CANCELLED";
+
       const userId = booking.user.id;
-      
+
       if (!customerMap.has(userId)) {
         customerMap.set(userId, {
           id: userId,
@@ -638,15 +650,32 @@ export const getFutsalCustomers = async (req, res) => {
           totalSpent: 0,
           lastBooking: null,
           isBlocked: blockedPlayerIds.has(userId),
-          blockReason: blockedPlayers.find(b => b.playerId === userId)?.reason || null,
+          blockReason:
+            blockedPlayers.find((b) => b.playerId === userId)?.reason || null,
         });
       }
 
       const customer = customerMap.get(userId);
-      customer.totalBookings++;
-      customer.totalSpent += booking.totalPrice;
-      
-      // Update last booking date
+
+      // Count all non-cancelled bookings (for booking count)
+      if (isNonCancelled) {
+        customer.totalBookings++;
+      }
+
+      // Only add to spent if booking is confirmed/completed AND paid
+      if (isValidBooking) {
+        // Check if payment is completed (for Khalti) or COD is confirmed
+        const isPaid =
+          booking.payment?.status === "COMPLETED" ||
+          booking.payment?.status === "PAID" ||
+          booking.paymentMethod === "COD"; // COD is considered valid
+
+        if (isPaid) {
+          customer.totalSpent += booking.totalPrice;
+        }
+      }
+
+      // Update last booking date (from any booking, cancelled or not)
       const bookingDate = booking.slot?.date || booking.bookingDate;
       if (!customer.lastBooking || bookingDate > customer.lastBooking) {
         customer.lastBooking = bookingDate;
@@ -656,15 +685,17 @@ export const getFutsalCustomers = async (req, res) => {
     // Convert map to array
     const customers = Array.from(customerMap.values());
 
-    // Sort customers by totalBookings (most frequent first)
-    customers.sort((a, b) => b.totalBookings - a.totalBookings);
+    // Sort customers by totalSpent (most revenue first)
+    customers.sort((a, b) => b.totalSpent - a.totalSpent);
 
-    // Get top 10 frequent players
-    const frequentPlayers = customers.slice(0, 10);
+    // Get top 10 frequent players (by totalBookings)
+    const frequentPlayers = [...customers]
+      .sort((a, b) => b.totalBookings - a.totalBookings)
+      .slice(0, 10);
 
     // Calculate customer statistics
     const totalCustomers = customers.length;
-    const activeCustomers = customers.filter(c => c.totalBookings > 1).length;
+    const activeCustomers = customers.filter((c) => c.totalBookings > 1).length;
     const totalRevenue = customers.reduce((sum, c) => sum + c.totalSpent, 0);
 
     res.json({
@@ -722,18 +753,24 @@ export const getRevenueSummary = async (req, res) => {
     // Date ranges
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     const weekAgo = new Date(today);
     weekAgo.setDate(today.getDate() - 7);
-    
+
     const monthAgo = new Date(today);
     monthAgo.setMonth(today.getMonth() - 1);
-    
+
     const yearAgo = new Date(today);
     yearAgo.setFullYear(today.getFullYear() - 1);
 
     // Get all revenues in parallel
-    const [todayRevenue, weekRevenue, monthRevenue, yearRevenue, allTimeRevenue] = await Promise.all([
+    const [
+      todayRevenue,
+      weekRevenue,
+      monthRevenue,
+      yearRevenue,
+      allTimeRevenue,
+    ] = await Promise.all([
       prisma.booking.aggregate({
         where: {
           slot: { court: { futsalId: parseInt(futsalId) } },
@@ -795,6 +832,226 @@ export const getRevenueSummary = async (req, res) => {
 };
 
 /**
+ * Get analytics with custom date range
+ * @route   GET /api/owner/analytics/range?futsalId=:id&start=:start&end=:end
+ */
+export const getAnalyticsWithDateRange = async (req, res) => {
+  try {
+    const { futsalId, start, end } = req.query;
+
+    if (!futsalId || !start || !end) {
+      return res.status(400).json({
+        status: "error",
+        message: "Please provide futsal ID, start date, and end date",
+      });
+    }
+
+    // Verify ownership
+    const futsal = await prisma.futsal.findFirst({
+      where: { id: parseInt(futsalId), ownerId: req.user.id },
+    });
+
+    if (!futsal) {
+      return res.status(404).json({
+        status: "error",
+        message: "Futsal not found or you do not have permission",
+      });
+    }
+
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    endDate.setHours(23, 59, 59, 999);
+
+    // Get all bookings in date range
+    const bookings = await prisma.booking.findMany({
+      where: {
+        slot: {
+          court: { futsalId: parseInt(futsalId) },
+          date: { gte: startDate, lte: endDate },
+        },
+      },
+      include: {
+        payment: true,
+        user: { select: { fullName: true, email: true } },
+        slot: { include: { court: { select: { courtNumber: true } } } },
+      },
+    });
+
+    // Calculate revenue (only confirmed/completed)
+    const validBookings = bookings.filter(
+      (b) => b.status === "CONFIRMED" || b.status === "COMPLETED",
+    );
+    const totalRevenue = validBookings.reduce(
+      (sum, b) => sum + b.totalPrice,
+      0,
+    );
+
+    // Today revenue (if today is in range)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayRevenue = validBookings
+      .filter((b) => b.slot.date >= today)
+      .reduce((sum, b) => sum + b.totalPrice, 0);
+
+    // This week revenue
+    const weekAgo = new Date(today);
+    weekAgo.setDate(today.getDate() - 7);
+    const weekRevenue = validBookings
+      .filter((b) => b.slot.date >= weekAgo)
+      .reduce((sum, b) => sum + b.totalPrice, 0);
+
+    // This month revenue
+    const monthAgo = new Date(today);
+    monthAgo.setMonth(today.getMonth() - 1);
+    const monthRevenue = validBookings
+      .filter((b) => b.slot.date >= monthAgo)
+      .reduce((sum, b) => sum + b.totalPrice, 0);
+
+    // Booking statistics
+    const totalBookings = bookings.length;
+    const completedBookings = bookings.filter(
+      (b) => b.status === "COMPLETED",
+    ).length;
+    const cancelledBookings = bookings.filter(
+      (b) => b.status === "CANCELLED",
+    ).length;
+    const confirmedBookings = bookings.filter(
+      (b) => b.status === "CONFIRMED",
+    ).length;
+    const pendingBookings = bookings.filter(
+      (b) => b.status === "PENDING",
+    ).length;
+
+    // Payment statistics
+    const paidBookings = bookings.filter(
+      (b) => b.payment?.status === "COMPLETED" || b.payment?.status === "PAID",
+    ).length;
+
+    const unpaidBookings = bookings.filter(
+      (b) =>
+        (b.payment?.status === "PENDING" || !b.payment) &&
+        b.status !== "CANCELLED",
+    ).length;
+
+    const paidButCancelled = bookings.filter(
+      (b) =>
+        b.status === "CANCELLED" &&
+        (b.payment?.status === "COMPLETED" || b.payment?.status === "PAID"),
+    ).length;
+
+    // Payment breakdown by method
+    const codBookings = validBookings.filter((b) => b.paymentMethod === "COD");
+    const khaltiBookings = validBookings.filter(
+      (b) => b.paymentMethod === "KHALTI",
+    );
+
+    const codRevenue = codBookings.reduce((sum, b) => sum + b.totalPrice, 0);
+    const khaltiRevenue = khaltiBookings.reduce(
+      (sum, b) => sum + b.totalPrice,
+      0,
+    );
+
+    const codPercentage =
+      totalRevenue > 0 ? (codRevenue / totalRevenue) * 100 : 0;
+    const khaltiPercentage =
+      totalRevenue > 0 ? (khaltiRevenue / totalRevenue) * 100 : 0;
+
+    // Monthly revenue breakdown
+    const monthlyMap = new Map();
+    validBookings.forEach((booking) => {
+      const date = booking.slot.date;
+      const monthKey = `${date.getFullYear()}-${date.getMonth() + 1}`;
+      const monthName = date.toLocaleString("default", { month: "short" });
+
+      if (!monthlyMap.has(monthKey)) {
+        monthlyMap.set(monthKey, { month: monthName, revenue: 0, bookings: 0 });
+      }
+      const entry = monthlyMap.get(monthKey);
+      entry.revenue += booking.totalPrice;
+      entry.bookings += 1;
+    });
+
+    const monthlyRevenue = Array.from(monthlyMap.values()).slice(-6);
+
+    // Weekly revenue (last 7 days)
+    const weeklyRevenue = [];
+    for (let i = 6; i >= 0; i--) {
+      const day = new Date(today);
+      day.setDate(today.getDate() - i);
+      const nextDay = new Date(day);
+      nextDay.setDate(day.getDate() + 1);
+
+      const dayRevenue = validBookings
+        .filter((b) => b.slot.date >= day && b.slot.date < nextDay)
+        .reduce((sum, b) => sum + b.totalPrice, 0);
+      weeklyRevenue.push(dayRevenue);
+    }
+
+    // Peak hours
+    const peakMap = new Map();
+    validBookings.forEach((booking) => {
+      const hour = booking.slot.startTime.split(":")[0] + ":00";
+      peakMap.set(hour, (peakMap.get(hour) || 0) + 1);
+    });
+    const peakHours = Object.fromEntries(peakMap);
+
+    // Metrics
+    const completionRate =
+      totalBookings > 0 ? (completedBookings / totalBookings) * 100 : 0;
+    const cancellationRate =
+      totalBookings > 0 ? (cancelledBookings / totalBookings) * 100 : 0;
+    const averageBookingValue =
+      completedBookings > 0 ? totalRevenue / completedBookings : 0;
+
+    res.json({
+      status: "success",
+      data: {
+        // Revenue
+        todayRevenue,
+        thisWeekRevenue: weekRevenue,
+        thisMonthRevenue: monthRevenue,
+        allTimeRevenue: totalRevenue,
+
+        // Booking stats
+        totalBookings,
+        completedBookings,
+        cancelledBookings,
+        confirmedBookings,
+        pendingBookings,
+        paidBookings,
+        unpaidBookings,
+        paidButCancelledBookings: paidButCancelled,
+
+        // Metrics
+        completionRate,
+        cancellationRate,
+        averageBookingValue,
+
+        // Charts
+        monthlyRevenue,
+        weeklyRevenue,
+        peakHours,
+
+        // Payment breakdown
+        codRevenue,
+        khaltiRevenue,
+        codCount: codBookings.length,
+        khaltiCount: khaltiBookings.length,
+        codPercentage,
+        khaltiPercentage,
+        totalPaymentRevenue: totalRevenue,
+      },
+    });
+  } catch (error) {
+    console.error("Get analytics with date range error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Server error: " + error.message,
+    });
+  }
+};
+
+/**
  * Get performance metrics like completion rate and average booking value
  * @route   GET /api/owner/analytics/performance-metrics?futsalId=1
  */
@@ -824,42 +1081,70 @@ export const getPerformanceMetrics = async (req, res) => {
       });
     }
 
-    // Get all bookings
+    // Get all bookings with payment info
     const allBookings = await prisma.booking.findMany({
       where: {
         slot: { court: { futsalId: parseInt(futsalId) } },
       },
-      select: {
-        status: true,
-        totalPrice: true,
+      include: {
+        payment: true,
       },
     });
 
     const total = allBookings.length;
-    const completed = allBookings.filter(b => b.status === "COMPLETED").length;
-    const cancelled = allBookings.filter(b => b.status === "CANCELLED").length;
-    const confirmed = allBookings.filter(b => b.status === "CONFIRMED").length;
-    const pending = allBookings.filter(b => b.status === "PENDING").length;
+    const completed = allBookings.filter(
+      (b) => b.status === "COMPLETED",
+    ).length;
+    const cancelled = allBookings.filter(
+      (b) => b.status === "CANCELLED",
+    ).length;
+    const confirmed = allBookings.filter(
+      (b) => b.status === "CONFIRMED",
+    ).length;
+    const pending = allBookings.filter((b) => b.status === "PENDING").length;
 
     const totalRevenue = allBookings
-      .filter(b => b.status === "COMPLETED" || b.status === "CONFIRMED")
+      .filter((b) => b.status === "COMPLETED" || b.status === "CONFIRMED")
       .reduce((sum, b) => sum + b.totalPrice, 0);
 
     const completedRevenue = allBookings
-      .filter(b => b.status === "COMPLETED")
+      .filter((b) => b.status === "COMPLETED")
       .reduce((sum, b) => sum + b.totalPrice, 0);
+
+    // Calculate payment status breakdown
+    const paidBookings = allBookings.filter(
+      (b) => b.payment?.status === "COMPLETED" || b.payment?.status === "PAID",
+    ).length;
+
+    const unpaidBookings = allBookings.filter(
+      (b) =>
+        (b.payment?.status === "PENDING" || !b.payment) &&
+        b.status !== "CANCELLED",
+    ).length;
+
+    const paidButCancelledBookings = allBookings.filter(
+      (b) =>
+        b.status === "CANCELLED" &&
+        (b.payment?.status === "COMPLETED" || b.payment?.status === "PAID"),
+    ).length;
 
     res.json({
       status: "success",
       data: {
         completionRate: total > 0 ? ((completed / total) * 100).toFixed(1) : 0,
-        cancellationRate: total > 0 ? ((cancelled / total) * 100).toFixed(1) : 0,
-        averageBookingValue: completed > 0 ? (completedRevenue / completed).toFixed(0) : 0,
+        cancellationRate:
+          total > 0 ? ((cancelled / total) * 100).toFixed(1) : 0,
+        averageBookingValue:
+          completed > 0 ? (completedRevenue / completed).toFixed(0) : 0,
         totalBookings: total,
         completedBookings: completed,
         cancelledBookings: cancelled,
         pendingBookings: pending,
         confirmedBookings: confirmed,
+        // NEW FIELDS
+        paidBookings: paidBookings,
+        unpaidBookings: unpaidBookings,
+        paidButCancelledBookings: paidButCancelledBookings,
       },
     });
   } catch (error) {
@@ -928,7 +1213,7 @@ export const getMonthlyRevenue = async (req, res) => {
       ]);
 
       monthlyData.push({
-        month: start.toLocaleString('default', { month: 'short' }),
+        month: start.toLocaleString("default", { month: "short" }),
         year: start.getFullYear(),
         revenue: revenue._sum?.totalPrice || 0,
         bookings: bookingCount,
@@ -979,7 +1264,7 @@ export const getPaymentBreakdown = async (req, res) => {
     }
 
     const paymentBreakdown = await prisma.booking.groupBy({
-      by: ['paymentMethod'],
+      by: ["paymentMethod"],
       where: {
         slot: { court: { futsalId: parseInt(futsalId) } },
         status: { in: ["CONFIRMED", "COMPLETED"] },
@@ -994,7 +1279,7 @@ export const getPaymentBreakdown = async (req, res) => {
     };
 
     let totalRevenue = 0;
-    paymentBreakdown.forEach(item => {
+    paymentBreakdown.forEach((item) => {
       result[item.paymentMethod].revenue = item._sum.totalPrice || 0;
       result[item.paymentMethod].count = item._count.id || 0;
       totalRevenue += item._sum.totalPrice || 0;

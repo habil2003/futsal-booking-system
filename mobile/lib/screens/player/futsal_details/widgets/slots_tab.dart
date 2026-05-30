@@ -2,8 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'dart:html' as html;
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../models/futsal.dart';
 import '../../../../providers/auth_provider.dart';
@@ -13,9 +12,9 @@ import '../../../../utils/date_formatter.dart';
 import '../../../../services/payment_service.dart';
 import '../../../../services/api_service.dart';
 import '../../../../utils/futsal_constants.dart';
+import '../../../../screens/player/payment_webview_screen.dart';
 import '../../../../widgets/futsal/booking_confirmation_dialog.dart';
 import '../../../../widgets/futsal/slots_grid_widget.dart';
-import '../../payment_webview_screen.dart';
 import 'slot_helpers.dart';
 import 'booking_bar.dart';
 
@@ -64,7 +63,6 @@ class _SlotsTabState extends State<SlotsTab> with WidgetsBindingObserver {
     });
   }
 
-  // Helper to convert 24‑hour time string to 12‑hour AM/PM
   String _formatToAmPm(String time24) {
     final parts = time24.split(':');
     if (parts.length != 2) return time24;
@@ -77,7 +75,6 @@ class _SlotsTabState extends State<SlotsTab> with WidgetsBindingObserver {
     return '$hour12:${minute.toString().padLeft(2, '0')} $period';
   }
 
-  // Fetch slots from backend, filter past slots for today, and add AM/PM display
   Future<void> _fetchSlots() async {
     if (!mounted) return;
 
@@ -88,7 +85,8 @@ class _SlotsTabState extends State<SlotsTab> with WidgetsBindingObserver {
     });
 
     try {
-      final futsalProvider = Provider.of<FutsalProvider>(context, listen: false);
+      final futsalProvider =
+          Provider.of<FutsalProvider>(context, listen: false);
       final fetchedSlots = await futsalProvider
           .fetchFutsalSlots(widget.futsal.id, _selectedDate)
           .timeout(FutsalConstants.apiTimeout,
@@ -96,7 +94,6 @@ class _SlotsTabState extends State<SlotsTab> with WidgetsBindingObserver {
 
       if (!mounted) return;
 
-      // Filter past slots for today
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
       final isToday = _selectedDate.year == today.year &&
@@ -121,10 +118,13 @@ class _SlotsTabState extends State<SlotsTab> with WidgetsBindingObserver {
         }).toList();
       }
 
-      // Overwrite startTime with AM/PM format
-      final List<Map<String, dynamic>> enrichedSlots = filteredSlots.map((slot) {
-        return {...slot, 'startTime': _formatToAmPm(slot['startTime'] ?? ''),
-        'endTime': _formatToAmPm(slot['endTime'] ?? ''),};
+      final List<Map<String, dynamic>> enrichedSlots =
+          filteredSlots.map((slot) {
+        return {
+          ...slot,
+          'startTime': _formatToAmPm(slot['startTime'] ?? ''),
+          'endTime': _formatToAmPm(slot['endTime'] ?? ''),
+        };
       }).toList();
 
       setState(() {
@@ -148,7 +148,6 @@ class _SlotsTabState extends State<SlotsTab> with WidgetsBindingObserver {
 
   void _selectSlot(Map<String, dynamic> slot) {
     if (_isProcessing) return;
-
     setState(() {
       if (_selectedSlot != null && _selectedSlot!['id'] == slot['id']) {
         _selectedSlot = null;
@@ -158,30 +157,26 @@ class _SlotsTabState extends State<SlotsTab> with WidgetsBindingObserver {
     });
   }
 
-  // Show date picker (fallback, now mostly using horizontal selector)
   Future<void> _selectDate() async {
     if (_isProcessing) return;
-
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 30)),
     );
-
     if (picked != null && picked != _selectedDate && mounted) {
       setState(() => _selectedDate = picked);
       await _fetchSlots();
-      _showSnackBar('Showing slots for ${DateFormatter.formatDateShort(picked)}');
+      _showSnackBar(
+          'Showing slots for ${DateFormatter.formatDateShort(picked)}');
     }
   }
 
-  // Check if user is blocked at this futsal
   Future<bool> _checkIfBlocked() async {
     try {
       final auth = Provider.of<AuthProvider>(context, listen: false);
       if (!auth.isAuthenticated) return false;
-
       final response = await ApiService.get(
           'owner/blocks/check/${auth.user!.id}?futsalId=${widget.futsal.id}');
       if (response['isBlocked'] == true) {
@@ -227,32 +222,27 @@ class _SlotsTabState extends State<SlotsTab> with WidgetsBindingObserver {
     );
   }
 
-  // Entry point to start the booking process
   void _proceedToBooking() async {
     if (_selectedSlot == null || _isProcessing) return;
-
     final auth = Provider.of<AuthProvider>(context, listen: false);
     if (!auth.isAuthenticated) {
       _showSnackBar('Please log in to make a booking', isError: true);
       return;
     }
-
     final isBlocked = await _checkIfBlocked();
     if (isBlocked) return;
-
     _showConfirmationDialog();
   }
 
   void _showConfirmationDialog() {
     if (_selectedSlot == null || _isProcessing) return;
-
     showDialog(
       context: context,
       barrierDismissible: !_isProcessing,
       builder: (dialogContext) => BookingConfirmationDialog(
         selectedSlot: _selectedSlot!,
         selectedDate: _selectedDate,
-        groundName: widget.futsal.name,  
+        groundName: widget.futsal.name,
         isProcessing: _isProcessing,
         onConfirm: (duration) {
           Navigator.pop(dialogContext);
@@ -264,28 +254,21 @@ class _SlotsTabState extends State<SlotsTab> with WidgetsBindingObserver {
     );
   }
 
-  // Lock the selected slot and then show payment method choice
   Future<void> _lockSlotAndShowPayment() async {
     if (_selectedSlot == null || _isProcessing) return;
-
     setState(() => _isProcessing = true);
-
     try {
       if (!mounted) return;
       _showLoadingDialog();
-
       final response = await ApiService.lockSlot(_selectedSlot!['id']).timeout(
         FutsalConstants.apiTimeout,
         onTimeout: () => throw TimeoutException('Server not responding'),
       );
-
       if (!mounted) {
         await _safeUnlockSlot();
         return;
       }
-
-      Navigator.pop(context); // close loading dialog
-
+      Navigator.pop(context);
       if (response['status'] == 'success') {
         setState(() {
           _tempLockedSlot = _selectedSlot;
@@ -374,27 +357,21 @@ class _SlotsTabState extends State<SlotsTab> with WidgetsBindingObserver {
     );
   }
 
-  // COD booking creation
   Future<void> _createBookingWithPayment(String paymentMethod) async {
     if (_tempLockedSlot == null || _isProcessing) return;
-
     setState(() => _isProcessing = true);
     _showLoadingDialog();
-
     try {
-      final bookingProvider = Provider.of<BookingProvider>(context, listen: false);
+      final bookingProvider =
+          Provider.of<BookingProvider>(context, listen: false);
       final response = await bookingProvider.createBooking({
         'slotId': _tempLockedSlot!['id'],
         'paymentMethod': paymentMethod,
         'duration': _tempSelectedDuration ?? 1,
-      }).timeout(
-        FutsalConstants.apiTimeout,
-        onTimeout: () => throw TimeoutException('Booking timeout'),
-      );
-
+      }).timeout(FutsalConstants.apiTimeout,
+          onTimeout: () => throw TimeoutException('Booking timeout'));
       if (!mounted) return;
       Navigator.pop(context);
-
       if (response['status'] == 'success') {
         await _handleBookingSuccess();
         _showSnackBar('Booking confirmed! Please pay at venue.');
@@ -410,72 +387,73 @@ class _SlotsTabState extends State<SlotsTab> with WidgetsBindingObserver {
     }
   }
 
-  // Khalti payment initiation
-  Future<void> _initiateKhaltiPayment() async {
-    if (_tempLockedSlot == null || _isProcessing) return;
-
-    setState(() => _isProcessing = true);
-    _showLoadingDialog();
-
-    try {
-      final response = await PaymentService.initiateKhaltiPayment(
-        _tempLockedSlot!['id'],
-        _tempSelectedDuration ?? 1,
-      ).timeout(
-        FutsalConstants.apiTimeout,
-        onTimeout: () => throw TimeoutException('Payment service timeout'),
-      );
-
-      if (!mounted) return;
-      Navigator.pop(context);
-
-      final paymentUrl = response['paymentUrl'];
-      final pidx = response['pidx'];
-      _tempBookingId = response['bookingId'];
-
-      if (response['status'] == 'success' && paymentUrl != null && pidx != null) {
-        if (kIsWeb) {
-          html.window.location.href = paymentUrl;
-          return;
-        }
-
-        final result = await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => KhaltiPaymentScreen(
-              paymentUrl: paymentUrl,
-              pidx: pidx,
-            ),
+Future<void> _initiateKhaltiPayment() async {
+  if (_tempLockedSlot == null || _isProcessing) return;
+  setState(() => _isProcessing = true);
+  _showLoadingDialog();
+  try {
+    final response = await PaymentService.initiateKhaltiPayment(
+      _tempLockedSlot!['id'],
+      _tempSelectedDuration ?? 1,
+    ).timeout(
+      FutsalConstants.apiTimeout,
+      onTimeout: () => throw TimeoutException('Payment service timeout'),
+    );
+    if (!mounted) return;
+    Navigator.pop(context);
+    
+    final paymentUrl = response['paymentUrl'];
+    final pidx = response['pidx'];
+    _tempBookingId = response['bookingId'];
+    
+    if (response['status'] == 'success' && paymentUrl != null && pidx != null) {
+      // Open WebView for payment
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => KhaltiPaymentScreen(
+            paymentUrl: paymentUrl,
+            pidx: pidx,
           ),
-        );
-
-        if (result == true) {
+        ),
+      );
+      
+      print('🔙 Returned from WebView with result: $result');
+      
+      if (result == true) {
+        // Double-check with backend
+        final verifyResponse = await PaymentService.verifyPayment(pidx);
+        if (verifyResponse['paymentStatus'] == 'COMPLETED') {
           await _handleBookingSuccess();
-          _showSnackBar('Booking confirmed!');
+          _showSnackBar('Payment successful! Booking confirmed.');
         } else {
           await _cancelBookingOnPaymentFailure();
+          _showSnackBar('Payment verification failed.', isError: true);
         }
       } else {
-        await _handleBookingFailure(
-            response['message'] ?? 'Payment initiation failed');
+        await _cancelBookingOnPaymentFailure();
+        _showSnackBar('Payment failed or was cancelled.', isError: true);
       }
-    } catch (e) {
-      if (!mounted) return;
-      Navigator.pop(context);
-      await _handleBookingFailure('Error: ${e.toString()}');
-    } finally {
-      if (mounted) setState(() => _isProcessing = false);
+      return;
+    } else {
+      await _handleBookingFailure(
+          response['message'] ?? 'Payment initiation failed');
     }
+  } catch (e) {
+    if (!mounted) return;
+    Navigator.pop(context);
+    await _handleBookingFailure('Error: ${e.toString()}');
+  } finally {
+    if (mounted) setState(() => _isProcessing = false);
   }
+}
 
-  // Common steps after a successful booking
   Future<void> _handleBookingSuccess() async {
     await _safeUnlockSlot();
     _clearBookingState();
     await _fetchSlots();
   }
 
-  // Cancel the booking when Khalti payment fails or is cancelled
   Future<void> _cancelBookingOnPaymentFailure() async {
     if (_tempBookingId != null) {
       try {
@@ -492,7 +470,6 @@ class _SlotsTabState extends State<SlotsTab> with WidgetsBindingObserver {
     }
   }
 
-  // Cancel the whole booking attempt
   Future<void> _cancelBookingProcess() async {
     setState(() => _isProcessing = true);
     await _safeUnlockSlot();
@@ -501,7 +478,6 @@ class _SlotsTabState extends State<SlotsTab> with WidgetsBindingObserver {
     setState(() => _isProcessing = false);
   }
 
-  // Call the backend to release the lock
   Future<void> _safeUnlockSlot() async {
     if (_tempLockedSlot == null) return;
     try {
@@ -522,7 +498,6 @@ class _SlotsTabState extends State<SlotsTab> with WidgetsBindingObserver {
     });
   }
 
-  // Handle any booking / lock failure
   Future<void> _handleBookingFailure(String message) async {
     await _safeUnlockSlot();
     await _fetchSlots();
@@ -542,7 +517,6 @@ class _SlotsTabState extends State<SlotsTab> with WidgetsBindingObserver {
     );
   }
 
-  // UI BUILD 
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -550,7 +524,8 @@ class _SlotsTabState extends State<SlotsTab> with WidgetsBindingObserver {
         _buildDateSelector(),
         Expanded(
           child: _isLoadingSlots
-              ? const Center(child: CircularProgressIndicator(color: Colors.green))
+              ? const Center(
+                  child: CircularProgressIndicator(color: Colors.green))
               : _slotsError != null
                   ? _buildErrorView()
                   : _slots.isEmpty
@@ -559,7 +534,7 @@ class _SlotsTabState extends State<SlotsTab> with WidgetsBindingObserver {
         ),
         BookingBar(
           selectedSlot: _selectedSlot,
-           selectedDate: _selectedDate, 
+          selectedDate: _selectedDate,
           isProcessing: _isProcessing,
           onProceedToBooking: _proceedToBooking,
         ),
@@ -567,115 +542,119 @@ class _SlotsTabState extends State<SlotsTab> with WidgetsBindingObserver {
     );
   }
 
-  // Horizontal date selector (modern chips)
-  // Horizontal date selector with month/year header and weekday chips
-Widget _buildDateSelector() {
-  final dates = List.generate(30, (i) => DateTime.now().add(Duration(days: i)));
-  final weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  final selectedMonth = DateFormatter.formatMonthYear(_selectedDate); // e.g., "November 2025"
+  Widget _buildDateSelector() {
+    final dates =
+        List.generate(30, (i) => DateTime.now().add(Duration(days: i)));
+    final weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final selectedMonth = DateFormatter.formatMonthYear(_selectedDate);
 
-  return Container(
-    decoration: BoxDecoration(
-      color: Colors.white,
-      boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.05), blurRadius: 5, offset: Offset(0, 2))],
-    ),
-    padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // "Select Date" and month/year header
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'Select Date',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+              color: Colors.grey.withOpacity(0.05),
+              blurRadius: 5,
+              offset: Offset(0, 2))
+        ],
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Select Date',
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87),
               ),
-            ),
-            InkWell(
-              onTap: _selectDate, // opens date picker as fallback
-              child: Row(
-                children: [
-                  Text(
-                    selectedMonth,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.green.shade700,
-                    ),
-                  ),
-                  const Icon(Icons.chevron_right, size: 18, color: Colors.green),
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        // Horizontal date chips with weekday labels
-        SizedBox(
-          height: 70,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            itemCount: dates.length,
-            itemBuilder: (context, index) {
-              final date = dates[index];
-              final isSelected = _selectedDate.year == date.year &&
-                  _selectedDate.month == date.month &&
-                  _selectedDate.day == date.day;
-              final isToday = date.year == DateTime.now().year &&
-                  date.month == DateTime.now().month &&
-                  date.day == DateTime.now().day;
-              final weekday = weekdays[date.weekday - 1]; // Monday=1, Sunday=7
-
-              return GestureDetector(
-                onTap: () {
-                  setState(() => _selectedDate = date);
-                  _fetchSlots();
-                },
-                child: Container(
-                  width: 60,
-                  margin: const EdgeInsets.only(right: 8),
-                  decoration: BoxDecoration(
-                    color: isSelected ? Colors.green : Colors.grey.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isSelected ? Colors.green.shade700 : Colors.grey.shade300,
-                    ),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        isToday ? 'Today' : weekday,
-                        style: TextStyle(
-                          fontSize: 11,
+              InkWell(
+                onTap: _selectDate,
+                child: Row(
+                  children: [
+                    Text(
+                      selectedMonth,
+                      style: TextStyle(
+                          fontSize: 14,
                           fontWeight: FontWeight.w500,
-                          color: isSelected ? Colors.white70 : Colors.grey.shade600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${date.day}',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: isSelected ? Colors.white : Colors.black87,
-                        ),
-                      ),
-                    ],
-                  ),
+                          color: Colors.green.shade700),
+                    ),
+                    const Icon(Icons.chevron_right,
+                        size: 18, color: Colors.green),
+                  ],
                 ),
-              );
-            },
+              ),
+            ],
           ),
-        ),
-      ],
-    ),
-  );
-}
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 70,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: dates.length,
+              itemBuilder: (context, index) {
+                final date = dates[index];
+                final isSelected = _selectedDate.year == date.year &&
+                    _selectedDate.month == date.month &&
+                    _selectedDate.day == date.day;
+                final isToday = date.year == DateTime.now().year &&
+                    date.month == DateTime.now().month &&
+                    date.day == DateTime.now().day;
+                final weekday = weekdays[date.weekday - 1];
+                return GestureDetector(
+                  onTap: () {
+                    setState(() => _selectedDate = date);
+                    _fetchSlots();
+                  },
+                  child: Container(
+                    width: 60,
+                    margin: const EdgeInsets.only(right: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected ? Colors.green : Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isSelected
+                            ? Colors.green.shade700
+                            : Colors.grey.shade300,
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          isToday ? 'Today' : weekday,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: isSelected
+                                ? Colors.white70
+                                : Colors.grey.shade600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${date.day}',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: isSelected ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildSlotsContent() {
     return Column(
@@ -748,7 +727,8 @@ Widget _buildDateSelector() {
             style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
           ),
           const SizedBox(height: 8),
-          Text('Try selecting another date', style: TextStyle(color: Colors.grey.shade500)),
+          Text('Try selecting another date',
+              style: TextStyle(color: Colors.grey.shade500)),
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: _isProcessing ? null : _selectDate,
@@ -763,7 +743,10 @@ Widget _buildDateSelector() {
   Widget _buildLegendDot(Color color, String label) {
     return Row(
       children: [
-        Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
         const SizedBox(width: 4),
         Text(label, style: TextStyle(fontSize: 14, color: Colors.black87)),
       ],

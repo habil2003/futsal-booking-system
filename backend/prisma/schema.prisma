@@ -216,6 +216,8 @@ model Team {
   name         String
   tournamentId Int
   logo         String?
+  status       String       @default("PENDING")
+  createdAt    DateTime     @default(now())  // ← ADD THIS LINE
 
   // Relations
   awayMatches  Match[]      @relation("AwayTeam")
@@ -223,9 +225,9 @@ model Team {
   tournament   Tournament   @relation(fields: [tournamentId], references: [id])
   players      TeamMember[]
 
-  // Indexes
   @@index([tournamentId])
   @@index([name])
+  @@index([status])
 }
 
 model TeamMember {

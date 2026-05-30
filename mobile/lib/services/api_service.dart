@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:html' as html;
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,60 +13,168 @@ class ApiService {
   );
 
   // ============================================
+  // TOKEN HELPER - Works on both Mobile and Web
+  // ============================================
+
+  static Future<String?> _getToken() async {
+    // Try SharedPreferences first (for mobile)
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      if (token != null && token.isNotEmpty) {
+        debugPrint('🔑 Token found in SharedPreferences');
+        return token;
+      }
+    } catch (e) {
+      debugPrint('SharedPreferences error (may be web): $e');
+    }
+
+    // Fallback to localStorage for web
+    if (kIsWeb) {
+      try {
+        final token = html.window.localStorage['token'];
+        if (token != null && token.isNotEmpty && token != 'null') {
+          debugPrint('🔑 Token found in localStorage');
+          return token;
+        }
+      } catch (e) {
+        debugPrint('localStorage error: $e');
+      }
+    }
+
+    debugPrint('⚠️ No token found');
+    return null;
+  }
+
+  // Helper to save token (call after login)
+  static Future<void> saveToken(String token) async {
+    debugPrint('💾 Saving token...');
+
+    // Save to SharedPreferences (mobile)
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('token', token);
+      debugPrint('✅ Token saved to SharedPreferences');
+    } catch (e) {
+      debugPrint('Failed to save to SharedPreferences: $e');
+    }
+
+    // Save to localStorage (web)
+    if (kIsWeb) {
+      try {
+        html.window.localStorage['token'] = token;
+        debugPrint('✅ Token saved to localStorage');
+      } catch (e) {
+        debugPrint('Failed to save to localStorage: $e');
+      }
+    }
+  }
+
+  // Helper to clear token (call on logout)
+  static Future<void> clearToken() async {
+    debugPrint('🗑️ Clearing token...');
+
+    // Clear from SharedPreferences
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('token');
+      debugPrint('✅ Token cleared from SharedPreferences');
+    } catch (e) {
+      debugPrint('Failed to clear from SharedPreferences: $e');
+    }
+
+    // Clear from localStorage
+    if (kIsWeb) {
+      try {
+        html.window.localStorage.remove('token');
+        debugPrint('✅ Token cleared from localStorage');
+      } catch (e) {
+        debugPrint('Failed to clear from localStorage: $e');
+      }
+    }
+  }
+
+  // ============================================
   // BASE HTTP METHODS
   // ============================================
 
   static Future<Map<String, dynamic>> get(String endpoint) async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    final token = await _getToken();
     debugPrint('📍 GET: $baseUrl/$endpoint');
+    debugPrint('🔑 Token present: ${token != null}');
+
     final response = await http.get(
       Uri.parse('$baseUrl/$endpoint'),
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
+        if (token != null) 'Authorization': 'Bearer $token',
       },
     );
+
+    debugPrint('📡 GET response status: ${response.statusCode}');
+
     if (response.statusCode == 200) {
       return json.decode(response.body);
+    } else if (response.statusCode == 401) {
+      throw Exception('Unauthorized: Please login again');
+    } else if (response.statusCode == 403) {
+      throw Exception('Forbidden: You do not have permission');
     } else {
-      throw Exception('GET failed: ${response.body}');
+      throw Exception('GET failed (${response.statusCode}): ${response.body}');
     }
   }
 
   static Future<Map<String, dynamic>> post(
       String endpoint, Map<String, dynamic> data) async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    final token = await _getToken();
+    debugPrint('📍 POST: $baseUrl/$endpoint');
+    debugPrint('📦 Data: $data');
+    debugPrint('🔑 Token present: ${token != null}');
+
     final response = await http.post(
       Uri.parse('$baseUrl/$endpoint'),
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
+        if (token != null) 'Authorization': 'Bearer $token',
       },
       body: json.encode(data),
     );
+
+    debugPrint('📡 POST response status: ${response.statusCode}');
+
     if (response.statusCode == 200 || response.statusCode == 201) {
       return json.decode(response.body);
+    } else if (response.statusCode == 401) {
+      throw Exception('Unauthorized: Please login again');
+    } else if (response.statusCode == 403) {
+      final errorBody = json.decode(response.body);
+      throw Exception(
+          errorBody['message'] ?? 'Forbidden: You do not have permission');
     } else {
-      throw Exception('POST failed: ${response.body}');
+      throw Exception('POST failed (${response.statusCode}): ${response.body}');
     }
   }
 
   static Future<Map<String, dynamic>> put(
       String endpoint, Map<String, dynamic> data) async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    final token = await _getToken();
+    debugPrint('📍 PUT: $baseUrl/$endpoint');
+
     final response = await http.put(
       Uri.parse('$baseUrl/$endpoint'),
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
+        if (token != null) 'Authorization': 'Bearer $token',
       },
       body: json.encode(data),
     );
+
     if (response.statusCode == 200 || response.statusCode == 201) {
       return json.decode(response.body);
+    } else if (response.statusCode == 401) {
+      throw Exception('Unauthorized: Please login again');
+    } else if (response.statusCode == 403) {
+      throw Exception('Forbidden: You do not have permission');
     } else {
       throw Exception('PUT failed: ${response.body}');
     }
@@ -73,39 +182,51 @@ class ApiService {
 
   static Future<Map<String, dynamic>> patch(
       String endpoint, Map<String, dynamic> data) async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    final token = await _getToken();
+    debugPrint('📍 PATCH: $baseUrl/$endpoint');
+
     final response = await http.patch(
       Uri.parse('$baseUrl/$endpoint'),
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
+        if (token != null) 'Authorization': 'Bearer $token',
       },
       body: json.encode(data),
     );
+
     if (response.statusCode == 200) {
       return json.decode(response.body);
+    } else if (response.statusCode == 401) {
+      throw Exception('Unauthorized: Please login again');
+    } else if (response.statusCode == 403) {
+      throw Exception('Forbidden: You do not have permission');
     } else {
       throw Exception('PATCH failed: ${response.body}');
     }
   }
 
   static Future<Map<String, dynamic>> delete(String endpoint) async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    final token = await _getToken();
+    debugPrint('📍 DELETE: $baseUrl/$endpoint');
+
     final response = await http.delete(
       Uri.parse('$baseUrl/$endpoint'),
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
+        if (token != null) 'Authorization': 'Bearer $token',
       },
     );
+
     if (response.statusCode == 200 || response.statusCode == 204) {
       if (response.body.isNotEmpty) {
         return json.decode(response.body);
       } else {
         return {'status': 'success', 'message': 'Deleted successfully'};
       }
+    } else if (response.statusCode == 401) {
+      throw Exception('Unauthorized: Please login again');
+    } else if (response.statusCode == 403) {
+      throw Exception('Forbidden: You do not have permission');
     } else {
       throw Exception('DELETE failed: ${response.body}');
     }
@@ -116,15 +237,17 @@ class ApiService {
   // ============================================
 
   static Future<List<dynamic>> getList(String endpoint) async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    final token = await _getToken();
+    debugPrint('📍 GET LIST: $baseUrl/$endpoint');
+
     final response = await http.get(
       Uri.parse('$baseUrl/$endpoint'),
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
+        if (token != null) 'Authorization': 'Bearer $token',
       },
     );
+
     if (response.statusCode == 200) {
       final dynamic jsonResponse = json.decode(response.body);
       if (jsonResponse is List) {
@@ -137,8 +260,21 @@ class ApiService {
         return jsonResponse['bookings'] as List;
       } else if (jsonResponse is Map && jsonResponse.containsKey('courts')) {
         return jsonResponse['courts'] as List;
+      } else if (jsonResponse is Map &&
+          jsonResponse.containsKey('tournaments')) {
+        return jsonResponse['tournaments'] as List;
+      } else if (jsonResponse is Map && jsonResponse.containsKey('teams')) {
+        return jsonResponse['teams'] as List;
+      } else if (jsonResponse is Map && jsonResponse.containsKey('matches')) {
+        return jsonResponse['matches'] as List;
+      } else if (jsonResponse is Map && jsonResponse.containsKey('standings')) {
+        return jsonResponse['standings'] as List;
       }
       return [];
+    } else if (response.statusCode == 401) {
+      throw Exception('Unauthorized: Please login again');
+    } else if (response.statusCode == 403) {
+      throw Exception('Forbidden: You do not have permission');
     } else {
       throw Exception('GET LIST failed: ${response.body}');
     }
@@ -179,7 +315,12 @@ class ApiService {
       body: json.encode({'email': email, 'password': password}),
     );
     try {
-      return json.decode(response.body);
+      final data = json.decode(response.body);
+      if (data['status'] == 'success' && data['token'] != null) {
+        // Save token using our helper
+        await saveToken(data['token']);
+      }
+      return data;
     } catch (e) {
       return {'status': 'error', 'message': 'Invalid response from server'};
     }
@@ -188,7 +329,7 @@ class ApiService {
   static Future<Map<String, dynamic>> socialLogin(
       String provider, Map<String, dynamic> tokenData) async {
     final url = provider == 'google'
-        ? '$baseUrl/auth/google' 
+        ? '$baseUrl/auth/google'
         : '$baseUrl/auth/facebook';
 
     final response = await http.post(
@@ -197,7 +338,11 @@ class ApiService {
       body: jsonEncode(tokenData),
     );
 
-    return jsonDecode(response.body);
+    final data = jsonDecode(response.body);
+    if (data['status'] == 'success' && data['token'] != null) {
+      await saveToken(data['token']);
+    }
+    return data;
   }
 
   static Future<Map<String, dynamic>> register(
@@ -232,55 +377,31 @@ class ApiService {
     });
   }
 
+  // Logout helper
+  static Future<void> logout() async {
+    await clearToken();
+  }
+
   // ============================================
   // FUTSAL METHODS
   // ============================================
 
   static Future<List<dynamic>> getMyFutsals() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token');
-      if (token == null) throw Exception('No authentication token found');
-      final response = await http.get(
-        Uri.parse('$baseUrl/futsals/my'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> jsonResponse = json.decode(response.body);
-        return jsonResponse['futsals'] ?? [];
-      } else {
-        throw Exception('Failed to load futsals');
-      }
+      final response = await get('futsals/my');
+      return response['futsals'] ?? [];
     } catch (e) {
-      throw Exception('Network error: $e');
+      debugPrint('Error loading futsals: $e');
+      return [];
     }
   }
 
   static Future<Map<String, dynamic>> createFutsal(
       Map<String, dynamic> futsalData) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token');
-      if (token == null) throw Exception('No authentication token found');
-      final response = await http.post(
-        Uri.parse('$baseUrl/futsals'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: json.encode(futsalData),
-      );
-      final Map<String, dynamic> jsonResponse = json.decode(response.body);
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        return jsonResponse;
-      } else {
-        throw Exception(jsonResponse['message'] ?? 'Failed to create futsal');
-      }
+      return await post('futsals', futsalData);
     } catch (e) {
-      throw Exception('Network error: $e');
+      return {'status': 'error', 'message': e.toString()};
     }
   }
 
@@ -527,6 +648,18 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> getAnalyticsWithDateRange(
+  int futsalId, DateTime start, DateTime end
+) async {
+  try {
+    return await get(
+      'owner/analytics/range?futsalId=$futsalId&start=${start.toIso8601String()}&end=${end.toIso8601String()}'
+    );
+  } catch (e) {
+    return {'status': 'error', 'message': e.toString()};
+  }
+}
+
   // ============================================
   // OWNER BLOCK METHODS
   // ============================================
@@ -636,11 +769,12 @@ class ApiService {
     return await put('admin/profile', data);
   }
 
-    // ============================================
-  // ADMIN USER MANAGEMENT METHODS (ADD THESE)
   // ============================================
-  
-  static Future<Map<String, dynamic>> editUser(int userId, String fullName, String phoneNumber) async {
+  // ADMIN USER MANAGEMENT METHODS
+  // ============================================
+
+  static Future<Map<String, dynamic>> editUser(
+      int userId, String fullName, String phoneNumber) async {
     return await patch('admin/users/$userId/edit', {
       'fullName': fullName,
       'phoneNumber': phoneNumber,
@@ -651,13 +785,15 @@ class ApiService {
     return await delete('admin/users/$userId');
   }
 
-  static Future<Map<String, dynamic>> toggleUserStatus(int userId, bool isActive) async {
+  static Future<Map<String, dynamic>> toggleUserStatus(
+      int userId, bool isActive) async {
     return await patch('admin/users/$userId/toggle-status', {
       'isActive': isActive,
     });
   }
 
-  static Future<Map<String, dynamic>> changeUserRole(int userId, String role) async {
+  static Future<Map<String, dynamic>> changeUserRole(
+      int userId, String role) async {
     return await patch('admin/users/$userId/change-role', {
       'role': role,
     });
@@ -790,6 +926,60 @@ class ApiService {
     }
   }
 
+// ============================================
+// TEAM APPROVAL METHODS (NEW)
+// ============================================
+
+  static Future<Map<String, dynamic>> approveTeam(int teamId) async {
+    try {
+      return await patch('tournaments/teams/$teamId/approve', {});
+    } catch (e) {
+      return {'status': 'error', 'message': e.toString()};
+    }
+  }
+
+  static Future<Map<String, dynamic>> rejectTeam(int teamId,
+      {String? reason}) async {
+    try {
+      return await patch(
+          'tournaments/teams/$teamId/reject', {'reason': reason});
+    } catch (e) {
+      return {'status': 'error', 'message': e.toString()};
+    }
+  }
+
+  static Future<List<dynamic>> getTeamsByStatus(
+      int tournamentId, String status) async {
+    try {
+      final response =
+          await get('tournaments/$tournamentId/teams/status/$status');
+      return response['teams'] ?? [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // ============================================
+  // PLAYER TEAM REGISTRATION (NEW)
+  // ============================================
+
+  static Future<Map<String, dynamic>> registerTeam(
+      int tournamentId, Map<String, dynamic> teamData) async {
+    try {
+      return await post('tournaments/$tournamentId/register-team', teamData);
+    } catch (e) {
+      return {'status': 'error', 'message': e.toString()};
+    }
+  }
+
+  static Future<Map<String, dynamic>> getMyTeam(int tournamentId) async {
+    try {
+      return await get('tournaments/$tournamentId/my-team');
+    } catch (e) {
+      return {'status': 'error', 'hasTeam': false, 'team': null};
+    }
+  }
+
   // ============================================
   // FIXTURE MANAGEMENT
   // ============================================
@@ -814,7 +1004,8 @@ class ApiService {
   static Future<Map<String, dynamic>> updateMatchScore(
       int matchId, Map<String, dynamic> scoreData) async {
     try {
-      return await patch('matches/$matchId/score', scoreData);
+      // Add 'tournaments/' prefix
+      return await patch('tournaments/matches/$matchId/score', scoreData);
     } catch (e) {
       return {'status': 'error', 'message': e.toString()};
     }
@@ -823,7 +1014,8 @@ class ApiService {
   static Future<Map<String, dynamic>> updateMatchStatus(
       int matchId, String status) async {
     try {
-      return await patch('matches/$matchId/status', {'status': status});
+      return await patch(
+          'tournaments/matches/$matchId/status', {'status': status});
     } catch (e) {
       return {'status': 'error', 'message': e.toString()};
     }
@@ -839,7 +1031,7 @@ class ApiService {
   }
 
   // ============================================
-  // ADMIN ANALYTICS (GAURAV'S METHODS)
+  // ADMIN ANALYTICS
   // ============================================
 
   static Future<List<dynamic>> getRevenueOverTimeAdmin(String range) async {
@@ -923,11 +1115,12 @@ class ApiService {
 
   static Future<List<String>> uploadImages(List<XFile> imageFiles) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token');
+      final token = await _getToken();
       final uri = Uri.parse('$baseUrl/upload/images');
       final request = http.MultipartRequest('POST', uri);
-      request.headers['Authorization'] = 'Bearer $token';
+      if (token != null) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
       for (final imageFile in imageFiles) {
         final bytes = await imageFile.readAsBytes();
         final multipartFile = http.MultipartFile.fromBytes(

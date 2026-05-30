@@ -104,6 +104,11 @@ class DateFormatter {
     return DateFormat('MMM yyyy').format(date);
   }
 
+  // Format: DD/MM/YYYY HH:MM (e.g., 20/01/2024 14:30)
+static String formatDateTime(DateTime dateTime) {
+  return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+}
+
   // ============================================
   // RELATIVE DATES
   // ============================================

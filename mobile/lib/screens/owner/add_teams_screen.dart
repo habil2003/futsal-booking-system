@@ -3,11 +3,9 @@ import 'package:provider/provider.dart';
 import '../../providers/tournament_provider.dart';
 import '../../models/tournament.dart';
 import '../../models/team.dart';
+import '../../services/api_service.dart';
 import 'tournament/knockout_bracket.dart';
 import 'tournament/round_robin_leaderboard.dart';
-import 'add_teams/widgets/team_form.dart';
-import 'add_teams/widgets/team_list_card.dart';
-import 'add_teams/widgets/teams_header.dart';
 
 class AddTeamsScreen extends StatefulWidget {
   final int tournamentId;
@@ -27,71 +25,82 @@ class AddTeamsScreen extends StatefulWidget {
   State<AddTeamsScreen> createState() => _AddTeamsScreenState();
 }
 
-class _AddTeamsScreenState extends State<AddTeamsScreen> {
-  List<Team> _teams = [];
+class _AddTeamsScreenState extends State<AddTeamsScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  List<Team> _pendingTeams = [];
+  List<Team> _approvedTeams = [];
+  List<Team> _rejectedTeams = [];
+
   bool _isLoading = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _loadTeams();
+    _tabController = TabController(length: 3, vsync: this);
+    _loadAllTeams();
   }
 
-  Future<void> _loadTeams() async {
-    setState(() => _isLoading = true);
-    final provider = Provider.of<TournamentProvider>(context, listen: false);
-    await provider.loadTeams(widget.tournamentId);
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadAllTeams() async {
     setState(() {
-      _teams = List.from(provider.teams);
-      _isLoading = false;
+      _isLoading = true;
+      _error = null;
     });
-  }
 
-  Future<void> _addTeam(Map<String, dynamic> teamData) async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => const Center(child: CircularProgressIndicator(color: Colors.green)),
-    );
+    try {
+      print('📋 Loading teams for tournament ${widget.tournamentId}');
 
-    final provider = Provider.of<TournamentProvider>(context, listen: false);
-    final response = await provider.addTeam(widget.tournamentId, teamData);
+      // Load teams by status in parallel
+      final results = await Future.wait([
+        ApiService.getList(
+            'tournaments/${widget.tournamentId}/teams/status/PENDING'),
+        ApiService.getList(
+            'tournaments/${widget.tournamentId}/teams/status/APPROVED'),
+        ApiService.getList(
+            'tournaments/${widget.tournamentId}/teams/status/REJECTED'),
+      ]);
 
-    if (!mounted) return;
-    Navigator.pop(context);
+      print('📋 PENDING: ${results[0].length} teams');
+      print('📋 APPROVED: ${results[1].length} teams');
+      print('📋 REJECTED: ${results[2].length} teams');
 
-    if (response['status'] == 'success') {
-      await _loadTeams();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Team added successfully'),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(response['message']),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      setState(() {
+        _pendingTeams = results[0].map((json) => Team.fromJson(json)).toList();
+        _approvedTeams = results[1].map((json) => Team.fromJson(json)).toList();
+        _rejectedTeams = results[2].map((json) => Team.fromJson(json)).toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('❌ Error loading teams: $e');
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
     }
   }
 
-  Future<void> _deleteTeam(int teamId) async {
+  Future<void> _approveTeam(Team team) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete Team'),
-        content: const Text('Are you sure you want to delete this team?'),
+        title: const Text('Approve Team'),
+        content: Text('Approve team "${team.name}" to join the tournament?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text('Approve'),
           ),
         ],
       ),
@@ -99,45 +108,149 @@ class _AddTeamsScreenState extends State<AddTeamsScreen> {
 
     if (confirm != true) return;
 
-    showDialog(
+    setState(() => _isLoading = true);
+
+    try {
+      final response = await ApiService.patch('teams/${team.id}/approve', {});
+
+      if (response['status'] == 'success') {
+        // Move team from pending to approved
+        setState(() {
+          _pendingTeams.removeWhere((t) => t.id == team.id);
+          // Create updated team with new status
+          final approvedTeam = Team(
+            id: team.id,
+            tournamentId: team.tournamentId,
+            name: team.name,
+            logo: team.logo,
+            captainName: team.captainName,
+            captainPhone: team.captainPhone,
+            players: team.players,
+            jerseyColor: team.jerseyColor,
+            registeredAt: team.registeredAt,
+            status: 'APPROVED',
+          );
+          _approvedTeams.add(approvedTeam);
+          _isLoading = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Team approved successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response['message'] ?? 'Failed to approve team'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  Future<void> _rejectTeam(Team team) async {
+    String rejectReason = '';
+
+    final result = await showDialog<bool>(
       context: context,
-      barrierDismissible: false,
-      builder: (ctx) => const Center(child: CircularProgressIndicator(color: Colors.green)),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Reject Team'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Reject team "${team.name}"?'),
+              const SizedBox(height: 16),
+              TextField(
+                decoration: const InputDecoration(
+                  labelText: 'Reason (optional)',
+                  hintText: 'Why is this team being rejected?',
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (value) =>
+                    setDialogState(() => rejectReason = value),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Reject'),
+            ),
+          ],
+        ),
+      ),
     );
 
-    final provider = Provider.of<TournamentProvider>(context, listen: false);
-    final response = await provider.deleteTeam(teamId);
+    if (result != true) return;
 
-    if (!mounted) return;
-    Navigator.pop(context);
+    setState(() => _isLoading = true);
 
-    if (response['status'] == 'success') {
-      await _loadTeams();
+    try {
+      final response =
+          await ApiService.patch('tournaments/teams/${team.id}/approve', {});
+
+      if (response['status'] == 'success') {
+        setState(() {
+          _pendingTeams.removeWhere((t) => t.id == team.id);
+          final rejectedTeam = Team(
+            id: team.id,
+            tournamentId: team.tournamentId,
+            name: team.name,
+            logo: team.logo,
+            captainName: team.captainName,
+            captainPhone: team.captainPhone,
+            players: team.players,
+            jerseyColor: team.jerseyColor,
+            registeredAt: team.registeredAt,
+            status: 'REJECTED',
+          );
+          _rejectedTeams.add(rejectedTeam);
+          _isLoading = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Team rejected'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      } else {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response['message'] ?? 'Failed to reject team'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Team deleted'),
-          backgroundColor: Colors.orange,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(response['message']),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-        ),
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
       );
     }
   }
 
   Future<void> _generateFixtures() async {
-    if (_teams.length < 2) {
+    if (_approvedTeams.length < 2) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Need at least 2 teams to generate fixtures'),
+          content: Text('Need at least 2 approved teams to generate fixtures'),
           backgroundColor: Colors.orange,
-          behavior: SnackBarBehavior.floating,
         ),
       );
       return;
@@ -148,10 +261,12 @@ class _AddTeamsScreenState extends State<AddTeamsScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Generate Fixtures'),
         content: Text(
-          'Generate ${widget.tournamentType == TournamentType.knockout ? 'knockout bracket' : 'round robin fixtures'} with ${_teams.length} teams?',
+          'Generate ${widget.tournamentType == TournamentType.knockout ? 'knockout bracket' : 'round robin fixtures'} with ${_approvedTeams.length} approved teams?',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
@@ -163,26 +278,23 @@ class _AddTeamsScreenState extends State<AddTeamsScreen> {
 
     if (confirm != true) return;
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => const Center(child: CircularProgressIndicator(color: Colors.green)),
-    );
+    setState(() => _isLoading = true);
 
     final provider = Provider.of<TournamentProvider>(context, listen: false);
     final response = await provider.generateFixtures(widget.tournamentId);
 
-    if (!mounted) return;
-    Navigator.pop(context);
+    setState(() => _isLoading = false);
 
     if (response['status'] == 'success') {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Fixtures generated successfully!'),
           backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
         ),
       );
+
+      // Refresh tournament data
+      await provider.loadTournament(widget.tournamentId);
 
       Navigator.pop(context);
 
@@ -197,7 +309,8 @@ class _AddTeamsScreenState extends State<AddTeamsScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => RoundRobinLeaderboard(tournamentId: widget.tournamentId),
+            builder: (_) =>
+                RoundRobinLeaderboard(tournamentId: widget.tournamentId),
           ),
         );
       }
@@ -206,44 +319,98 @@ class _AddTeamsScreenState extends State<AddTeamsScreen> {
         SnackBar(
           content: Text(response['message']),
           backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
         ),
       );
     }
   }
 
   bool get _canGenerateFixtures {
-    return _teams.length >= 2 &&
+    return _approvedTeams.length >= 2 &&
         widget.tournamentStatus != TournamentStatus.cancelled &&
         widget.tournamentStatus != TournamentStatus.completed;
   }
 
   @override
   Widget build(BuildContext context) {
-    final canAddMore = _teams.length < widget.maxTeams;
+    final canGenerate = _canGenerateFixtures;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Add Teams'),
+        title: const Text('Manage Teams'),
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         elevation: 0,
+        bottom: TabBar(
+          controller: _tabController,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          indicatorColor: Colors.white,
+          tabs: [
+            Tab(text: 'Pending (${_pendingTeams.length})'),
+            Tab(text: 'Approved (${_approvedTeams.length})'),
+            Tab(text: 'Rejected (${_rejectedTeams.length})'),
+          ],
+        ),
         actions: [
-          if (_canGenerateFixtures)
+          if (canGenerate)
             TextButton.icon(
               onPressed: _generateFixtures,
               icon: const Icon(Icons.sports_soccer, color: Colors.white),
-              label: const Text('Generate Fixtures', style: TextStyle(color: Colors.white)),
+              label: const Text('Generate Fixtures',
+                  style: TextStyle(color: Colors.white)),
             ),
         ],
       ),
       body: Column(
         children: [
-          TeamsHeader(
-            teamCount: _teams.length,
-            maxTeams: widget.maxTeams,
-            tournamentType: widget.tournamentType,
+          // Summary Header
+          Container(
+            padding: const EdgeInsets.all(12),
+            color: Colors.green.shade50,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Approved Teams: ${_approvedTeams.length} / ${widget.maxTeams}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: (_approvedTeams.length < widget.maxTeams)
+                              ? Colors.green.shade800
+                              : Colors.red.shade800,
+                        ),
+                      ),
+                      if (_approvedTeams.length < widget.maxTeams)
+                        Text(
+                          '${widget.maxTeams - _approvedTeams.length} spots remaining',
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.green.shade600),
+                        ),
+                    ],
+                  ),
+                ),
+                if (_pendingTeams.isNotEmpty)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade100,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${_pendingTeams.length} pending approval',
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.orange.shade800),
+                    ),
+                  ),
+              ],
+            ),
           ),
+
           if (widget.tournamentStatus == TournamentStatus.cancelled)
             Container(
               margin: const EdgeInsets.all(16),
@@ -259,66 +426,237 @@ class _AddTeamsScreenState extends State<AddTeamsScreen> {
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'This tournament has been cancelled. No further changes can be made.',
+                      'This tournament has been cancelled. No changes can be made.',
                       style: TextStyle(color: Colors.red),
                     ),
                   ),
                 ],
               ),
             ),
+
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: Colors.green))
-                : SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        TeamForm(
-                          onSubmit: _addTeam,
-                          isEnabled: canAddMore && widget.tournamentStatus != TournamentStatus.cancelled,
-                        ),
-                        if (_teams.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Teams (${_teams.length})',
-                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(height: 8),
-                                ..._teams.map((team) => TeamListCard(
-                                  team: team,
-                                  onDelete: () => _deleteTeam(team.id),
-                                )),
-                              ],
-                            ),
-                          ),
-                        if (_teams.isEmpty)
-                          Padding(
-                            padding: const EdgeInsets.all(32),
-                            child: Column(
-                              children: [
-                                Icon(Icons.group_add, size: 80, color: Colors.grey.shade400),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'No teams added yet',
-                                  style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Add teams to start the tournament',
-                                  style: TextStyle(color: Colors.grey.shade500),
-                                ),
-                              ],
-                            ),
-                          ),
-                        const SizedBox(height: 32),
-                      ],
-                    ),
+                ? const Center(
+                    child: CircularProgressIndicator(color: Colors.green))
+                : TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildTeamsList(_pendingTeams, isPending: true),
+                      _buildTeamsList(_approvedTeams, isPending: false),
+                      _buildTeamsList(_rejectedTeams, isPending: false),
+                    ],
                   ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTeamsList(List<Team> teams, {required bool isPending}) {
+    if (teams.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              isPending ? Icons.pending_actions : Icons.group,
+              size: 64,
+              color: Colors.grey.shade400,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              isPending
+                  ? 'No pending team registrations'
+                  : 'No teams in this category',
+              style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+            ),
+            if (isPending) const SizedBox(height: 8),
+            if (isPending)
+              Text(
+                'Teams will appear here when players register',
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+              ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadAllTeams,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: teams.length,
+        itemBuilder: (context, index) {
+          final team = teams[index];
+          return _buildTeamCard(team, isPending: isPending);
+        },
+      ),
+    );
+  }
+
+  Widget _buildTeamCard(Team team, {required bool isPending}) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: isPending
+                        ? Colors.orange.shade100
+                        : (team.status == 'APPROVED'
+                            ? Colors.green.shade100
+                            : Colors.red.shade100),
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                  child: Icon(
+                    isPending
+                        ? Icons.pending
+                        : (team.status == 'APPROVED'
+                            ? Icons.check_circle
+                            : Icons.cancel),
+                    color: isPending
+                        ? Colors.orange
+                        : (team.status == 'APPROVED'
+                            ? Colors.green
+                            : Colors.red),
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        team.name,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Captain: ${team.captainName ?? "Unknown"}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                      if (team.captainPhone != null)
+                        Text(
+                          'Phone: ${team.captainPhone}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isPending
+                        ? Colors.orange.shade100
+                        : (team.status == 'APPROVED'
+                            ? Colors.green.shade100
+                            : Colors.red.shade100),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    isPending ? 'PENDING' : team.status,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: isPending
+                          ? Colors.orange.shade800
+                          : (team.status == 'APPROVED'
+                              ? Colors.green.shade800
+                              : Colors.red.shade800),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            // Players section
+            if (team.players != null && team.players!.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Divider(),
+              const SizedBox(height: 8),
+              Text(
+                'Players (${team.players!.length})',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: team.players!.map((playerName) {
+                  return Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      playerName,
+                      style:
+                          TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+
+            // Action buttons for pending teams
+            if (isPending &&
+                widget.tournamentStatus == TournamentStatus.draft) ...[
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () => _rejectTeam(team),
+                    icon: const Icon(Icons.close, size: 18),
+                    label: const Text('Reject'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton.icon(
+                    onPressed: () => _approveTeam(team),
+                    icon: const Icon(Icons.check, size: 18),
+                    label: const Text('Approve'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

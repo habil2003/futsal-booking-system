@@ -21,6 +21,11 @@ class AnalyticsProvider with ChangeNotifier {
   int cancelledBookings = 0;
   int pendingBookings = 0;
   int confirmedBookings = 0;
+  
+  // Booking Status Breakdown
+  int paidBookings = 0;
+  int unpaidBookings = 0;
+  int paidButCancelledBookings = 0;
 
   // Monthly Revenue (for chart)
   List<Map<String, dynamic>> monthlyRevenue = [];
@@ -38,6 +43,9 @@ class AnalyticsProvider with ChangeNotifier {
   // Peak Hours
   Map<String, int> peakHours = {};
 
+  // ============================================
+  // LOAD ALL ANALYTICS
+  // ============================================
   Future<void> loadAllAnalytics(int futsalId) async {
     isLoading = true;
     error = null;
@@ -60,6 +68,9 @@ class AnalyticsProvider with ChangeNotifier {
     }
   }
 
+  // ============================================
+  // LOAD REVENUE SUMMARY
+  // ============================================
   Future<void> loadRevenueSummary(int futsalId) async {
     try {
       final response = await ApiService.getRevenueSummary(futsalId);
@@ -86,6 +97,9 @@ class AnalyticsProvider with ChangeNotifier {
     }
   }
 
+  // ============================================
+  // LOAD PERFORMANCE METRICS
+  // ============================================
   Future<void> loadPerformanceMetrics(int futsalId) async {
     try {
       final response = await ApiService.getPerformanceMetrics(futsalId);
@@ -111,11 +125,18 @@ class AnalyticsProvider with ChangeNotifier {
         completionRate = parseDouble(data['completionRate']);
         cancellationRate = parseDouble(data['cancellationRate']);
         averageBookingValue = parseDouble(data['averageBookingValue']);
+        
         totalBookings = parseInt(data['totalBookings']);
         completedBookings = parseInt(data['completedBookings']);
         cancelledBookings = parseInt(data['cancelledBookings']);
         pendingBookings = parseInt(data['pendingBookings']);
         confirmedBookings = parseInt(data['confirmedBookings']);
+        
+        // Booking status breakdown
+        paidBookings = parseInt(data['paidBookings']);
+        unpaidBookings = parseInt(data['unpaidBookings']);
+        paidButCancelledBookings = parseInt(data['paidButCancelledBookings']);
+        
         notifyListeners();
       }
     } catch (e) {
@@ -123,6 +144,9 @@ class AnalyticsProvider with ChangeNotifier {
     }
   }
 
+  // ============================================
+  // LOAD MONTHLY REVENUE
+  // ============================================
   Future<void> loadMonthlyRevenue(int futsalId) async {
     try {
       final response = await ApiService.getMonthlyRevenue(futsalId);
@@ -160,6 +184,9 @@ class AnalyticsProvider with ChangeNotifier {
     }
   }
 
+  // ============================================
+  // LOAD PAYMENT BREAKDOWN
+  // ============================================
   Future<void> loadPaymentBreakdown(int futsalId) async {
     try {
       final response = await ApiService.getPaymentBreakdown(futsalId);
@@ -201,6 +228,9 @@ class AnalyticsProvider with ChangeNotifier {
     }
   }
 
+  // ============================================
+  // LOAD WEEKLY REVENUE
+  // ============================================
   Future<void> loadWeeklyRevenue(int futsalId) async {
     try {
       final revenueList = await ApiService.getWeeklyRevenue(futsalId);
@@ -229,6 +259,9 @@ class AnalyticsProvider with ChangeNotifier {
     }
   }
 
+  // ============================================
+  // LOAD PEAK HOURS
+  // ============================================
   Future<void> loadPeakHours(int futsalId) async {
     try {
       final peakData = await ApiService.getPeakHours(futsalId);
@@ -257,5 +290,119 @@ class AnalyticsProvider with ChangeNotifier {
       peakHours = {};
       notifyListeners();
     }
+  }
+
+  // ============================================
+  // LOAD ANALYTICS WITH DATE RANGE FILTER
+  // ============================================
+  Future<void> loadAnalyticsWithDateRange(int futsalId, DateTime start, DateTime end) async {
+    isLoading = true;
+    error = null;
+    notifyListeners();
+
+    try {
+      final response = await ApiService.get(
+        'owner/analytics/range?futsalId=$futsalId&start=${start.toIso8601String()}&end=${end.toIso8601String()}'
+      );
+      
+      if (response['status'] == 'success') {
+        final data = response['data'];
+        
+        todayRevenue = _parseDouble(data['todayRevenue']);
+        thisWeekRevenue = _parseDouble(data['thisWeekRevenue']);
+        thisMonthRevenue = _parseDouble(data['thisMonthRevenue']);
+        allTimeRevenue = _parseDouble(data['allTimeRevenue']);
+        
+        totalBookings = _parseInt(data['totalBookings']);
+        completedBookings = _parseInt(data['completedBookings']);
+        cancelledBookings = _parseInt(data['cancelledBookings']);
+        confirmedBookings = _parseInt(data['confirmedBookings']);
+        pendingBookings = _parseInt(data['pendingBookings']);
+        paidBookings = _parseInt(data['paidBookings']);
+        unpaidBookings = _parseInt(data['unpaidBookings']);
+        paidButCancelledBookings = _parseInt(data['paidButCancelledBookings']);
+        
+        completionRate = _parseDouble(data['completionRate']);
+        cancellationRate = _parseDouble(data['cancellationRate']);
+        averageBookingValue = _parseDouble(data['averageBookingValue']);
+        
+        monthlyRevenue = List<Map<String, dynamic>>.from(data['monthlyRevenue'] ?? []);
+        weeklyRevenue = List<double>.from(data['weeklyRevenue'] ?? [0,0,0,0,0,0,0]);
+        peakHours = Map<String, int>.from(data['peakHours'] ?? {});
+        
+        paymentBreakdown = {
+          'COD': {
+            'revenue': _parseDouble(data['codRevenue']),
+            'count': _parseInt(data['codCount']),
+            'percentage': _parseDouble(data['codPercentage']),
+          },
+          'KHALTI': {
+            'revenue': _parseDouble(data['khaltiRevenue']),
+            'count': _parseInt(data['khaltiCount']),
+            'percentage': _parseDouble(data['khaltiPercentage']),
+          },
+        };
+        totalPaymentRevenue = _parseDouble(data['totalPaymentRevenue']);
+        
+        notifyListeners();
+      }
+    } catch (e) {
+      error = e.toString();
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // ============================================
+  // HELPER METHODS
+  // ============================================
+  double _parseDouble(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is int) return value.toDouble();
+    if (value is double) return value;
+    if (value is String) return double.tryParse(value) ?? 0.0;
+    return 0.0;
+  }
+
+  int _parseInt(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? 0;
+    return 0;
+  }
+
+  // ============================================
+  // RESET ALL DATA
+  // ============================================
+  void reset() {
+    isLoading = false;
+    error = null;
+    todayRevenue = 0;
+    thisWeekRevenue = 0;
+    thisMonthRevenue = 0;
+    thisYearRevenue = 0;
+    allTimeRevenue = 0;
+    completionRate = 0;
+    cancellationRate = 0;
+    averageBookingValue = 0;
+    totalBookings = 0;
+    completedBookings = 0;
+    cancelledBookings = 0;
+    pendingBookings = 0;
+    confirmedBookings = 0;
+    paidBookings = 0;
+    unpaidBookings = 0;
+    paidButCancelledBookings = 0;
+    monthlyRevenue = [];
+    weeklyRevenue = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+    peakHours = {};
+    paymentBreakdown = {
+      'COD': {'revenue': 0, 'count': 0, 'percentage': 0},
+      'KHALTI': {'revenue': 0, 'count': 0, 'percentage': 0},
+    };
+    totalPaymentRevenue = 0;
+    notifyListeners();
   }
 }

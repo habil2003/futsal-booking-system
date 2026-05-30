@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import '../../services/api_service.dart';
 import '../../models/futsal.dart';
+
 import '../../providers/auth_provider.dart';
 import '../../providers/futsal_provider.dart';
 import '../../providers/favorite_provider.dart';
@@ -14,9 +15,7 @@ import '../../utils/responsive.dart';
 import '../login_screen.dart' show LoginScreen, LoginScreenArguments;
 import '../../screens/owner/owner_dashboard.dart';
 import '../../screens/admin/admin_dashboard.dart';
-import 'home/widgets/filter_chips.dart';
 import 'home/widgets/filter_panel.dart';
-import '../../widgets/empty_state.dart';
 import '../../screens/account_setting.dart';
 import '../../screens/player/futsal_details_screen.dart';
 import '../../screens/player/booking_history_screen.dart';
@@ -24,6 +23,7 @@ import '../../screens/player/venue_screen.dart';
 import '../../screens/player/tournament_screen.dart';
 import '../../screens/player/notification_screen.dart';
 import '../../screens/player/account/wishlist.dart';
+import 'home/widgets/futsal_card.dart';
 
 // ─── Modern Colour Palette ───
 class AppColors {
@@ -73,7 +73,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
   static const _radiusKey = 'home_radius';
   static const _showFiltersKey = 'home_show_filters';
 
-  // 🆕 Badge count for player notifications
+  // Badge count for player notifications
   int _unreadNotifications = 0;
 
   double _sp(double baseSize) {
@@ -88,7 +88,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     _loadFilterPreferences();
     _refreshAll();
     _startAdAutoScroll();
-    _loadUnreadCount(); // 🆕 fetch badge on start
+    _loadUnreadCount();
   }
 
   @override
@@ -97,7 +97,6 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     super.dispose();
   }
 
-  // 🆕 Fetch unread notification count from backend
   Future<void> _loadUnreadCount() async {
     try {
       final auth = Provider.of<AuthProvider>(context, listen: false);
@@ -223,7 +222,6 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     return months[month - 1];
   }
 
-  // ─── Reverse geocoding helper ───
   Future<String?> _fetchCityName(double lat, double lng) async {
     final url = Uri.parse(
       'https://nominatim.openstreetmap.org/reverse?lat=$lat&lon=$lng&format=json&accept-language=en',
@@ -270,7 +268,6 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
       );
       setState(() => _userPosition = position);
 
-      // Fetch readable city name
       final city = await _fetchCityName(position.latitude, position.longitude);
       if (mounted) setState(() => _locationName = city);
 
@@ -395,7 +392,6 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     );
   }
 
-  // ─────────── HOME TAB ───────────
   Widget _buildHomeTab() {
     return Container(
       color: AppColors.background,
@@ -429,21 +425,20 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                     ),
                   ),
                 ),
-              SliverToBoxAdapter(child: const SizedBox(height: 16)),
+              const SliverToBoxAdapter(child: SizedBox(height: 16)),
               SliverToBoxAdapter(child: _buildAdCarousel()),
-              SliverToBoxAdapter(child: const SizedBox(height: 16)),
-              SliverToBoxAdapter(child: const SizedBox(height: 16)),
+              const SliverToBoxAdapter(child: SizedBox(height: 16)),
               SliverToBoxAdapter(
                   child: _buildFutsalListSection('Top Grounds', maxCount: 6)),
-              SliverToBoxAdapter(child: const SizedBox(height: 24)),
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
               SliverToBoxAdapter(child: _buildTournamentsSection()),
-              SliverToBoxAdapter(child: const SizedBox(height: 24)),
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
               SliverToBoxAdapter(
                   child: _buildFutsalListSection('More Grounds',
                       maxCount: 4, skipCount: 6)),
-              SliverToBoxAdapter(child: const SizedBox(height: 24)),
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
               SliverToBoxAdapter(child: _buildActionButtons()),
-              SliverToBoxAdapter(child: const SizedBox(height: 16)),
+              const SliverToBoxAdapter(child: SizedBox(height: 16)),
             ],
           ),
         ),
@@ -458,7 +453,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.calendar_month_rounded,
+            const Icon(Icons.calendar_month_rounded,
                 size: 64, color: AppColors.secondaryText),
             const SizedBox(height: 16),
             Text('Please log in to view bookings',
@@ -487,7 +482,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.person_outline_rounded,
+            const Icon(Icons.person_outline_rounded,
                 size: 64, color: AppColors.secondaryText),
             const SizedBox(height: 16),
             Text('Please log in to view profile',
@@ -506,10 +501,9 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
         ),
       );
     }
-    return AccountSetting();
+    return const AccountSetting();
   }
 
-  // ─────────── SLIVER APP BAR (badge on notification icon) ───────────
   Widget _buildSliverAppBar() {
     return SliverAppBar(
       automaticallyImplyLeading: false,
@@ -531,24 +525,29 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
-                    children: [
-                      Text('Hey, ',
+                  RichText(
+                    text: TextSpan(
+                      children: [
+                        TextSpan(
+                          text: 'Hey, ',
                           style: TextStyle(
-                              color: AppColors.secondaryText,
-                              fontSize: _sp(18),
-                              fontWeight: FontWeight.w400)),
-                      Text(name,
+                            color: AppColors.secondaryText,
+                            fontSize: _sp(18),
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                        TextSpan(
+                          text: name,
                           style: TextStyle(
-                              color: AppColors.onBackground,
-                              fontSize: _sp(22),
-                              fontWeight: FontWeight.bold)),
-                    ],
+                            color: AppColors.onBackground,
+                            fontSize: _sp(22),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 6),
-                  // ── Real‑time location ──
                   GestureDetector(
                     onTap: () {
                       if (_userPosition == null || _locationName == null)
@@ -563,17 +562,20 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
                                 ? AppColors.primary
                                 : AppColors.secondaryText),
                         const SizedBox(width: 4),
-                        Text(
-                          _locationName ??
-                              (_userPosition != null
-                                  ? 'Current location'
-                                  : 'Add location'),
-                          style: TextStyle(
-                            color: _userPosition != null
-                                ? AppColors.primary
-                                : AppColors.secondaryText,
-                            fontSize: _sp(13),
-                            fontWeight: FontWeight.w500,
+                        Flexible(
+                          child: Text(
+                            _locationName ??
+                                (_userPosition != null
+                                    ? 'Current location'
+                                    : 'Add location'),
+                            style: TextStyle(
+                              color: _userPosition != null
+                                  ? AppColors.primary
+                                  : AppColors.secondaryText,
+                              fontSize: _sp(13),
+                              fontWeight: FontWeight.w500,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
@@ -604,7 +606,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
         ),
       ),
       actions: [
-        // 🆕 Notification bell with badge
+        // Notification bell with badge
         IconButton(
           icon: _unreadNotifications > 0
               ? Badge(
@@ -621,9 +623,10 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
               context,
               MaterialPageRoute(builder: (_) => const NotificationScreen()),
             );
-            _loadUnreadCount(); // refresh after returning
+            _loadUnreadCount();
           },
         ),
+        // Favorite heart (only when logged in)
         Consumer<AuthProvider>(
           builder: (_, auth, __) {
             if (!auth.isAuthenticated) return const SizedBox.shrink();
@@ -650,6 +653,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
             );
           },
         ),
+        // Profile avatar (or login button)
         Consumer<AuthProvider>(
           builder: (_, auth, __) => Container(
             margin: const EdgeInsets.only(right: 16),
@@ -785,7 +789,6 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     );
   }
 
-  // ─────────── SEARCH BAR ───────────
   Widget _buildSearchBar() {
     return GestureDetector(
       onTap: () => setState(() => _currentNavIndex = 1),
@@ -830,222 +833,6 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     );
   }
 
-  // ─────────── FUTSAL LIST SECTION ───────────
-  Widget _buildFutsalListSection(String title,
-      {required int maxCount, int skipCount = 0}) {
-    final allFutsals = _filteredFutsals;
-    final sliced = allFutsals.skip(skipCount).take(maxCount).toList();
-    if (sliced.isEmpty) return const SizedBox.shrink();
-
-    return Padding(
-      padding: const EdgeInsets.only(left: 16, top: 16, bottom: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(title,
-                    style: TextStyle(
-                        color: AppColors.onBackground,
-                        fontSize: _sp(20),
-                        fontWeight: FontWeight.bold)),
-                TextButton(
-                  onPressed: () => setState(() => _currentNavIndex = 1),
-                  child: Text('See All',
-                      style: TextStyle(
-                          color: AppColors.primary,
-                          fontSize: _sp(14),
-                          fontWeight: FontWeight.w600)),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 230,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: sliced.length,
-              padding: const EdgeInsets.only(right: 16),
-              itemBuilder: (context, index) {
-                return SizedBox(
-                  width: 200,
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 16),
-                    child: _buildSquareFutsalCard(sliced[index]),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ─────────── SQUARE CARD ───────────
-  Widget _buildSquareFutsalCard(Futsal futsal) {
-    final imageUrl = futsal.images.isNotEmpty
-        ? futsal.images[0]
-        : 'https://via.placeholder.com/300x200?text=Futsal';
-    final rating = futsal.averageRating ?? 4.5;
-    final price = futsal.getMinPrice();
-
-    return GestureDetector(
-      onTap: () => _onBookPressed(context, futsal),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-                color: AppColors.shadow,
-                blurRadius: 12,
-                offset: const Offset(0, 4))
-          ],
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              children: [
-                Image.network(
-                  imageUrl,
-                  height: 120,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    height: 120,
-                    color: AppColors.primary.withOpacity(0.05),
-                    child: Icon(Icons.sports_soccer,
-                        color: AppColors.primary, size: 40),
-                  ),
-                ),
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                        color: Colors.black38, shape: BoxShape.circle),
-                    child: Consumer<FavoriteProvider>(
-                      builder: (context, fav, _) {
-                        final isFav = fav.isFavorite(futsal.id);
-                        return InkWell(
-                          onTap: () async {
-                            final auth = Provider.of<AuthProvider>(context,
-                                listen: false);
-                            if (!auth.isAuthenticated) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                    content:
-                                        Text('Please log in to save favorites'),
-                                    backgroundColor: Colors.orange),
-                              );
-                              return;
-                            }
-                            final success = await fav.toggleFavorite(futsal.id);
-                            if (success && context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(isFav
-                                      ? 'Removed from favorites'
-                                      : 'Added to favorites'),
-                                  backgroundColor: Colors.green,
-                                  duration: const Duration(seconds: 1),
-                                ),
-                              );
-                            }
-                          },
-                          child: Icon(
-                              isFav ? Icons.favorite : Icons.favorite_border,
-                              color:
-                                  isFav ? AppColors.accentCoral : Colors.white,
-                              size: 18),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(futsal.name,
-                      style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: _sp(15),
-                          color: AppColors.onBackground),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Icon(Icons.location_on_outlined,
-                          size: 14, color: AppColors.secondaryText),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(futsal.address.split(',').first,
-                            style: TextStyle(
-                                fontSize: _sp(12),
-                                color: AppColors.secondaryText),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.accentAmber.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.star_rounded,
-                                size: 14, color: AppColors.accentAmber),
-                            const SizedBox(width: 4),
-                            Text(rating.toStringAsFixed(1),
-                                style: TextStyle(
-                                    fontSize: _sp(13),
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.onBackground)),
-                          ],
-                        ),
-                      ),
-                      const Spacer(),
-                      Text(
-                        price != null
-                            ? 'Rs. ${price.toStringAsFixed(0)}/hr'
-                            : 'Price varies',
-                        style: TextStyle(
-                            fontSize: _sp(13),
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.primaryDark),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ─────────── AD CAROUSEL ───────────
   Widget _buildAdCarousel() {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: futureAds,
@@ -1171,7 +958,106 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     );
   }
 
-  // ─────────── TOURNAMENTS SECTION ───────────
+  Widget _buildFutsalListSection(String title,
+      {required int maxCount, int skipCount = 0}) {
+    final allFutsals = _filteredFutsals;
+    final sliced = allFutsals.skip(skipCount).take(maxCount).toList();
+    if (sliced.isEmpty) return const SizedBox.shrink();
+
+    final isDesktop = Responsive.isDesktop(context);
+    final isTablet = Responsive.isTablet(context);
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    final cardWidth = isDesktop
+        ? 300.0
+        : isTablet
+            ? 280.0
+            : 260.0;
+    final horizontalPadding =
+        32.0;
+    final spacing = 16.0;
+
+    int crossAxisCount = isDesktop
+        ? ((screenWidth - horizontalPadding) / (cardWidth + spacing)).floor()
+        : isTablet
+            ? 2
+            : 1;
+
+    crossAxisCount = crossAxisCount.clamp(1, 4);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  color: AppColors.onBackground,
+                  fontSize: _sp(20),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              TextButton(
+                onPressed: () => setState(() => _currentNavIndex = 1),
+                child: Text(
+                  'See All',
+                  style: TextStyle(
+                    color: AppColors.primary,
+                    fontSize: _sp(14),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          if (isDesktop || isTablet)
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                crossAxisSpacing: spacing,
+                mainAxisSpacing: spacing,
+                childAspectRatio: 0.75,
+              ),
+              itemCount: sliced.length,
+              itemBuilder: (context, index) {
+                return FutsalCard(
+                  futsal: sliced[index],
+                  onTap: () => _onBookPressed(context, sliced[index]),
+                );
+              },
+            )
+          else
+            SizedBox(
+              height: 280,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: sliced.length,
+                padding: EdgeInsets.zero,
+                itemBuilder: (context, index) {
+                  return Container(
+                    width: cardWidth,
+                    margin: const EdgeInsets.only(right: 16),
+                    child: FutsalCard(
+                      futsal: sliced[index],
+                      onTap: () => _onBookPressed(context, sliced[index]),
+                    ),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTournamentsSection() {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: futureTournaments,
@@ -1328,7 +1214,6 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen>
     );
   }
 
-  // ─────────── ACTION BUTTONS ───────────
   Widget _buildActionButtons() {
     return Consumer<AuthProvider>(
       builder: (context, auth, _) {

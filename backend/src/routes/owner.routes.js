@@ -11,7 +11,8 @@ import {
   getRevenueSummary,
   getPerformanceMetrics,
   getMonthlyRevenue,
-  getPaymentBreakdown
+  getPaymentBreakdown,
+  getAnalyticsWithDateRange
 } from '../controllers/owner.controller.js';
 import {
   checkInBooking,
@@ -47,5 +48,6 @@ router.get('/analytics/revenue-summary', getRevenueSummary);
 router.get('/analytics/performance-metrics', getPerformanceMetrics);
 router.get('/analytics/monthly-revenue', getMonthlyRevenue);
 router.get('/analytics/payment-breakdown', getPaymentBreakdown);
+router.get('/analytics/range', authenticate, authorize('OWNER'), getAnalyticsWithDateRange);
 
 export default router;

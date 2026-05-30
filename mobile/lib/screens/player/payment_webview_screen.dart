@@ -27,12 +27,20 @@ class _KhaltiPaymentScreenState extends State<KhaltiPaymentScreen> {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
         NavigationDelegate(
-          onNavigationRequest: (request) async {
-            if (request.url.contains('callback')) {
-              await _verifyPayment();
-              return NavigationDecision.prevent;
-            }
+          onNavigationRequest: (request) {
+            print('🔵 NAVIGATION: ${request.url}');
             return NavigationDecision.navigate;
+          },
+          onPageFinished: (url) {
+            print('🟢 PAGE FINISHED: $url');
+            
+            // Check for payment completion indicators
+            if (url.contains('payment=success') ||
+                url.contains('booking-history') ||
+                url.contains('status=COMPLETED')) {
+              print('🎯 PAYMENT SUCCESS DETECTED!');
+              _verifyPayment();
+            }
           },
         ),
       )
@@ -40,20 +48,34 @@ class _KhaltiPaymentScreenState extends State<KhaltiPaymentScreen> {
   }
 
   Future<void> _verifyPayment() async {
-    final response = await PaymentService.verifyPayment(widget.pidx);
-    if (!mounted) return;
+    print('🔍 Verifying payment for pidx: ${widget.pidx}');
+    try {
+      final response = await PaymentService.verifyPayment(widget.pidx);
+      print('📡 Response: ${response['status']} - ${response['paymentStatus']}');
+      
+      if (!mounted) return;
 
-    if (response['status'] == 'success') {
-      Navigator.pop(context, true); // success
-    } else {
-      Navigator.pop(context, false); // failed
+      if (response['status'] == 'success' && 
+          response['paymentStatus'] == 'COMPLETED') {
+        print('✅ Payment verified!');
+        Navigator.pop(context, true);
+      } else {
+        print('❌ Payment verification failed');
+        Navigator.pop(context, false);
+      }
+    } catch (e) {
+      print('❌ Error: $e');
+      Navigator.pop(context, false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Khalti Payment')),
+      appBar: AppBar(
+        title: const Text('Khalti Payment'),
+        backgroundColor: Colors.green,
+      ),
       body: WebViewWidget(controller: _controller),
     );
   }

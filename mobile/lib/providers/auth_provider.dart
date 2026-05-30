@@ -1,12 +1,16 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import '../services/api_service.dart';
 import '../models/user.dart';
 
-class AuthProvider extends ChangeNotifier {
+// Conditionally import dart:html only for web
+import 'dart:html' as html show window;
+
+class AuthProvider with ChangeNotifier {
   User? _user;
   String? _token;
   bool _isLoading = false;
@@ -20,6 +24,137 @@ class AuthProvider extends ChangeNotifier {
   bool get isAdmin => _user?.role == 'ADMIN';
   Map<String, dynamic> _adminProfile = {};
   Map<String, dynamic> get adminProfile => _adminProfile;
+
+  // ============================================
+  // TOKEN STORAGE HELPERS (Works on Mobile + Web)
+  // ============================================
+
+  Future<void> _saveToken(String token) async {
+    debugPrint('💾 Saving token...');
+    
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('token', token);
+      debugPrint('✅ Token saved to SharedPreferences');
+    } catch (e) {
+      debugPrint('SharedPreferences save error: $e');
+    }
+    
+    if (kIsWeb) {
+      try {
+        html.window.localStorage['token'] = token;
+        debugPrint('✅ Token saved to localStorage');
+      } catch (e) {
+        debugPrint('localStorage save error: $e');
+      }
+    }
+  }
+
+  Future<void> _saveUser(Map<String, dynamic> userData) async {
+    debugPrint('💾 Saving user data...');
+    final userJson = jsonEncode(userData);
+    
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('user', userJson);
+      debugPrint('✅ User saved to SharedPreferences');
+    } catch (e) {
+      debugPrint('SharedPreferences save error: $e');
+    }
+    
+    if (kIsWeb) {
+      try {
+        html.window.localStorage['user'] = userJson;
+        debugPrint('✅ User saved to localStorage');
+      } catch (e) {
+        debugPrint('localStorage save error: $e');
+      }
+    }
+  }
+
+  Future<String?> _getStoredToken() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      if (token != null && token.isNotEmpty) {
+        debugPrint('🔑 Token found in SharedPreferences');
+        return token;
+      }
+    } catch (e) {
+      debugPrint('SharedPreferences read error: $e');
+    }
+    
+    if (kIsWeb) {
+      try {
+        final token = html.window.localStorage['token'];
+        if (token != null && token.isNotEmpty && token != 'null') {
+          debugPrint('🔑 Token found in localStorage');
+          return token;
+        }
+      } catch (e) {
+        debugPrint('localStorage read error: $e');
+      }
+    }
+    
+    debugPrint('⚠️ No token found');
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> _getStoredUser() async {
+    String? userJson;
+    
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      userJson = prefs.getString('user');
+    } catch (e) {
+      debugPrint('SharedPreferences read error: $e');
+    }
+    
+    if (userJson == null && kIsWeb) {
+      try {
+        userJson = html.window.localStorage['user'];
+      } catch (e) {
+        debugPrint('localStorage read error: $e');
+      }
+    }
+    
+    if (userJson != null && userJson.isNotEmpty) {
+      try {
+        return jsonDecode(userJson) as Map<String, dynamic>;
+      } catch (e) {
+        debugPrint('User JSON parse error: $e');
+      }
+    }
+    
+    return null;
+  }
+
+  Future<void> _clearStoredData() async {
+    debugPrint('🗑️ Clearing stored auth data...');
+    
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('token');
+      await prefs.remove('user');
+      debugPrint('✅ Cleared from SharedPreferences');
+    } catch (e) {
+      debugPrint('SharedPreferences clear error: $e');
+    }
+    
+    if (kIsWeb) {
+      try {
+        html.window.localStorage.remove('token');
+        html.window.localStorage.remove('user');
+        debugPrint('✅ Cleared from localStorage');
+      } catch (e) {
+        debugPrint('localStorage clear error: $e');
+      }
+    }
+  }
+
+  // ============================================
+  // AUTH METHODS
+  // ============================================
 
   Future<Map<String, dynamic>> login(String email, String password) async {
     _isLoading = true;
@@ -36,18 +171,32 @@ class AuthProvider extends ChangeNotifier {
         } else if (response.containsKey('data') &&
             response['data'].containsKey('user')) {
           _user = User.fromJson(response['data']['user']);
+        } else if (response.containsKey('userData')) {
+          _user = User.fromJson(response['userData']);
         }
 
         _token = response['token'] ??
             response['data']?['token'] ??
-            response['accessToken'];
+            response['accessToken'] ??
+            response['access_token'];
 
         if (_token != null && _user != null) {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('token', _token!);
-          await prefs.setString('user', jsonEncode(_user!.toJson()));
+          await _saveToken(_token!);
+          await _saveUser(_user!.toJson());
+          
+          if (kIsWeb) {
+            try {
+              await ApiService.saveToken(_token!);
+            } catch (e) {
+              debugPrint('ApiService saveToken error: $e');
+            }
+          }
 
           debugPrint('👤 User Logged In: ${_user!.role}');
+          debugPrint('🔑 Token saved successfully');
+        } else {
+          debugPrint('⚠️ Missing token or user in response');
+          debugPrint('Response keys: ${response.keys}');
         }
       } else if (response['requiresVerification'] == true) {
         debugPrint('⚠️ User needs email verification');
@@ -57,6 +206,7 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return response;
     } catch (e) {
+      debugPrint('❌ Login error: $e');
       _isLoading = false;
       notifyListeners();
       return {"status": "error", "message": "Connection error: $e"};
@@ -103,50 +253,73 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> logout() async {
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.remove('token');
-  await prefs.remove('user');
-  _token = null;
-  _user = null;
-
-  // Only sign out from Google if currently signed in
-  try {
-    final googleSignIn = GoogleSignIn();
-    if (await googleSignIn.isSignedIn()) {
-      await googleSignIn.signOut();
+  Future<void> logout({BuildContext? context}) async {
+    debugPrint('🚪 Logging out...');
+    
+    await _clearStoredData();
+    
+    try {
+      await ApiService.clearToken();
+    } catch (e) {
+      debugPrint('ApiService clearToken error: $e');
     }
-  } catch (_) {}
+    
+    _token = null;
+    _user = null;
+    _adminProfile = {};
 
-  // Only sign out from Facebook if there is an access token
-  try {
-    final facebookAuth = FacebookAuth.instance;
-    final accessToken = await facebookAuth.accessToken;
-    if (accessToken != null) {
-      await facebookAuth.logOut();
+    // Google Sign Out (only if signed in)
+    try {
+      final googleUser = await GoogleSignIn().currentUser;
+      if (googleUser != null) {
+        await GoogleSignIn().signOut();
+      }
+    } catch (_) {}
+    
+    // Facebook Sign Out (only if signed in)
+    try {
+      final accessToken = await FacebookAuth.instance.accessToken;
+      if (accessToken != null) {
+        await FacebookAuth.instance.logOut();
+      }
+    } catch (_) {}
+    
+    notifyListeners();
+    debugPrint('✅ Logout complete');
+    
+    if (context != null && context.mounted) {
+      Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
     }
-  } catch (_) {}
-
-  notifyListeners();
-}
+  }
 
   Future<void> checkAuth() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
-    final userString = prefs.getString('user');
+    debugPrint('🔍 Checking auth...');
+    
+    final token = await _getStoredToken();
+    final userData = await _getStoredUser();
 
-    if (token != null && userString != null) {
+    if (token != null && userData != null) {
       _token = token;
-      _user = User.fromJson(jsonDecode(userString));
+      _user = User.fromJson(userData);
       debugPrint('🔄 Restored user session: ${_user?.role}');
       notifyListeners();
+      
+      if (kIsWeb && token.isNotEmpty) {
+        try {
+          await ApiService.saveToken(token);
+        } catch (e) {
+          debugPrint('ApiService saveToken during checkAuth error: $e');
+        }
+      }
+    } else {
+      debugPrint('⚠️ No session found');
     }
   }
 
   Future<void> saveAuthData(String token, Map<String, dynamic> userData) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('token', token);
-    await prefs.setString('user', json.encode(userData));
+    debugPrint('💾 Saving auth data...');
+    await _saveToken(token);
+    await _saveUser(userData);
     _user = User.fromJson(userData);
     _token = token;
     notifyListeners();
@@ -166,7 +339,6 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // Update current user data (call after profile update)
   void updateUser(Map<String, dynamic> userData) {
     if (_user != null) {
       _user = User.fromJson({
@@ -174,17 +346,16 @@ class AuthProvider extends ChangeNotifier {
         ...userData,
       });
       notifyListeners();
-      _saveUserToStorage();
+      _saveUser(_user!.toJson());
     }
   }
 
-  // Refresh user data from server (call after profile update)
   Future<void> refreshUser() async {
     try {
       final response = await ApiService.get('users/me');
       if (response['status'] == 'success') {
         _user = User.fromJson(response['user']);
-        await _saveUserToStorage();
+        await _saveUser(_user!.toJson());
         notifyListeners();
       }
     } catch (e) {
@@ -192,13 +363,6 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // Helper to save user to storage
-  Future<void> _saveUserToStorage() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user', jsonEncode(_user!.toJson()));
-  }
-
-  // Helper method to get role-based home route
   String get homeRoute {
     if (isAdmin) return '/admin/dashboard';
     if (isOwner) return '/owner/dashboard';
@@ -206,26 +370,11 @@ class AuthProvider extends ChangeNotifier {
     return '/login';
   }
 
-
-   Future<void> setUserAndToken(String token, Map<String, dynamic> user) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('token', token);
-    await prefs.setString('user', jsonEncode(user));
-    _token = token;
-    _user = User.fromJson(user);
-    notifyListeners();
+  Future<void> setUserAndToken(String token, Map<String, dynamic> user) async {
+    await saveAuthData(token, user);
   }
 
-
   Future<void> tryAutoLogin() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
-    final userJson = prefs.getString('user');
-
-    if (token != null && userJson != null) {
-      _token = token;
-      _user = User.fromJson(jsonDecode(userJson));
-      notifyListeners();
-    }
+    await checkAuth();
   }
 }

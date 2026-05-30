@@ -64,45 +64,36 @@ class Tournament {
   });
 
   factory Tournament.fromJson(Map<String, dynamic> json) {
-    return Tournament(
-      id: json['id'] ?? 0,
-      futsalId: json['futsalId'] ?? 0,
-      futsalName: json['futsalName'] ?? json['futsal']?['name'] ?? 'Unknown Futsal',
-      name: json['name'] ?? 'Unnamed Tournament',
-      description: json['description'],
-      type: _parseTournamentType(json['type']),
-      status: _parseTournamentStatus(json['status']),
-      startDate: json['startDate'] != null 
-          ? DateTime.parse(json['startDate']) 
-          : DateTime.now(),
-      endDate: json['endDate'] != null 
-          ? DateTime.parse(json['endDate']) 
-          : null,
-      numberOfTeams: json['numberOfTeams'] ?? 0,
-      maxTeams: json['maxTeams'],
-      entryFee: json['entryFee'] != null 
-          ? (json['entryFee'] as num).toDouble() 
-          : null,
-      prizePool: json['prizePool'] != null 
-          ? (json['prizePool'] as num).toDouble() 
-          : null,
-      rules: json['rules'],
-      prizes: json['prizes'] != null 
-          ? List<String>.from(json['prizes']) 
-          : null,
-      isPublished: json['isPublished'] ?? false,
-      createdAt: json['createdAt'] != null 
-          ? DateTime.parse(json['createdAt']) 
-          : DateTime.now(),
-      updatedAt: json['updatedAt'] != null 
-          ? DateTime.parse(json['updatedAt']) 
-          : null,
-      totalMatches: json['totalMatches'],
-      completedMatches: json['completedMatches'],
-      totalGoals: json['totalGoals'],
-      leadingTeam: json['leadingTeam'],
-    );
+  // Parse team count from _count (backend response)
+  int teamCount = 0;
+  if (json['_count'] != null && json['_count']['teams'] != null) {
+    teamCount = json['_count']['teams'];
   }
+  // Fallback: if teams array is directly available
+  if (teamCount == 0 && json['teams'] != null && json['teams'] is List) {
+    teamCount = json['teams'].length;
+  }
+
+  return Tournament(
+    id: json['id'] ?? 0,
+    futsalId: json['futsalId'] ?? 0,
+    futsalName: json['futsal']?['name'] ?? '',
+    name: json['name'] ?? '',
+    description: json['description'],
+    type: _parseTournamentType(json['type']),
+    status: _parseTournamentStatus(json['status']),
+    startDate: json['startDate'] != null ? DateTime.parse(json['startDate']) : DateTime.now(),
+    endDate: json['endDate'] != null ? DateTime.parse(json['endDate']) : null,
+    maxTeams: json['maxTeams'] ?? 0,
+    numberOfTeams: teamCount,  // ← USE THE PARSED VALUE
+    entryFee: json['entryFee'] != null ? (json['entryFee'] is int ? json['entryFee'].toDouble() : json['entryFee']) : null,
+    prizePool: json['prizePool'] != null ? (json['prizePool'] is int ? json['prizePool'].toDouble() : json['prizePool']) : null,
+    rules: json['rules'],
+    prizes: json['prizes'] != null ? List<String>.from(json['prizes']) : null,
+    isPublished: json['isPublished'] ?? false,
+    createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : DateTime.now(),
+  );
+}
 
   Map<String, dynamic> toJson() {
     return {

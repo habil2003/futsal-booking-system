@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../../providers/analytics_provider.dart';
 
 class AnalyticsScreen extends StatefulWidget {
@@ -20,11 +21,15 @@ class AnalyticsScreen extends StatefulWidget {
 class _AnalyticsScreenState extends State<AnalyticsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  
+  // Date range filter
+  DateTimeRange? _selectedDateRange;
+  bool _useDateRangeFilter = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this); // Changed to 4 tabs
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<AnalyticsProvider>(context, listen: false)
           .loadAllAnalytics(widget.futsalId);
@@ -35,6 +40,39 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _selectDateRange() async {
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2024, 1, 1),
+      lastDate: DateTime.now(),
+      initialDateRange: _selectedDateRange,
+    );
+    
+    if (picked != null) {
+      setState(() {
+        _selectedDateRange = picked;
+        _useDateRangeFilter = true;
+      });
+      
+      final provider = Provider.of<AnalyticsProvider>(context, listen: false);
+      await provider.loadAnalyticsWithDateRange(
+        widget.futsalId,
+        _selectedDateRange!.start,
+        _selectedDateRange!.end,
+      );
+    }
+  }
+  
+  void _resetFilter() {
+    setState(() {
+      _selectedDateRange = null;
+      _useDateRangeFilter = false;
+    });
+    
+    final provider = Provider.of<AnalyticsProvider>(context, listen: false);
+    provider.loadAllAnalytics(widget.futsalId);
   }
 
   List<String> get _dayLabels {
@@ -59,39 +97,92 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           tabs: const [
             Tab(text: 'Revenue', icon: Icon(Icons.payments)),
             Tab(text: 'Insights', icon: Icon(Icons.insights)),
-            Tab(text: 'Payment Methods', icon: Icon(Icons.payment)),
+            Tab(text: 'Payment', icon: Icon(Icons.payment)),
+            Tab(text: 'Booking Status', icon: Icon(Icons.book_online)),
           ],
         ),
         actions: [
           IconButton(
+            icon: Icon(
+              _useDateRangeFilter ? Icons.filter_alt : Icons.filter_alt_outlined,
+              color: _useDateRangeFilter ? Colors.amber : Colors.white,
+            ),
+            onPressed: _selectDateRange,
+            tooltip: 'Filter by date range',
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
             onPressed: () {
-              Provider.of<AnalyticsProvider>(context, listen: false)
-                  .loadAllAnalytics(widget.futsalId);
+              if (_useDateRangeFilter) {
+                _resetFilter();
+              } else {
+                Provider.of<AnalyticsProvider>(context, listen: false)
+                    .loadAllAnalytics(widget.futsalId);
+              }
             },
             tooltip: 'Refresh',
           ),
         ],
       ),
-      body: Consumer<AnalyticsProvider>(
-        builder: (ctx, provider, _) {
-          if (provider.isLoading) {
-            return const Center(child: CircularProgressIndicator(color: Colors.green));
-          }
+      body: Column(
+        children: [
+          if (_useDateRangeFilter && _selectedDateRange != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: Colors.green.shade50,
+              child: Row(
+                children: [
+                  const Icon(Icons.date_range, size: 16, color: Colors.green),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${DateFormat('dd MMM yyyy').format(_selectedDateRange!.start)} - ${DateFormat('dd MMM yyyy').format(_selectedDateRange!.end)}',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: _resetFilter,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.close, size: 14),
+                          SizedBox(width: 4),
+                          Text('Clear', style: TextStyle(fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          Expanded(
+            child: Consumer<AnalyticsProvider>(
+              builder: (ctx, provider, _) {
+                if (provider.isLoading) {
+                  return const Center(child: CircularProgressIndicator(color: Colors.green));
+                }
 
-          if (provider.error != null) {
-            return _buildErrorView(provider);
-          }
+                if (provider.error != null) {
+                  return _buildErrorView(provider);
+                }
 
-          return TabBarView(
-            controller: _tabController,
-            children: [
-              _buildRevenueTab(provider),
-              _buildInsightsTab(provider),
-              _buildPaymentTab(provider),
-            ],
-          );
-        },
+                return TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildRevenueTab(provider),
+                    _buildInsightsTab(provider),
+                    _buildPaymentTab(provider),
+                    _buildBookingStatusTab(provider),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -806,6 +897,336 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           Text('$count bookings', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
         ],
       ),
+    );
+  }
+
+  // ============================================
+  // BOOKING STATUS TAB (NEW)
+  // ============================================
+  Widget _buildBookingStatusTab(AnalyticsProvider provider) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          _buildBookingStatusSummary(provider),
+          const SizedBox(height: 16),
+          _buildPaymentStatusBreakdown(provider),
+          const SizedBox(height: 16),
+          _buildBookingStatusBreakdown(provider),
+          const SizedBox(height: 16),
+          _buildRefundAlertCard(provider),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBookingStatusSummary(AnalyticsProvider provider) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: _buildCardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '📊 Booking Status Overview',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatusCard(
+                  label: 'Total Bookings',
+                  value: provider.totalBookings.toString(),
+                  color: Colors.grey,
+                  icon: Icons.book_online,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatusCard(
+                  label: 'Completed',
+                  value: provider.completedBookings.toString(),
+                  color: Colors.green,
+                  icon: Icons.check_circle,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatusCard(
+                  label: 'Cancelled',
+                  value: provider.cancelledBookings.toString(),
+                  color: Colors.red,
+                  icon: Icons.cancel,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatusCard(
+                  label: 'Confirmed',
+                  value: provider.confirmedBookings.toString(),
+                  color: Colors.blue,
+                  icon: Icons.confirmation_number,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatusCard(
+                  label: 'Pending',
+                  value: provider.pendingBookings.toString(),
+                  color: Colors.orange,
+                  icon: Icons.pending_actions,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatusCard(
+                  label: 'Paid',
+                  value: provider.paidBookings.toString(),
+                  color: Colors.teal,
+                  icon: Icons.payment,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusCard({
+    required String label,
+    required String value,
+    required Color color,
+    required IconData icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          Text(
+            label,
+            style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentStatusBreakdown(AnalyticsProvider provider) {
+    final paid = provider.paidBookings;
+    final unpaid = provider.unpaidBookings;
+    final total = provider.totalBookings;
+    final paidPercentage = total > 0 ? (paid / total) * 100 : 0;
+    final unpaidPercentage = total > 0 ? (unpaid / total) * 100 : 0;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: _buildCardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '💰 Payment Status Distribution',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+          _buildProgressBar(
+            label: 'Paid',
+            value: paid,
+            total: total,
+            color: Colors.green,
+          ),
+          const SizedBox(height: 12),
+          _buildProgressBar(
+            label: 'Unpaid',
+            value: unpaid,
+            total: total,
+            color: Colors.orange,
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        '${paidPercentage.toStringAsFixed(1)}%',
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green),
+                      ),
+                      const Text('Collection Rate', style: TextStyle(fontSize: 12)),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        '${unpaidPercentage.toStringAsFixed(1)}%',
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.red),
+                      ),
+                      const Text('Outstanding', style: TextStyle(fontSize: 12)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBookingStatusBreakdown(AnalyticsProvider provider) {
+    final completed = provider.completedBookings;
+    final confirmed = provider.confirmedBookings;
+    final pending = provider.pendingBookings;
+    final cancelled = provider.cancelledBookings;
+    final total = provider.totalBookings;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: _buildCardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '📋 Booking Status Distribution',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+          _buildProgressBar(
+            label: 'Completed',
+            value: completed,
+            total: total,
+            color: Colors.green,
+          ),
+          const SizedBox(height: 12),
+          _buildProgressBar(
+            label: 'Confirmed',
+            value: confirmed,
+            total: total,
+            color: Colors.blue,
+          ),
+          const SizedBox(height: 12),
+          _buildProgressBar(
+            label: 'Pending',
+            value: pending,
+            total: total,
+            color: Colors.orange,
+          ),
+          const SizedBox(height: 12),
+          _buildProgressBar(
+            label: 'Cancelled',
+            value: cancelled,
+            total: total,
+            color: Colors.red,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRefundAlertCard(AnalyticsProvider provider) {
+    final paidButCancelled = provider.paidButCancelledBookings;
+    
+    if (paidButCancelled == 0) return const SizedBox.shrink();
+    
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.red.shade200),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 32),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '⚠️ Refunds Required',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$paidButCancelled booking(s) were cancelled but payment was received. Please process refunds immediately.',
+                  style: TextStyle(fontSize: 13, color: Colors.red.shade700),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProgressBar({
+    required String label,
+    required int value,
+    required int total,
+    required Color color,
+  }) {
+    final percentage = total > 0 ? (value / total) * 100 : 0;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: const TextStyle(fontSize: 13)),
+            Text(
+              '$value (${percentage.toStringAsFixed(1)}%)',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        LinearProgressIndicator(
+          value: total > 0 ? value / total : 0,
+          backgroundColor: Colors.grey.shade200,
+          color: color,
+          minHeight: 8,
+          borderRadius: BorderRadius.circular(4),
+        ),
+      ],
     );
   }
 

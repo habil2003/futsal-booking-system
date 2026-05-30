@@ -62,6 +62,9 @@ class TournamentProvider with ChangeNotifier {
   Future<void> loadMyTournaments() async {
     debugPrint('🏆 TournamentProvider: Loading my tournaments');
 
+    // Don't set isLoading to true if already loading to avoid unnecessary rebuilds
+    if (isLoading) return;
+
     isLoading = true;
     error = null;
     notifyListeners();
@@ -70,9 +73,7 @@ class TournamentProvider with ChangeNotifier {
       final tournaments = await ApiService.getMyTournaments();
       _myTournaments =
           tournaments.map((json) => Tournament.fromJson(json)).toList();
-
       debugPrint('🏆 Loaded ${_myTournaments.length} my tournaments');
-
       isLoading = false;
       notifyListeners();
     } catch (e) {

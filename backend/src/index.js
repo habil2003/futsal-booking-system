@@ -5,7 +5,6 @@ import { PrismaClient } from '@prisma/client';
 import cron from 'node-cron';
 import { releaseExpiredLocks, cancelExpiredBookings, generateMissingSlots } from './utils/cronJobs.js';
 import { connectDB } from './database.js';
-import tournamentRoutes from './routes/tournament.route.js';
 
 // Load environment variables
 dotenv.config();
@@ -22,7 +21,9 @@ const PORT = process.env.PORT || 5000;
 const corsOptions = {
   origin: [
     'https://futsal-pokhara.web.app', 
+    'http://192.168.100.146:5000',
     'http://localhost:5000',
+    'http://192.168.100.204:5000',
     /^http:\/\/localhost:[0-9]+$/
   ],
   credentials: true,
@@ -46,8 +47,9 @@ import bookingRoutes from './routes/booking.routes.js';
 import ownerRoutes from './routes/owner.routes.js';
 import courtRoutes from './routes/court.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
+
 // import tournamentRoutes from './routes/tournament.routes.js'
-import tournamentsRoutes from './routes/tournament.route.js'; // ✅ Added tournament routes
+import tournamentRoutes from './routes/tournament.routes.js';
 import slotRoutes from './routes/slot.routes.js';
 import reviewRoutes from './routes/review.routes.js';
 import adminRoutes from "./routes/admin.routes.js";
@@ -75,7 +77,7 @@ app.use('/api/favorites', favoriteRoutes);
 app.use('/api/admin/settings', settingsRoutes);
 app.use('/api/ads', adRoutes);
 app.use('/api/admin/analytics', analyticsRoutes);    
-app.use('/api/tournaments', tournamentsRoutes); 
+app.use('/api/tournaments', tournamentRoutes); 
 
 
 // Health check

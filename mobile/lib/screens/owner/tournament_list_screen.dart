@@ -37,9 +37,15 @@ class _TournamentListScreenState extends State<TournamentListScreen>
     super.dispose();
   }
 
+
   Future<void> _loadTournaments() async {
+    print('🏆 Loading tournaments for owner...');
     final provider = Provider.of<TournamentProvider>(context, listen: false);
     await provider.loadMyTournaments();
+    print('🏆 Loaded ${provider.myTournaments.length} tournaments');
+    for (var t in provider.myTournaments) {
+      print('   - ${t.name} (${t.status})');
+    }
     if (mounted) setState(() {});
   }
 
@@ -140,7 +146,10 @@ class _TournamentListScreenState extends State<TournamentListScreen>
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const CreateTournamentScreen()),
-          ).then((_) => _loadTournaments());
+          ).then((_) {
+            print('🏆 Returning from Create Tournament, refreshing...');
+            _loadTournaments();
+          });
         },
         icon: const Icon(Icons.add),
         label: const Text('Create Tournament'),
@@ -271,25 +280,31 @@ class _TournamentListScreenState extends State<TournamentListScreen>
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: filtered.length,
-      itemBuilder: (context, index) {
-        final tournament = filtered[index];
-        return TournamentCard(
-          tournament: tournament,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => TournamentDetailsScreen(
-                  tournamentId: tournament.id,
+    return RefreshIndicator(
+      onRefresh: _loadTournaments,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: filtered.length,
+        itemBuilder: (context, index) {
+          final tournament = filtered[index];
+          return TournamentCard(
+            tournament: tournament,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => TournamentDetailsScreen(
+                    tournamentId: tournament.id,
+                  ),
                 ),
-              ),
-            ).then((_) => _loadTournaments());
-          },
-        );
-      },
+              ).then((_) {
+                print('🏆 Returning from Tournament Details, refreshing...');
+                _loadTournaments();
+              });
+            },
+          );
+        },
+      ),
     );
   }
 }

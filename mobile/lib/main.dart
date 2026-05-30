@@ -22,7 +22,6 @@ import 'screens/login_screen.dart';
 import 'screens/player/home_screen.dart';
 import 'screens/owner/owner_dashboard.dart';
 import 'screens/admin/admin_dashboard.dart';
-import 'screens/player/PaymentVerifyPage.dart';
 import 'screens/admin/futsal_approval_screen.dart';
 import 'screens/admin/user_management_screen.dart';
 import 'screens/admin/admin_all_futsals_screen.dart';
@@ -75,7 +74,6 @@ class MyApp extends StatelessWidget {
           '/player/home': (ctx) => const PlayerHomeScreen(),
           '/owner/dashboard': (ctx) => const OwnerDashboard(),
           '/admin/dashboard': (ctx) => AdminDashboard(),
-          '/payment-verify': (ctx) => const PaymentVerifyPage(),
           "/admin/futsal-approvals": (ctx) => const FutsalApprovalScreen(),
           "/admin/users": (ctx) => const AdminUsersScreen(),
           '/admin/futsals': (context) => const AdminAllFutsalsScreen(),

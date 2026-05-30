@@ -1,10 +1,12 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../services/payment_service.dart';
-import 'dart:html' as html;
 
 class PaymentVerifyPage extends StatefulWidget {
-  const PaymentVerifyPage({super.key});
+  final String pidx;
+  final int bookingId;
+  
+  const PaymentVerifyPage({super.key, required this.pidx, required this.bookingId});
 
   @override
   State<PaymentVerifyPage> createState() => _PaymentVerifyPageState();
@@ -18,31 +20,12 @@ class _PaymentVerifyPageState extends State<PaymentVerifyPage> {
   @override
   void initState() {
     super.initState();
-    if (kIsWeb) {
-      _verifyPaymentFromUrl();
-    } else {
-      setState(() {
-        _isVerifying = false;
-        _message = 'This page is for Web verification only.';
-      });
-    }
+    _verifyPayment();
   }
 
-  Future<void> _verifyPaymentFromUrl() async {
-    final uri = Uri.base;
-    final pidx = uri.queryParameters['pidx'];
-
-    if (pidx == null) {
-      setState(() {
-        _isVerifying = false;
-        _success = false;
-        _message = 'No payment reference found.';
-      });
-      return;
-    }
-
+  Future<void> _verifyPayment() async {
     try {
-      final response = await PaymentService.verifyPayment(pidx);
+      final response = await PaymentService.verifyPayment(widget.pidx);
 
       if (!mounted) return;
 
@@ -52,10 +35,10 @@ class _PaymentVerifyPageState extends State<PaymentVerifyPage> {
           _success = true;
           _message = 'Payment successful! Your booking is confirmed.';
         });
-
-        // Redirect to home after short delay
+        
+        // Wait 2 seconds then go to home
         Future.delayed(const Duration(seconds: 2), () {
-          html.window.location.href = '/player/home'; // or your route
+          _goToHome();
         });
       } else {
         setState(() {
@@ -65,7 +48,6 @@ class _PaymentVerifyPageState extends State<PaymentVerifyPage> {
         });
       }
     } catch (e) {
-      if (!mounted) return;
       setState(() {
         _isVerifying = false;
         _success = false;
@@ -74,11 +56,15 @@ class _PaymentVerifyPageState extends State<PaymentVerifyPage> {
     }
   }
 
+  void _goToHome() {
+    Navigator.pushNamedAndRemoveUntil(context, '/player/home', (route) => false);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Verifying Payment'),
+        title: const Text('Payment Status'),
         backgroundColor: Colors.green,
       ),
       body: Center(
@@ -107,9 +93,7 @@ class _PaymentVerifyPageState extends State<PaymentVerifyPage> {
                   ),
                   const SizedBox(height: 24),
                   ElevatedButton(
-                    onPressed: () {
-                      html.window.location.href = '/player/home';
-                    },
+                    onPressed: _goToHome,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
                     ),
