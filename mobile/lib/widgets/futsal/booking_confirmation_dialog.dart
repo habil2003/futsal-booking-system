@@ -81,8 +81,7 @@ class _BookingConfirmationDialogState extends State<BookingConfirmationDialog> {
       ),
       ),
       content: SizedBox(
-        height: 500,
-        width: 400, 
+        width: double.maxFinite,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -90,7 +89,7 @@ class _BookingConfirmationDialogState extends State<BookingConfirmationDialog> {
             Container(
               padding: const EdgeInsets.all(18), // increased from 14
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.05),
+                color: AppColors.primary.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: AppColors.divider),
               ),
@@ -127,18 +126,23 @@ class _BookingConfirmationDialogState extends State<BookingConfirmationDialog> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          const Text('Price per hour',
-                              style: TextStyle(
-                                  color: AppColors.secondaryText,
-                                  fontSize: 16)),
-                          if (isPeak) ...[
-                            const SizedBox(width: 8),
-                            _buildPeakChip(),
+                      Flexible(
+                        child: Row(
+                          children: [
+                            const Flexible(
+                              child: Text('Price per hour',
+                                  style: TextStyle(
+                                      color: AppColors.secondaryText,
+                                      fontSize: 16)),
+                            ),
+                            if (isPeak) ...[
+                              const SizedBox(width: 8),
+                              _buildPeakChip(),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
+                      const SizedBox(width: 12),
                       Text(
                         'रू ${price.toStringAsFixed(0)}',
                         style: TextStyle(
@@ -156,9 +160,12 @@ class _BookingConfirmationDialogState extends State<BookingConfirmationDialog> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Duration (hours)',
-                          style: TextStyle(
-                              color: AppColors.secondaryText, fontSize: 16)),
+                      const Flexible(
+                        child: Text('Duration (hours)',
+                            style: TextStyle(
+                                color: AppColors.secondaryText, fontSize: 16)),
+                      ),
+                      const SizedBox(width: 12),
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -170,7 +177,7 @@ class _BookingConfirmationDialogState extends State<BookingConfirmationDialog> {
                                 : null,
                           ),
                           Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
                             child: Text(
                               '$_selectedDuration',
                               style: const TextStyle(
@@ -271,9 +278,9 @@ class _BookingConfirmationDialogState extends State<BookingConfirmationDialog> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: AppColors.accentCoral.withOpacity(0.1),
+        color: AppColors.accentCoral.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: AppColors.accentCoral.withOpacity(0.3)),
+        border: Border.all(color: AppColors.accentCoral.withValues(alpha: 0.3)),
       ),
       child: const Text(
         '🔥 Peak',
@@ -294,7 +301,7 @@ class _BookingConfirmationDialogState extends State<BookingConfirmationDialog> {
         height: size,
         decoration: BoxDecoration(
           color: onTap != null
-              ? AppColors.primary.withOpacity(0.1)
+              ? AppColors.primary.withValues(alpha: 0.1)
               : AppColors.divider,
           borderRadius: BorderRadius.circular(10),
         ),

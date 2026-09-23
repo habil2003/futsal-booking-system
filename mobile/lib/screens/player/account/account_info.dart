@@ -56,7 +56,7 @@ class _AccountInfoScreenState
 
     try {
       final response = await ApiService.put(
-        'users/profile',
+        'auth/profile',
         {
           'fullName':
               _nameController.text.trim(),
@@ -72,6 +72,8 @@ class _AccountInfoScreenState
           context,
           listen: false,
         ).refreshUser();
+
+        if (!mounted) return;
 
         _showSnackBar(
           'Profile updated successfully',
@@ -166,11 +168,11 @@ class _AccountInfoScreenState
                             .bottomCenter,
                         colors: [
                           Colors.black
-                              .withOpacity(
+                              .withValues(alpha: 
                             0.25,
                           ),
                           Colors.black
-                              .withOpacity(
+                              .withValues(alpha: 
                             0.8,
                           ),
                         ],
@@ -194,24 +196,39 @@ class _AccountInfoScreenState
                                 const Color(
                               0xFF16A34A,
                             ),
-                            child: Text(
-                              user?.fullName
-                                      .substring(
-                                        0,
-                                        1,
+                            foregroundImage:
+                                (user?.profileImage !=
+                                        null &&
+                                    user!.profileImage!
+                                        .isNotEmpty)
+                                    ? NetworkImage(
+                                        user.profileImage!,
                                       )
-                                      .toUpperCase() ??
-                                  'U',
-                              style:
-                                  const TextStyle(
-                                color:
-                                    Colors.white,
-                                fontSize: 24,
-                                fontWeight:
-                                    FontWeight
-                                        .bold,
-                              ),
-                            ),
+                                    : null,
+                            child:
+                                (user?.profileImage ==
+                                            null ||
+                                        user!.profileImage!
+                                            .isEmpty)
+                                    ? Text(
+                                        user?.fullName
+                                                .substring(
+                                                  0,
+                                                  1,
+                                                )
+                                                .toUpperCase() ??
+                                            'U',
+                                        style:
+                                            const TextStyle(
+                                          color: Colors
+                                              .white,
+                                          fontSize: 24,
+                                          fontWeight:
+                                              FontWeight
+                                                  .bold,
+                                        ),
+                                      )
+                                    : null,
                           ),
                         ),
 
@@ -457,7 +474,7 @@ class _AccountInfoScreenState
         boxShadow: [
           BoxShadow(
             color:
-                Colors.black.withOpacity(0.05),
+                Colors.black.withValues(alpha: 0.05),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),

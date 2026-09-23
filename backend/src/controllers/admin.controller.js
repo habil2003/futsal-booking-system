@@ -89,6 +89,20 @@ export const getUsers = async (req, res, next) => {
   try {
     const users = await prisma.user.findMany({
       orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        phoneNumber: true,
+        profileImage: true,
+        role: true,
+        isApproved: true,
+        isActive: true,
+        isEmailVerified: true,
+        businessName: true,
+        panVatNumber: true,
+        createdAt: true,
+      },
     });
 
     res.json({
@@ -396,6 +410,7 @@ export const getAllFutsals = async (req, res, next) => {
             courtNumber: true,
             courtType: true,
             basePrice: true,
+            peakPrice: true,
             isActive: true,
           },
         },
@@ -444,7 +459,7 @@ export const getAllBookings = async (req, res, next) => {
     const bookings = await prisma.booking.findMany({
       where,
       include: {
-        user: { select: { fullName: true, email: true } },
+        user: { select: { fullName: true, email: true, phoneNumber: true, profileImage: true } },
         slot: {
           include: {
             court: {
@@ -476,6 +491,8 @@ export const getAllBookings = async (req, res, next) => {
       id: b.id,
       playerName: b.user?.fullName || 'N/A',
       playerEmail: b.user?.email || 'N/A',
+      playerPhone: b.user?.phoneNumber || 'N/A',
+      playerAvatar: b.user?.profileImage || null,
       futsalName: b.slot?.court?.futsal?.name || 'N/A',
       courtNumber: b.slot?.court?.courtNumber || 'N/A',
       date: b.slot?.date,
@@ -656,6 +673,7 @@ export const getAdminProfile = async (req, res, next) => {
         fullName: true,
         email: true,
         phoneNumber: true,
+        profileImage: true,
         role: true,
         createdAt: true,
       },
@@ -691,6 +709,7 @@ export const updateAdminProfile = async (req, res, next) => {
         fullName: true,
         email: true,
         phoneNumber: true,
+        profileImage: true,
         role: true,
         createdAt: true,
       },

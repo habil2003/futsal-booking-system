@@ -58,7 +58,7 @@ class CourtDialog {
 
                   // Court Type
                   DropdownButtonFormField(
-                    value: selectedCourtType,
+                    initialValue: selectedCourtType,
                     items: _courtTypes.map((type) {
                       return DropdownMenuItem(
                         value: type,

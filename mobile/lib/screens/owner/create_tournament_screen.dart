@@ -85,26 +85,6 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
     super.dispose();
   }
 
-  Future<void> _selectDate(BuildContext context, bool isStart) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: isStart
-          ? _startDate
-          : (_endDate ?? _startDate.add(const Duration(days: 30))),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-    );
-    if (picked != null) {
-      setState(() {
-        if (isStart) {
-          _startDate = picked;
-        } else {
-          _endDate = picked;
-        }
-      });
-    }
-  }
-
   Future<void> _saveTournament() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -220,7 +200,7 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
                     const SizedBox(height: 16),
                     // Futsal Selection
                     DropdownButtonFormField<int>(
-                      value: _selectedFutsalId,
+                      initialValue: _selectedFutsalId,
                       decoration: InputDecoration(
                         labelText: 'Select Futsal *',
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -409,7 +389,7 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
                 title: const Text('Publish Tournament'),
                 subtitle: const Text('Make tournament visible to players'),
                 value: _isPublished,
-                activeColor: Colors.green,
+                activeThumbColor: Colors.green,
                 onChanged: _isDraftLocked ? null : (value) => setState(() => _isPublished = value),
               ),
             ),

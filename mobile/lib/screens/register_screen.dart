@@ -20,7 +20,6 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _nameController = TextEditingController();
@@ -28,12 +27,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   // Owner business fields
   final _businessNameController = TextEditingController();
   final _panVatController = TextEditingController();
-  final _addressController = TextEditingController();
-  final _cityController = TextEditingController();
-  final _provinceController = TextEditingController();
 
   String _selectedRole = 'PLAYER';
-  String _selectedBusinessType = 'Individual Owner';
   bool _isSubmitting = false;
   bool _acceptTerms = false;
 
@@ -54,15 +49,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   void dispose() {
-    _usernameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _nameController.dispose();
     _businessNameController.dispose();
     _panVatController.dispose();
-    _addressController.dispose();
-    _cityController.dispose();
-    _provinceController.dispose();
     super.dispose();
   }
 
@@ -91,7 +82,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     try {
       final Map<String, dynamic> regData = {
-        'username': _usernameController.text.trim(),
         'email': _emailController.text.trim(),
         'password': _passwordController.text.trim(),
         'fullName': _nameController.text.trim(),
@@ -100,11 +90,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (_selectedRole == 'OWNER') {
         regData.addAll({
           'businessName': _businessNameController.text.trim(),
-          'businessType': _selectedBusinessType,
           'panVatNumber': _panVatController.text.trim(),
-          'address': _addressController.text.trim(),
-          'city': _cityController.text.trim(),
-          'province': _provinceController.text.trim(),
         });
       }
 
@@ -191,7 +177,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         borderRadius: BorderRadius.circular(25),
         boxShadow: [
           BoxShadow(
-            color: Colors.green.withOpacity(0.1),
+            color: Colors.green.withValues(alpha: 0.1),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -222,29 +208,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const SizedBox(height: 8),
               _buildTextField(_businessNameController, 'Business/Futsal Name'),
               const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                value: _selectedBusinessType,
-                decoration: const InputDecoration(
-                  labelText: 'Business Type',
-                  border: OutlineInputBorder(),
-                ),
-                items: const [
-                  DropdownMenuItem(
-                      value: 'Individual Owner', child: Text('Individual Owner')),
-                  DropdownMenuItem(value: 'Company', child: Text('Company')),
-                ],
-                onChanged: (val) {
-                  if (val != null) setState(() => _selectedBusinessType = val);
-                },
-              ),
-              const SizedBox(height: 12),
               _buildTextField(_panVatController, 'PAN/VAT Number (optional)'),
-              const SizedBox(height: 12),
-              _buildTextField(_addressController, 'Address'),
-              const SizedBox(height: 12),
-              _buildTextField(_cityController, 'City'),
-              const SizedBox(height: 12),
-              _buildTextField(_provinceController, 'Province'),
               const SizedBox(height: 12),
               CheckboxListTile(
                 value: _acceptTerms,

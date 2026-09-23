@@ -34,7 +34,6 @@ class _AddTeamsScreenState extends State<AddTeamsScreen>
   List<Team> _rejectedTeams = [];
 
   bool _isLoading = true;
-  String? _error;
 
   @override
   void initState() {
@@ -52,21 +51,14 @@ class _AddTeamsScreenState extends State<AddTeamsScreen>
   Future<void> _loadAllTeams() async {
     setState(() {
       _isLoading = true;
-      _error = null;
     });
 
     try {
-      print('📋 Loading teams for tournament ${widget.tournamentId}');
-
       final results = await Future.wait([
         ApiService.getList('tournaments/${widget.tournamentId}/teams/status/PENDING'),
         ApiService.getList('tournaments/${widget.tournamentId}/teams/status/APPROVED'),
         ApiService.getList('tournaments/${widget.tournamentId}/teams/status/REJECTED'),
       ]);
-
-      print('📋 PENDING: ${results[0].length} teams');
-      print('📋 APPROVED: ${results[1].length} teams');
-      print('📋 REJECTED: ${results[2].length} teams');
 
       setState(() {
         _pendingTeams = results[0].map((json) => Team.fromJson(json)).toList();
@@ -75,9 +67,7 @@ class _AddTeamsScreenState extends State<AddTeamsScreen>
         _isLoading = false;
       });
     } catch (e) {
-      print('❌ Error loading teams: $e');
       setState(() {
-        _error = e.toString();
         _isLoading = false;
       });
     }
@@ -107,6 +97,8 @@ class _AddTeamsScreenState extends State<AddTeamsScreen>
     try {
       // FIXED: Correct endpoint with 'tournaments/' prefix
       final response = await ApiService.patch('tournaments/teams/${team.id}/approve', {});
+
+      if (!mounted) return;
 
       if (response['status'] == 'success') {
         setState(() {
@@ -144,6 +136,7 @@ class _AddTeamsScreenState extends State<AddTeamsScreen>
         );
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
@@ -194,6 +187,8 @@ class _AddTeamsScreenState extends State<AddTeamsScreen>
       // FIXED: Correct endpoint with 'reject' not 'approve'
       final response = await ApiService.patch('tournaments/teams/${team.id}/reject', {'reason': rejectReason});
 
+      if (!mounted) return;
+
       if (response['status'] == 'success') {
         setState(() {
           _pendingTeams.removeWhere((t) => t.id == team.id);
@@ -230,6 +225,7 @@ class _AddTeamsScreenState extends State<AddTeamsScreen>
         );
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
@@ -268,10 +264,14 @@ class _AddTeamsScreenState extends State<AddTeamsScreen>
 
     if (confirm != true) return;
 
+    if (!mounted) return;
+
     setState(() => _isLoading = true);
 
     final provider = Provider.of<TournamentProvider>(context, listen: false);
     final response = await provider.generateFixtures(widget.tournamentId);
+
+    if (!mounted) return;
 
     setState(() => _isLoading = false);
 
@@ -284,6 +284,8 @@ class _AddTeamsScreenState extends State<AddTeamsScreen>
       );
 
       await provider.loadTournament(widget.tournamentId);
+
+      if (!mounted) return;
 
       Navigator.pop(context);
 
@@ -401,8 +403,8 @@ class _AddTeamsScreenState extends State<AddTeamsScreen>
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: Colors.red.shade200),
               ),
-              child: Row(
-                children: const [
+              child: const Row(
+                children: [
                   Icon(Icons.warning_amber, color: Colors.red),
                   SizedBox(width: 8),
                   Expanded(

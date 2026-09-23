@@ -42,8 +42,8 @@ class AboutScreen extends StatelessWidget {
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          Colors.black.withOpacity(0.3),
-                          Colors.black.withOpacity(0.7),
+                          Colors.black.withValues(alpha: 0.3),
+                          Colors.black.withValues(alpha: 0.7),
                         ],
                       ),
                     ),
@@ -190,9 +190,9 @@ class AboutScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 30),
-                  Center(
+                  const Center(
                     child: Column(
-                      children: const [
+                      children: [
                         Text(
                           '⚽ Play More. Worry Less.',
                           style: TextStyle(
@@ -234,7 +234,7 @@ class AboutScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -303,7 +303,7 @@ class FeatureCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),

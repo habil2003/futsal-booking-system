@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/admin_provider.dart';
+import '../../widgets/admin/admin_header_actions.dart';
 
 class AdminBookingsScreen extends StatefulWidget {
-  const AdminBookingsScreen({super.key});
+  const AdminBookingsScreen({super.key, this.onOpenDrawer});
+
+  final VoidCallback? onOpenDrawer;
 
   @override
   State<AdminBookingsScreen> createState() => _AdminBookingsScreenState();
@@ -106,10 +109,14 @@ class _AdminBookingsScreenState extends State<AdminBookingsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('All Bookings'),
+        leading: widget.onOpenDrawer != null
+            ? AdminMenuButton(onPressed: widget.onOpenDrawer!)
+            : null,
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         centerTitle: true,
         actions: [
+          const AdminNotificationButton(),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () => _loadBookings(page: _currentPage),
@@ -340,7 +347,7 @@ class _AdminBookingsScreenState extends State<AdminBookingsScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: _statusColor(bookingStatus).withOpacity(0.1),
+                    color: _statusColor(bookingStatus).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -360,24 +367,51 @@ class _AdminBookingsScreenState extends State<AdminBookingsScreen> {
             // Player info
             Row(
               children: [
+                if (booking['playerAvatar'] != null &&
+                    booking['playerAvatar'].toString().isNotEmpty) ...[
+                  CircleAvatar(
+                    radius: 10,
+                    backgroundImage: NetworkImage(booking['playerAvatar'].toString()),
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 Icon(Icons.person_outline,
                     size: 14, color: Colors.grey.shade500),
                 const SizedBox(width: 4),
-                Text(
-                  booking['playerName'] ?? 'Unknown',
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                Flexible(
+                  child: Text(
+                    booking['playerName'] ?? 'Unknown',
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Icon(Icons.email_outlined,
                     size: 14, color: Colors.grey.shade500),
                 const SizedBox(width: 4),
-                Expanded(
+                Flexible(
                   child: Text(
                     booking['playerEmail'] ?? '',
                     style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                if (booking['playerPhone'] != null &&
+                    booking['playerPhone'].toString().isNotEmpty &&
+                    booking['playerPhone'].toString() != 'N/A') ...[
+                  const SizedBox(width: 8),
+                  Icon(Icons.phone_outlined,
+                      size: 14, color: Colors.grey.shade500),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      booking['playerPhone'].toString(),
+                      style:
+                          TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ],
             ),
 
@@ -473,7 +507,7 @@ class _AdminBookingsScreenState extends State<AdminBookingsScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: _paymentColor(paymentStatus).withOpacity(0.1),
+                    color: _paymentColor(paymentStatus).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(

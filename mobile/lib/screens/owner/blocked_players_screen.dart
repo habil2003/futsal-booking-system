@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/block_provider.dart';
-import '../../providers/futsal_provider.dart';
 import '../../models/block.dart';
 
 class BlockedPlayersScreen extends StatefulWidget {
@@ -214,7 +213,7 @@ class _BlockedPlayersScreenState extends State<BlockedPlayersScreen> {
 
                 if (confirm == true) {
                   final result = await provider.unblockPlayer(block.playerId, widget.futsalId);
-                  if (mounted) {
+                  if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(result['message']),

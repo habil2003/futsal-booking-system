@@ -21,7 +21,6 @@ class BookingBar extends StatelessWidget {
     if (selectedSlot == null || selectedDate == null) return const SizedBox.shrink();
 
     final price = SlotHelpers.getSlotPrice(selectedSlot!);
-    final time = selectedSlot!['startTime'] ?? '';
     final court = SlotHelpers.getCourtNumber(selectedSlot!);
 
     // Format the selected date, e.g. "24 Nov 2025"
@@ -33,7 +32,7 @@ class BookingBar extends StatelessWidget {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, -5),
           ),
@@ -62,7 +61,7 @@ class BookingBar extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.1),
+                    color: AppColors.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -124,7 +123,7 @@ class BookingBar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.05),
+        color: AppColors.primary.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.divider),
       ),

@@ -37,7 +37,7 @@ class _TournamentsScreenState extends State<TournamentsScreen>
   Future<void> _fetchTournaments() async {
     try {
       final response = await ApiService.getList('tournaments/published');
-      _allTournaments = (response as List)
+      _allTournaments = (response)
           .map((t) => {
                 'id': t['id'],
                 'name': t['name'],
@@ -121,7 +121,6 @@ class _TournamentsScreenState extends State<TournamentsScreen>
 
   @override
   Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
     
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -143,7 +142,7 @@ class _TournamentsScreenState extends State<TournamentsScreen>
             style: const TextStyle(fontSize: 16, color: AppColors.onBackground),
             decoration: InputDecoration(
               hintText: 'Search tournaments...',
-              hintStyle: TextStyle(color: AppColors.secondaryText, fontSize: 15),
+              hintStyle: const TextStyle(color: AppColors.secondaryText, fontSize: 15),
               prefixIcon: const Icon(Icons.search_rounded, color: AppColors.primary, size: 22),
               suffixIcon: _searchQuery.isNotEmpty
                   ? IconButton(
@@ -199,13 +198,13 @@ class _TournamentsScreenState extends State<TournamentsScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.search_off, size: 64, color: AppColors.secondaryText),
+            const Icon(Icons.search_off, size: 64, color: AppColors.secondaryText),
             const SizedBox(height: 16),
             Text(
               _searchQuery.isNotEmpty
                   ? 'No tournaments match your search'
                   : 'No tournaments found.',
-              style: TextStyle(color: AppColors.secondaryText),
+              style: const TextStyle(color: AppColors.secondaryText),
             ),
           ],
         ),
@@ -231,20 +230,24 @@ class _TournamentsScreenState extends State<TournamentsScreen>
     final currentTeams = tournament['currentTeams'] ?? 0;
     final maxTeams = tournament['maxTeams'] ?? 0;
     final isFull = currentTeams >= maxTeams;
+    // Registration is only open while the tournament is still in DRAFT
+    // and has remaining capacity. ONGOING/COMPLETED tournaments reject
+    // registrations on the backend.
+    final canRegister = status == 'DRAFT' && !isFull;
 
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppColors.accentPurple, const Color(0xFF4338CA)],
+        gradient: const LinearGradient(
+          colors: [AppColors.accentPurple, Color(0xFF4338CA)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: AppColors.accentPurple.withOpacity(0.2),
+            color: AppColors.accentPurple.withValues(alpha: 0.2),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -258,7 +261,7 @@ class _TournamentsScreenState extends State<TournamentsScreen>
             child: Icon(
               Icons.emoji_events,
               size: 100,
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withValues(alpha: 0.1),
             ),
           ),
           Padding(
@@ -271,13 +274,13 @@ class _TournamentsScreenState extends State<TournamentsScreen>
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.25),
+                      color: statusColor.withValues(alpha: 0.25),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: statusColor.withOpacity(0.6)),
+                      border: Border.all(color: statusColor.withValues(alpha: 0.6)),
                     ),
                     child: Text(
                       statusLabel,
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
@@ -299,9 +302,13 @@ class _TournamentsScreenState extends State<TournamentsScreen>
                   children: [
                     const Icon(Icons.calendar_today_rounded, size: 14, color: Colors.white70),
                     const SizedBox(width: 6),
-                    Text(
-                      dateStr,
-                      style: const TextStyle(color: Colors.white70),
+                    Expanded(
+                      child: Text(
+                        dateStr,
+                        style: const TextStyle(color: Colors.white70),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ],
                 ),
@@ -310,9 +317,13 @@ class _TournamentsScreenState extends State<TournamentsScreen>
                   children: [
                     const Icon(Icons.emoji_events_rounded, size: 14, color: Colors.amber),
                     const SizedBox(width: 6),
-                    Text(
-                      'Prize: ${tournament['prize']}',
-                      style: const TextStyle(color: Colors.white70),
+                    Expanded(
+                      child: Text(
+                        'Prize: ${tournament['prize']}',
+                        style: const TextStyle(color: Colors.white70),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ],
                 ),
@@ -322,9 +333,13 @@ class _TournamentsScreenState extends State<TournamentsScreen>
                   children: [
                     const Icon(Icons.people, size: 14, color: Colors.white70),
                     const SizedBox(width: 6),
-                    Text(
-                      'Teams: $currentTeams/$maxTeams',
-                      style: const TextStyle(color: Colors.white70),
+                    Expanded(
+                      child: Text(
+                        'Teams: $currentTeams/$maxTeams',
+                        style: const TextStyle(color: Colors.white70),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ],
                 ),
@@ -332,7 +347,7 @@ class _TournamentsScreenState extends State<TournamentsScreen>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    // Show FULL badge or Register button
+                    // Show FULL badge, Closed badge, or Register button
                     if (isFull)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -345,6 +360,21 @@ class _TournamentsScreenState extends State<TournamentsScreen>
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      )
+                    else if (!canRegister)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Text(
+                          'Registration Closed',
+                          style: TextStyle(
+                            color: AppColors.accentPurple,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       )
@@ -372,6 +402,7 @@ class _TournamentsScreenState extends State<TournamentsScreen>
                             final tData = tournamentData['tournament'];
                             final currentTeamsCount = tData['teams']?.length ?? 0;
                             final maxTeamsCount = tData['maxTeams'] ?? 0;
+                            if (!mounted) return;
                             
                             setState(() => _isLoading = false);
                             
@@ -389,6 +420,8 @@ class _TournamentsScreenState extends State<TournamentsScreen>
                             // Check if player already has a team
                             final response = await ApiService.get(
                                 'tournaments/${tournament['id']}/my-team');
+
+                            if (!mounted) return;
 
                             if (response['status'] == 'success' && response['hasTeam'] == true) {
                               Navigator.push(
@@ -415,6 +448,7 @@ class _TournamentsScreenState extends State<TournamentsScreen>
                               }
                             }
                           } catch (e) {
+                            if (!mounted) return;
                             setState(() => _isLoading = false);
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(

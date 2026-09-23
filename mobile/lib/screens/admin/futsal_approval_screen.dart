@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/admin_provider.dart';
 import 'package:flutter/services.dart';
+import '../../widgets/admin/admin_header_actions.dart';
 
 class FutsalApprovalScreen extends StatefulWidget {
-  const FutsalApprovalScreen({super.key});
+  const FutsalApprovalScreen({super.key, this.onOpenDrawer});
+
+  final VoidCallback? onOpenDrawer;
 
   @override
   State<FutsalApprovalScreen> createState() => _FutsalApprovalScreenState();
@@ -25,6 +28,14 @@ class _FutsalApprovalScreenState extends State<FutsalApprovalScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Futsal Approvals"),
+        leading: widget.onOpenDrawer != null
+            ? AdminMenuButton(onPressed: widget.onOpenDrawer!)
+            : null,
+        backgroundColor: Colors.green,
+        foregroundColor: Colors.white,
+        actions: const [
+          AdminNotificationButton(),
+        ],
       ),
       body: Consumer<AdminProvider>(
         builder: (context, adminProvider, child) {
@@ -211,6 +222,7 @@ class _FutsalApprovalScreenState extends State<FutsalApprovalScreen> {
                               ),
                               const SizedBox(height: 6),
                               ...(futsal['courts'] as List).map((court) {
+                                final peak = court['peakPrice'];
                                 return Padding(
                                   padding: const EdgeInsets.only(bottom: 4),
                                   child: Row(
@@ -220,7 +232,9 @@ class _FutsalApprovalScreenState extends State<FutsalApprovalScreen> {
                                           color: Colors.green.shade600),
                                       const SizedBox(width: 6),
                                       Text(
-                                        'Court ${court['courtNumber']} • ${court['courtType']}',
+                                        'Court ${court['courtNumber']} • ${court['courtType']} • '
+                                        'रू${court['basePrice']}'
+                                        '${peak != null ? ' / रू$peak' : ''}',
                                         style: const TextStyle(fontSize: 13),
                                       ),
                                       const Spacer(),
@@ -339,13 +353,12 @@ class _FutsalApprovalScreenState extends State<FutsalApprovalScreen> {
                                   onPressed: () async {
                                     final result = await adminProvider
                                         .approveFutsal(futsal['id']);
-                                    if (mounted) {
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        SnackBar(
-                                            content: Text(result['message'])),
-                                      );
-                                    }
+                                    if (!context.mounted) return;
+                                    ScaffoldMessenger.of(context)
+                                        .showSnackBar(
+                                      SnackBar(
+                                          content: Text(result['message'])),
+                                    );
                                   },
                                 ),
                               ],
@@ -394,14 +407,17 @@ class _FutsalApprovalScreenState extends State<FutsalApprovalScreen> {
                   ),
                   child: const Text("Reject"),
                   onPressed: () async {
+                    final messenger = ScaffoldMessenger.of(context);
                     final result = await adminProvider.rejectFutsal(
                       futsalId,
                       reasonController.text,
                     );
 
+                    if (!context.mounted) return;
+
                     Navigator.pop(context);
 
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    messenger.showSnackBar(
                       SnackBar(
                         content: Text(result["message"]),
                       ),

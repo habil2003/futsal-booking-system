@@ -249,13 +249,63 @@ export const createFutsal = async (req, res) => {
       images,
       latitude,
       longitude,
-      operatingHours, // ← ADDED operatingHours
+      operatingHours,
+      courts,
     } = req.body;
 
     if (!name || !address) {
       return res.status(400).json({
         status: "error",
         message: "Please provide name and address",
+      });
+    }
+
+    // ── Minimum viable listing (anti-spam + approval basis) ──
+    if (!images || !Array.isArray(images) || images.length === 0) {
+      return res.status(400).json({
+        status: "error",
+        message: "Please upload at least one photo of your futsal",
+      });
+    }
+    if (
+      latitude === undefined ||
+      latitude === null ||
+      isNaN(parseFloat(latitude)) ||
+      longitude === undefined ||
+      longitude === null ||
+      isNaN(parseFloat(longitude))
+    ) {
+      return res.status(400).json({
+        status: "error",
+        message: "Please set your futsal location using GPS",
+      });
+    }
+    if (!courts || !Array.isArray(courts) || courts.length === 0) {
+      return res.status(400).json({
+        status: "error",
+        message: "Add at least one court to your futsal",
+      });
+    }
+    const validCourts = courts
+      .filter(
+        (c) =>
+          c &&
+          c.courtNumber &&
+          c.courtType &&
+          c.basePrice !== undefined &&
+          c.basePrice !== null
+      )
+      .map((c) => ({
+        courtNumber: String(c.courtNumber).trim(),
+        courtType: String(c.courtType).trim(),
+        basePrice: parseFloat(c.basePrice),
+        peakPrice: c.peakPrice != null ? parseFloat(c.peakPrice) : null,
+        amenities: Array.isArray(c.amenities) ? c.amenities : [],
+      }));
+    if (validCourts.length === 0) {
+      return res.status(400).json({
+        status: "error",
+        message: "Each court needs a number, type, and base price",
       });
     }
 
@@ -266,23 +316,44 @@ export const createFutsal = async (req, res) => {
       });
     }
 
-    const futsal = await prisma.futsal.create({
-      data: {
-        name,
-        description,
-        address,
-        images: images || [],
-        latitude: latitude ? parseFloat(latitude) : null,
-        longitude: longitude ? parseFloat(longitude) : null,
-        operatingHours: operatingHours || null, // ← ADDED operatingHours
-        ownerId: req.user.id,
-        status: 'PENDING',
-      },
+    // ── Honor the auto-approve system setting ──
+    let shouldAutoApprove = false;
+    try {
+      const settings = await prisma.systemSettings.findFirst();
+      shouldAutoApprove = settings?.autoApproveFutsals === true;
+    } catch (_) {}
+
+    const status = shouldAutoApprove ? "ACTIVE" : "PENDING";
+    const isApproved = shouldAutoApprove;
+
+    const futsal = await prisma.$transaction(async (tx) => {
+      const created = await tx.futsal.create({
+        data: {
+          name,
+          description,
+          address,
+          images: images || [],
+          latitude: parseFloat(latitude),
+          longitude: parseFloat(longitude),
+          operatingHours: operatingHours || null,
+          ownerId: req.user.id,
+          status,
+          isApproved,
+        },
+      });
+
+      await tx.court.createMany({
+        data: validCourts.map((c) => ({ ...c, futsalId: created.id })),
+      });
+
+      return created;
     });
 
     res.status(201).json({
       status: "success",
-      message: "Futsal created successfully. Waiting for admin approval.",
+      message: shouldAutoApprove
+        ? "Futsal created and approved."
+        : "Futsal created successfully. Waiting for admin approval.",
       futsal,
     });
   } catch (error) {
@@ -313,42 +384,92 @@ export const updateFutsal = async (req, res) => {
       toggleActive, // For toggling
     } = req.body;
 
-    const existingFutsal = await prisma.futsal.findFirst({
-      where: {
-        id: parseInt(id),
-        ownerId: req.user.id,
-      },
+    const existingFutsal = await prisma.futsal.findUnique({
+      where: { id: parseInt(id) },
     });
 
-    if (!existingFutsal && req.user.role !== "ADMIN") {
+    if (!existingFutsal) {
+      return res.status(404).json({
+        status: "error",
+        message: "Futsal not found",
+      });
+    }
+
+    if (existingFutsal.ownerId !== req.user.id && req.user.role !== "ADMIN") {
       return res.status(404).json({
         status: "error",
         message: "Futsal not found or you do not have permission",
       });
     }
 
-    // Handle toggle active - if toggleActive is true, flip the status
-    let newStatus = status;
-    if (toggleActive) {
-      newStatus = existingFutsal.status === 'ACTIVE' ? 'DEACTIVATED' : 'ACTIVE';
-    } 
-    // Handle old isApproved for backward compatibility
-    else if (isApproved !== undefined) {
-      newStatus = isApproved ? 'ACTIVE' : 'DEACTIVATED';
+    const isAdmin = req.user.role === "ADMIN";
+
+    // ── Status changes: ADMIN only, or owner operational ACTIVE<->DEACTIVATED ──
+    let newStatus;
+    if (isAdmin) {
+      if (toggleActive) {
+        newStatus = existingFutsal.status === 'ACTIVE' ? 'DEACTIVATED' : 'ACTIVE';
+      } else if (isApproved !== undefined) {
+        newStatus = isApproved ? 'ACTIVE' : 'DEACTIVATED';
+      }
+      newStatus = newStatus ?? status;
+    } else {
+      // Owner can never set approval status directly
+      if (status !== undefined || isApproved !== undefined) {
+        return res.status(403).json({
+          status: "error",
+          message: "You cannot change approval status",
+        });
+      }
+      // Owner may flip between ACTIVE and DEACTIVATED (self-managed),
+      // but can NEVER promote a PENDING futsal (no self-approval)
+      if (toggleActive) {
+        if (
+          existingFutsal.status !== 'ACTIVE' &&
+          existingFutsal.status !== 'DEACTIVATED'
+        ) {
+          return res.status(403).json({
+            status: "error",
+            message: "This futsal is awaiting admin approval",
+          });
+        }
+        newStatus = existingFutsal.status === 'ACTIVE' ? 'DEACTIVATED' : 'ACTIVE';
+      }
     }
+
+    // ── Identity detail edits re-flag PENDING for admin review ──
+    const editingDetails =
+      name !== undefined ||
+      description !== undefined ||
+      address !== undefined ||
+      images !== undefined ||
+      latitude !== undefined ||
+      longitude !== undefined ||
+      operatingHours !== undefined;
+
+    if (!isAdmin && editingDetails && newStatus === undefined) {
+      if (
+        existingFutsal.status === 'ACTIVE' ||
+        existingFutsal.status === 'DEACTIVATED'
+      ) {
+        newStatus = 'PENDING';
+      }
+    }
+
+    const data = {};
+    if (name !== undefined) data.name = name;
+    if (description !== undefined) data.description = description;
+    if (address !== undefined) data.address = address;
+    if (images !== undefined) data.images = images;
+    if (latitude !== undefined) data.latitude = latitude ? parseFloat(latitude) : undefined;
+    if (longitude !== undefined) data.longitude = longitude ? parseFloat(longitude) : undefined;
+    if (operatingHours !== undefined) data.operatingHours = operatingHours;
+    if (newStatus !== undefined) data.status = newStatus;
+    if (isAdmin && isApproved !== undefined) data.isApproved = isApproved;
 
     const futsal = await prisma.futsal.update({
       where: { id: parseInt(id) },
-      data: {
-        name,
-        description,
-        address,
-        images,
-        latitude: latitude ? parseFloat(latitude) : undefined,
-        longitude: longitude ? parseFloat(longitude) : undefined,
-        operatingHours: operatingHours !== undefined ? operatingHours : undefined,
-        status: newStatus !== undefined ? newStatus : undefined,
-      },
+      data,
     });
 
     res.json({

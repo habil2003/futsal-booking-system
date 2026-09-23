@@ -3,6 +3,7 @@ class User {
   final String email;
   final String fullName;
   final String? phoneNumber;
+  final String? profileImage;
   final String role;
   final bool isApproved;
   final DateTime? createdAt;  // ← ADD
@@ -12,6 +13,7 @@ class User {
     required this.email,
     required this.fullName,
     this.phoneNumber,
+    this.profileImage,
     required this.role,
     required this.isApproved,
     this.createdAt,  // ← ADD
@@ -23,6 +25,7 @@ class User {
       email: json['email'],
       fullName: json['fullName'],
       phoneNumber: json['phoneNumber'],
+      profileImage: json['profileImage'],
       role: json['role'],
       isApproved: json['isApproved'],
       createdAt: json['createdAt'] != null  // ← ADD
@@ -37,10 +40,12 @@ class User {
       'email': email,
       'fullName': fullName,
       'phoneNumber': phoneNumber,
+      'profileImage': profileImage,
       'role': role,
       'isApproved': isApproved,
       'createdAt': createdAt?.toIso8601String(),  // ← ADD
     };
   }
 }
+
 

@@ -134,7 +134,7 @@ export const getTodayBookings = async (req, res) => {
         status: { notIn: ["CANCELLED"] }, // ✅ show all non-cancelled
       },
       include: {
-        user: { select: { id: true, fullName: true, phoneNumber: true } },
+        user: { select: { id: true, fullName: true, phoneNumber: true, email: true, profileImage: true } },
         slot: { include: { court: { select: { courtNumber: true } } } },
         payment: true,
       },
@@ -147,6 +147,8 @@ export const getTodayBookings = async (req, res) => {
       userId: booking.user.id,
       customerName: booking.user.fullName,
       customerPhone: booking.user.phoneNumber,
+      customerEmail: booking.user.email,
+      customerAvatar: booking.user.profileImage,
       courtNumber: booking.slot.court.courtNumber,
       date: booking.slot.date, // ✅ slot date not booking date
       startTime: booking.slot.startTime,
@@ -362,6 +364,8 @@ export const getOwnerUpcomingBookings = async (req, res) => {
             id: true,
             fullName: true,
             phoneNumber: true,
+            email: true,
+            profileImage: true,
           },
         },
         slot: {
@@ -383,6 +387,8 @@ export const getOwnerUpcomingBookings = async (req, res) => {
       userId: booking.user.id,
       customerName: booking.user.fullName,
       customerPhone: booking.user.phoneNumber,
+      customerEmail: booking.user.email,
+      customerAvatar: booking.user.profileImage,
       courtNumber: booking.slot.court.courtNumber,
       date: booking.slot.date,
       startTime: booking.slot.startTime,
@@ -449,7 +455,11 @@ export const getMonthBookings = async (req, res) => {
       include: {
         user: {
           select: {
+            id: true,
             fullName: true,
+            phoneNumber: true,
+            email: true,
+            profileImage: true,
           },
         },
         slot: {
@@ -469,7 +479,11 @@ export const getMonthBookings = async (req, res) => {
 
     const formattedBookings = bookings.map((booking) => ({
       id: booking.id,
+      userId: booking.user.id,
       customerName: booking.user.fullName,
+      customerPhone: booking.user.phoneNumber,
+      customerEmail: booking.user.email,
+      customerAvatar: booking.user.profileImage,
       courtNumber: booking.slot.court.courtNumber,
       date: booking.slot.date,
       startTime: booking.slot.startTime,
@@ -521,7 +535,7 @@ export const getOwnerPastBookings = async (req, res) => {
         status: { in: ["COMPLETED", "CANCELLED"] },
       },
       include: {
-        user: { select: { id: true, fullName: true, phoneNumber: true } },
+        user: { select: { id: true, fullName: true, phoneNumber: true, email: true, profileImage: true } },
         slot: { include: { court: { select: { courtNumber: true } } } },
         payment: true,
       },
@@ -533,6 +547,8 @@ export const getOwnerPastBookings = async (req, res) => {
       userId: booking.userId,
       customerName: booking.user.fullName,
       customerPhone: booking.user.phoneNumber,
+      customerEmail: booking.user.email,
+      customerAvatar: booking.user.profileImage,
       courtNumber: booking.slot.court.courtNumber,
       date: booking.slot.date,
       startTime: booking.slot.startTime,
@@ -598,6 +614,7 @@ export const getFutsalCustomers = async (req, res) => {
             fullName: true,
             email: true,
             phoneNumber: true,
+            profileImage: true,
           },
         },
         slot: {
@@ -646,6 +663,7 @@ export const getFutsalCustomers = async (req, res) => {
           name: booking.user.fullName,
           email: booking.user.email,
           phone: booking.user.phoneNumber,
+          avatar: booking.user.profileImage,
           totalBookings: 0,
           totalSpent: 0,
           lastBooking: null,

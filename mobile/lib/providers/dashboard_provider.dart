@@ -74,12 +74,10 @@ class DashboardProvider with ChangeNotifier {
     try {
       final response = await ApiService.getDashboardTodayBookings(futsalId);
       
-      if (response is List) {
-        _todayBookingsList = response
-            .map((json) => Booking.fromJson(json))
-            .toList();
-      }
-      
+      _todayBookingsList = response
+          .map((json) => Booking.fromJson(json))
+          .toList();
+          
       debugPrint('📊 Today\'s Bookings: ${_todayBookingsList.length} bookings');
     } catch (e) {
       debugPrint('📊 Today Bookings Error: $e');
@@ -92,14 +90,11 @@ class DashboardProvider with ChangeNotifier {
     try {
       final response = await ApiService.getWeeklyRevenue(futsalId);
       
-      if (response is List) {
-        _weeklyRevenue = response.map((value) {
-          if (value is int) return value.toDouble();
-          if (value is double) return value;
-          return 0.0;
-        }).toList();
-      }
-      
+      _weeklyRevenue = response.map((value) {
+        if (value is int) return value.toDouble();
+        return value;
+      }).toList();
+          
       debugPrint('📊 Weekly Revenue: $_weeklyRevenue');
     } catch (e) {
       debugPrint('📊 Weekly Revenue Error: $e');
@@ -112,10 +107,8 @@ class DashboardProvider with ChangeNotifier {
     try {
       final response = await ApiService.getPeakHours(futsalId);
       
-      if (response is Map) {
-        _peakHours = Map<String, int>.from(response);
-      }
-      
+      _peakHours = Map<String, int>.from(response);
+          
       debugPrint('📊 Peak Hours: $_peakHours');
     } catch (e) {
       debugPrint('📊 Peak Hours Error: $e');

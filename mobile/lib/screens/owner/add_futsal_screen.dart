@@ -6,6 +6,7 @@ import '../../providers/futsal_provider.dart';
 import '../../services/api_service.dart';
 import 'dart:typed_data';
 import '../../widgets/operating_hours_input.dart';
+import 'court_management/widgets/court_dialog.dart';
 
 class AddFutsalScreen extends StatefulWidget {
   final Map<String, dynamic>? futsalToEdit;
@@ -27,6 +28,9 @@ class _AddFutsalScreenState extends State<AddFutsalScreen> {
 
   // Operating Hours
   Map<String, dynamic> _operatingHours = {};
+
+  // Courts (collected during creation so admin reviews a complete listing)
+  final List<Map<String, dynamic>> _courts = [];
 
   // Images
   final List<XFile> _newImages = []; // newly picked images
@@ -90,6 +94,20 @@ class _AddFutsalScreenState extends State<AddFutsalScreen> {
 
   void _removeExistingImage(int index) {
     setState(() => _existingImageUrls.removeAt(index));
+  }
+
+  // ============================================
+  // COURTS
+  // ============================================
+  Future<void> _addCourt() async {
+    final court = await CourtDialog.show(context: context);
+    if (court != null) {
+      setState(() => _courts.add(court));
+    }
+  }
+
+  void _removeCourt(int index) {
+    setState(() => _courts.removeAt(index));
   }
 
   // ============================================
@@ -158,6 +176,37 @@ class _AddFutsalScreenState extends State<AddFutsalScreen> {
     if (!_formKey.currentState!.validate()) return;
     if (_isSubmitting) return;
 
+    if (!_isEditing) {
+      if (_newImages.isEmpty && _existingImageUrls.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please add at least one photo of your futsal.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+      if (!_locationSet) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please set your location using GPS.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+      if (_courts.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'Add at least one court so admin can approve your listing.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+    }
+
     setState(() => _isSubmitting = true);
 
     try {
@@ -169,6 +218,8 @@ class _AddFutsalScreenState extends State<AddFutsalScreen> {
           throw Exception('Image upload failed');
         }
       }
+
+      if (!mounted) return;
 
       // Step 2: Combine existing + newly uploaded URLs
       final allImageUrls = [..._existingImageUrls, ...uploadedUrls];
@@ -184,6 +235,16 @@ class _AddFutsalScreenState extends State<AddFutsalScreen> {
         if (_latitude != null) 'latitude': _latitude,
         if (_longitude != null) 'longitude': _longitude,
         'operatingHours': _operatingHours.isNotEmpty ? _operatingHours : null,
+        if (!_isEditing)
+          'courts': _courts
+              .map((c) => {
+                    'courtNumber': c['courtNumber'],
+                    'courtType': c['courtType'],
+                    'basePrice': c['basePrice'],
+                    'peakPrice': c['peakPrice'],
+                    'amenities': c['amenities'] ?? [],
+                  })
+              .toList(),
       };
 
       // Step 4: Create or update futsal
@@ -311,6 +372,12 @@ class _AddFutsalScreenState extends State<AddFutsalScreen> {
               ),
               const SizedBox(height: 24),
 
+              // Courts section (create mode only)
+              if (!_isEditing) ...[
+                _buildCourtsSection(),
+                const SizedBox(height: 24),
+              ],
+
               // Info box
               Container(
                 padding: const EdgeInsets.all(12),
@@ -326,7 +393,7 @@ class _AddFutsalScreenState extends State<AddFutsalScreen> {
                     Expanded(
                       child: Text(
                         _isEditing
-                            ? 'Changes will be updated immediately.'
+                            ? 'Changes to your futsal details will be reviewed by admin before going live.'
                             : 'Your futsal will need admin approval before players can see it.',
                         style: TextStyle(color: Colors.blue.shade700),
                       ),
@@ -365,6 +432,83 @@ class _AddFutsalScreenState extends State<AddFutsalScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // ============================================
+  // COURTS SECTION WIDGET
+  // ============================================
+  Widget _buildCourtsSection() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Courts (${_courts.length})',
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              TextButton.icon(
+                onPressed: _addCourt,
+                icon: const Icon(Icons.add, color: Colors.green),
+                label:
+                    const Text('Add Court', style: TextStyle(color: Colors.green)),
+              ),
+            ],
+          ),
+          if (_courts.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                'Add at least one court (type & price) for approval.',
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+              ),
+            )
+          else
+            ..._courts.asMap().entries.map(
+                  (entry) => Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    elevation: 0,
+                    color: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: BorderSide(color: Colors.grey.shade200),
+                    ),
+                    child: ListTile(
+                      dense: true,
+                      leading: CircleAvatar(
+                        radius: 18,
+                        backgroundColor: Colors.green.shade100,
+                        child: const Icon(Icons.sports_soccer,
+                            size: 18, color: Colors.green),
+                      ),
+                      title: Text(
+                        'Court ${entry.value['courtNumber']} • ${entry.value['courtType']}',
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                      subtitle: Text(
+                        'Base रू${entry.value['basePrice']}'
+                        '${entry.value['peakPrice'] != null ? ' / Peak रू${entry.value['peakPrice']}' : ''} per hour',
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete_outline,
+                            color: Colors.red, size: 20),
+                        onPressed: () => _removeCourt(entry.key),
+                      ),
+                    ),
+                  ),
+                ),
+        ],
       ),
     );
   }

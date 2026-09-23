@@ -49,14 +49,6 @@ class _ChangePasswordDialogState
 
       if (!mounted) return;
 
-      if (response == null) {
-        _showSnackBar(
-          'Server error. Please try again.',
-          Colors.red,
-        );
-        return;
-      }
-
       if (response['status'] == 'success') {
         _showSnackBar(
           'Password changed successfully',
@@ -117,7 +109,7 @@ class _ChangePasswordDialogState
           borderRadius: BorderRadius.circular(30),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: Colors.black.withValues(alpha: 0.08),
               blurRadius: 20,
               offset: const Offset(0, 10),
             ),

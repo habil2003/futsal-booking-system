@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/admin_provider.dart';
+import '../../widgets/admin/admin_header_actions.dart';
 
 class AdminUsersScreen extends StatefulWidget {
-  const AdminUsersScreen({super.key});
+  const AdminUsersScreen({super.key, this.onOpenDrawer});
+
+  final VoidCallback? onOpenDrawer;
 
   @override
   State<AdminUsersScreen> createState() => _AdminUsersScreenState();
@@ -27,10 +30,14 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('All Users'),
+        leading: widget.onOpenDrawer != null
+            ? AdminMenuButton(onPressed: widget.onOpenDrawer!)
+            : null,
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         centerTitle: true,
         actions: [
+          const AdminNotificationButton(),
           Consumer<AdminProvider>(
             builder: (context, adminProvider, _) {
               final blockedCount = adminProvider.allUsers
@@ -75,15 +82,19 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
             final matchesSearch = _searchQuery.isEmpty ||
                 (user['fullName'] ?? '').toLowerCase().contains(query) ||
                 (user['email'] ?? '').toLowerCase().contains(query) ||
-                (user['contact'] ?? '').toLowerCase().contains(query);
+                (user['phoneNumber'] ?? '').toLowerCase().contains(query);
 
             // Role filter (already working, but we add case‑insensitivity)
             final role = (user['role'] ?? 'Player').toString().trim();
             final matchesRole = _roleFilter == 'All' ||
                 role.toLowerCase() == _roleFilter.toLowerCase();
 
-            // Status filter – use same fallback as the display + case‑insensitive
-            final status = (user['status'] ?? 'Active').toString().trim();
+            // Status filter – derive from real flags + case‑insensitive
+            final statusActive = user['isActive'] != false;
+            final statusApproved = user['isApproved'] == true;
+            final status = !statusActive
+                ? 'Inactive'
+                : (statusApproved ? 'Active' : 'Pending Approval');
             final matchesStatus = _statusFilter == 'All' ||
                 status.toLowerCase() == _statusFilter.toLowerCase();
 
@@ -100,7 +111,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                   children: [
                     TextField(
                       decoration: InputDecoration(
-                        hintText: 'Search by name, email or contact...',
+                        hintText: 'Search by name, email or phone...',
                         prefixIcon:
                             const Icon(Icons.search, color: Colors.green),
                         border: OutlineInputBorder(
@@ -154,8 +165,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                         value: 'Owner', child: Text('Owner')),
                                   ],
                                   onChanged: (value) {
-                                    if (value != null)
+                                    if (value != null) {
                                       setState(() => _roleFilter = value);
+                                    }
                                   },
                                 ),
                               ),
@@ -195,14 +207,13 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                         value: 'Inactive',
                                         child: Text('Inactive')),
                                     DropdownMenuItem(
-                                        value: 'Banned', child: Text('Banned')),
-                                    DropdownMenuItem(
-                                        value: 'Suspended',
-                                        child: Text('Suspended')),
+                                        value: 'Pending Approval',
+                                        child: Text('Pending Approval')),
                                   ],
                                   onChanged: (value) {
-                                    if (value != null)
+                                    if (value != null) {
                                       setState(() => _statusFilter = value);
+                                    }
                                   },
                                 ),
                               ),
@@ -327,14 +338,6 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                         label: Padding(
                                             padding: EdgeInsets.symmetric(
                                                 horizontal: 12),
-                                            child: Text('Last Active',
-                                                style: TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 13)))),
-                                    DataColumn(
-                                        label: Padding(
-                                            padding: EdgeInsets.symmetric(
-                                                horizontal: 12),
                                             child: Text('Actions',
                                                 style: TextStyle(
                                                     fontWeight: FontWeight.bold,
@@ -346,17 +349,23 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                     final fullName =
                                         user['fullName'] ?? 'Unknown';
                                     final email = user['email'] ?? '';
-                                    final contact = user['contact'] ?? '';
-                                    final role = user['role'] ?? 'User';
-                                    final status = user['status'] ?? 'Active';
-                                    final joinedDate = user['joinedDate'] ?? '';
-                                    final lastActive = user['lastActive'] ?? '';
-                                    final isAdmin = role == 'Admin';
-                                    final isOwner = role == 'Owner';
+                                    final contact = user['phoneNumber'] ?? '';
+                                    final roleRaw =
+                                        (user['role'] ?? '').toString();
+                                    final role = roleRaw.toUpperCase();
+                                    final isAdmin = role == 'ADMIN';
+                                    final isOwner = role == 'OWNER';
                                     final isApproved =
-                                        user['isApproved'] ?? false;
-                                    final isActive = user['isActive'] ?? true;
+                                        user['isApproved'] == true;
+                                    final isActive = user['isActive'] != false;
                                     final userId = user['id'];
+
+                                    // Build status from real flags
+                                    final status = !isActive
+                                        ? 'Inactive'
+                                        : (isOwner && !isApproved
+                                            ? 'Pending Approval'
+                                            : 'Active');
 
                                     Color statusColor;
                                     switch (status) {
@@ -366,15 +375,27 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                       case 'Inactive':
                                         statusColor = Colors.grey;
                                         break;
-                                      case 'Banned':
-                                        statusColor = Colors.red;
-                                        break;
-                                      case 'Suspended':
+                                      case 'Pending Approval':
                                         statusColor = Colors.orange;
                                         break;
                                       default:
                                         statusColor = Colors.grey;
                                     }
+
+                                    String fmtDate(dynamic v) {
+                                      if (v == null) return '—';
+                                      try {
+                                        final dt = DateTime.parse(v.toString());
+                                        final now = DateTime.now();
+                                        final local = dt.toLocal();
+                                        final isSameYear = local.year == now.year;
+                                        return '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}${isSameYear ? '' : ''}';
+                                      } catch (_) {
+                                        return '—';
+                                      }
+                                    }
+
+                                    final joinedDate = fmtDate(user['createdAt']);
 
                                     return DataRow(
                                       color: WidgetStateProperty.resolveWith(
@@ -399,6 +420,16 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                                               .orange.shade100
                                                           : Colors
                                                               .green.shade100,
+                                                  foregroundImage: (user[
+                                                              'profileImage'] !=
+                                                          null &&
+                                                      user['profileImage']
+                                                          .toString()
+                                                          .isNotEmpty)
+                                                      ? NetworkImage(user[
+                                                              'profileImage']
+                                                          .toString())
+                                                      : null,
                                                   child: Text(
                                                       fullName[0].toUpperCase(),
                                                       style: TextStyle(
@@ -498,11 +529,6 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                             padding: const EdgeInsets.symmetric(
                                                 horizontal: 12, vertical: 8),
                                             child: Text(joinedDate))),
-                                        // Last Active
-                                        DataCell(Padding(
-                                            padding: const EdgeInsets.symmetric(
-                                                horizontal: 12, vertical: 8),
-                                            child: Text(lastActive))),
                                         // Actions
                                         DataCell(
                                           Padding(
@@ -564,7 +590,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                                             await adminProvider
                                                                 .deleteUser(
                                                                     userId);
-                                                        if (mounted) {
+                                                        if (context.mounted) {
                                                           ScaffoldMessenger.of(
                                                                   context)
                                                               .showSnackBar(
@@ -581,11 +607,11 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                                               .loadAllUsers();
                                                         }
                                                       } catch (e) {
-                                                        if (mounted) {
+                                                        if (context.mounted) {
                                                           ScaffoldMessenger.of(
                                                                   context)
                                                               .showSnackBar(
-                                                            SnackBar(
+                                                            const SnackBar(
                                                                 content: Text(
                                                                     'Failed to delete user'),
                                                                 backgroundColor:
@@ -663,7 +689,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                                               .toggleUserStatus(
                                                                   userId,
                                                                   !isActive);
-                                                      if (mounted) {
+                                                      if (context.mounted) {
                                                         ScaffoldMessenger.of(
                                                                 context)
                                                             .showSnackBar(
@@ -712,7 +738,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                                           await adminProvider
                                                               .approveOwner(
                                                                   userId);
-                                                      if (mounted) {
+                                                      if (context.mounted) {
                                                         ScaffoldMessenger.of(
                                                                 context)
                                                             .showSnackBar(
@@ -764,28 +790,26 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Change User Role'),
         content: StatefulBuilder(
-          builder: (ctx, setState) => Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              RadioListTile(
-                title: const Text('Player'),
-                value: 'PLAYER',
-                groupValue: selectedRole,
-                onChanged: (v) => setState(() => selectedRole = v!),
-              ),
-              RadioListTile(
-                title: const Text('Owner'),
-                value: 'OWNER',
-                groupValue: selectedRole,
-                onChanged: (v) => setState(() => selectedRole = v!),
-              ),
-              RadioListTile(
-                title: const Text('Admin'),
-                value: 'ADMIN',
-                groupValue: selectedRole,
-                onChanged: (v) => setState(() => selectedRole = v!),
-              ),
-            ],
+          builder: (ctx, setState) => RadioGroup<String>(
+            groupValue: selectedRole,
+            onChanged: (v) => setState(() => selectedRole = v!),
+            child: const Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RadioListTile(
+                  title: Text('Player'),
+                  value: 'PLAYER',
+                ),
+                RadioListTile(
+                  title: Text('Owner'),
+                  value: 'OWNER',
+                ),
+                RadioListTile(
+                  title: Text('Admin'),
+                  value: 'ADMIN',
+                ),
+              ],
+            ),
           ),
         ),
         actions: [

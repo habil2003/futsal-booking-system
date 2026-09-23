@@ -117,7 +117,7 @@ class BookingCard extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
-              color: _getStatusColor().withOpacity(0.1),
+              color: _getStatusColor().withValues(alpha: 0.1),
               borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
             ),
             child: Row(
@@ -275,12 +275,26 @@ class BookingCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        booking.customerName ?? 'Guest Customer',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      Row(
+                        children: [
+                          if (booking.customerAvatar != null && booking.customerAvatar!.isNotEmpty) ...[
+                            CircleAvatar(
+                              radius: 10,
+                              backgroundImage: NetworkImage(booking.customerAvatar!),
+                            ),
+                            const SizedBox(width: 6),
+                          ],
+                          Expanded(
+                            child: Text(
+                              booking.customerName ?? 'Guest Customer',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
                       if (booking.customerPhone != null) ...[
                         const SizedBox(height: 2),
@@ -288,9 +302,28 @@ class BookingCard extends StatelessWidget {
                           children: [
                             const Icon(Icons.phone, size: 12, color: Colors.grey),
                             const SizedBox(width: 4),
-                            Text(
-                              booking.customerPhone!,
-                              style: const TextStyle(fontSize: 12, color: Colors.grey),
+                            Expanded(
+                              child: Text(
+                                booking.customerPhone!,
+                                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                      if (booking.customerEmail != null) ...[
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            const Icon(Icons.email_outlined, size: 12, color: Colors.grey),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                booking.customerEmail!,
+                                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                           ],
                         ),

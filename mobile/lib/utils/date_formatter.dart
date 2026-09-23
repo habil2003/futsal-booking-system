@@ -213,7 +213,6 @@ static String formatDateTime(DateTime dateTime) {
 
   // Get list of days in month
   static List<DateTime> getDaysInMonth(DateTime month) {
-    final first = DateTime(month.year, month.month, 1);
     final last = DateTime(month.year, month.month + 1, 0);
     
     final days = <DateTime>[];

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/settings_provider.dart';
+import '../../widgets/admin/admin_header_actions.dart';
 
 class SystemSettingsScreen extends StatefulWidget {
-  const SystemSettingsScreen({super.key});
+  const SystemSettingsScreen({super.key, this.onOpenDrawer});
+
+  final VoidCallback? onOpenDrawer;
 
   @override
   State<SystemSettingsScreen> createState() => _SystemSettingsScreenState();
@@ -23,10 +26,14 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('System Settings'),
+        leading: widget.onOpenDrawer != null
+            ? AdminMenuButton(onPressed: widget.onOpenDrawer!)
+            : null,
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         centerTitle: true,
         actions: [
+          const AdminNotificationButton(),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () =>
@@ -318,7 +325,7 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, color: color, size: 20),
@@ -337,7 +344,7 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
         trailing: Switch(
           value: value,
           onChanged: onChanged,
-          activeColor: isDestructive ? Colors.red : Colors.green,
+          activeThumbColor: isDestructive ? Colors.red : Colors.green,
         ),
         isThreeLine: true,
       ),
@@ -365,7 +372,7 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(icon, color: color, size: 20),

@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'dart:async';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 
 // --- Custom Widgets ---
 import '../../widgets/auth/auth_logo.dart';
@@ -22,9 +22,6 @@ import '../screens/admin/admin_account.dart';
 import '../screens/player/home_screen.dart';
 import '../../providers/favorite_provider.dart';
 
-// Social sign‑in packages
-import 'package:google_sign_in/google_sign_in.dart';
-import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 
 class LoginScreenArguments {
   final String? email;
@@ -46,7 +43,6 @@ class _LoginScreenState extends State<LoginScreen>
   final _formKey = GlobalKey<FormState>();
 
   // Basic controllers
-  final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _nameController = TextEditingController();
@@ -54,11 +50,7 @@ class _LoginScreenState extends State<LoginScreen>
 
   // Optional business controllers
   final _businessNameController = TextEditingController();
-  final _businessTypeController = TextEditingController();
   final _panVatController = TextEditingController();
-  final _addressController = TextEditingController();
-  final _cityController = TextEditingController();
-  final _provinceController = TextEditingController();
 
   // State
   bool _isLogin = true;
@@ -69,9 +61,6 @@ class _LoginScreenState extends State<LoginScreen>
   bool _showForgotPassword = false;
   bool _acceptTerms = false;
   bool _socialLoading = false;
-
-  // Business type dropdown
-  String _selectedBusinessType = 'Individual Owner';
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -106,8 +95,10 @@ class _LoginScreenState extends State<LoginScreen>
 
 void _initFacebookSDK() {
   if (kIsWeb) {
+    const appId = String.fromEnvironment('FACEBOOK_APP_ID', defaultValue: '');
+    if (appId.isEmpty) return;
     FacebookAuth.instance.webAndDesktopInitialize(
-      appId: '1524694529192803',
+      appId: appId,
       cookie: true,
       xfbml: true,
       version: 'v18.0',
@@ -134,11 +125,7 @@ void _initFacebookSDK() {
     _nameController.dispose();
     _forgotEmailController.dispose();
     _businessNameController.dispose();
-    _businessTypeController.dispose();
     _panVatController.dispose();
-    _addressController.dispose();
-    _cityController.dispose();
-    _provinceController.dispose();
     _animationController.dispose();
     super.dispose();
   }
@@ -234,18 +221,12 @@ void _initFacebookSDK() {
       String? token = googleAuth.idToken;
       String? accessToken = googleAuth.accessToken;
 
-      print('🔵 ID Token: ${token != null ? "Present" : "NULL"}');
-      print('🔵 Access Token: ${accessToken != null ? "Present" : "NULL"}');
-
       if (token == null && accessToken == null) {
         throw Exception('No token returned from Google');
       }
 
       // Use idToken if available, otherwise use accessToken
       final idToken = token ?? accessToken;
-
-      print('📦 Token being sent: ${idToken?.substring(0, 50)}...');
-      print('📦 Token type: ${token == null ? "accessToken" : "idToken"}');
 
       // Call backend
       final response = await ApiService.socialLogin('google', {
@@ -261,7 +242,7 @@ void _initFacebookSDK() {
         _showErrorSnackBar(response['message'] ?? 'Google sign-in failed');
       }
     } catch (e) {
-      print('❌ Google Sign-In Error: $e');
+      if (kDebugMode) debugPrint('❌ Google Sign-In Error: $e');
       if (mounted) {
         setState(() => _socialLoading = false);
         _showErrorSnackBar("Google sign-in error: ${e.toString()}");
@@ -269,71 +250,18 @@ void _initFacebookSDK() {
     }
   }
 
-  // ────────────────────────────────────────────────
-  // 🔥 Facebook Sign‑In
-  // ────────────────────────────────────────────────
-  Future<void> _handleFacebookSignIn() async {
-    setState(() => _socialLoading = true);
-
-    try {
-      print('Starting Facebook login...');
-
-      final LoginResult result = await FacebookAuth.instance.login(
-        permissions: ['email', 'public_profile'],
-      );
-
-      print('Login result status: ${result.status}');
-
-      if (result.status == LoginStatus.cancelled) {
-        print('User cancelled login');
-        setState(() => _socialLoading = false);
-        return;
-      }
-
-      if (result.status != LoginStatus.success) {
-        throw Exception('Login failed: ${result.message}');
-      }
-
-      final accessToken = result.accessToken?.tokenString;
-      print('Access token obtained: ${accessToken != null}');
-
-      if (accessToken == null) {
-        throw Exception('No access token');
-      }
-
-      // Send to backend
-      final response = await ApiService.socialLogin('facebook', {
-        'accessToken': accessToken,
-      });
-
-      print('Backend response status: ${response['status']}');
-
-      if (!mounted) return;
-      setState(() => _socialLoading = false);
-
-      if (response['status'] == 'success') {
-        await _handleSocialAuthSuccess(response);
-      } else {
-        _showErrorSnackBar(response['message'] ?? 'Facebook sign-in failed');
-      }
-    } catch (e) {
-      print('❌ Facebook error: $e');
-      if (mounted) {
-        setState(() => _socialLoading = false);
-        _showErrorSnackBar("Facebook error: ${e.toString()}");
-      }
-    }
-  }
   //  Common handler after social auth success
 
   Future<void> _handleSocialAuthSuccess(Map<String, dynamic> response) async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     await auth.setUserAndToken(response['token'], response['user']);
+    if (!mounted) return;
 
     // Navigate based on role (same as normal login)
     if (auth.isPlayer) {
       await Provider.of<FavoriteProvider>(context, listen: false)
           .loadFavorites();
+      if (!mounted) return;
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const PlayerHomeScreen()),
@@ -369,7 +297,6 @@ void _initFacebookSDK() {
     try {
       // 🆕 Build registration payload with optional owner fields
       final Map<String, dynamic> regData = {
-        'username': _usernameController.text.trim(),
         'email': _emailController.text.trim(),
         'password': _passwordController.text.trim(),
         'fullName': _nameController.text.trim(),
@@ -378,11 +305,7 @@ void _initFacebookSDK() {
       if (_selectedRole == 'OWNER') {
         regData.addAll({
           'businessName': _businessNameController.text.trim(),
-          'businessType': _selectedBusinessType,
           'panVatNumber': _panVatController.text.trim(),
-          'address': _addressController.text.trim(),
-          'city': _cityController.text.trim(),
-          'province': _provinceController.text.trim(),
         });
       }
 
@@ -397,12 +320,14 @@ void _initFacebookSDK() {
       if (response['status'] == 'success') {
         if (_isLogin) {
           await _handleRememberMe(_emailController.text.trim());
+          if (!mounted) return;
           _passwordController.clear();
           final auth = Provider.of<AuthProvider>(context, listen: false);
 
           if (auth.isPlayer) {
             await Provider.of<FavoriteProvider>(context, listen: false)
                 .loadFavorites();
+            if (!mounted) return;
             Navigator.pushAndRemoveUntil(
               context,
               MaterialPageRoute(builder: (_) => const PlayerHomeScreen()),
@@ -455,9 +380,6 @@ void _initFacebookSDK() {
       _nameController.clear();
       _businessNameController.clear();
       _panVatController.clear();
-      _addressController.clear();
-      _cityController.clear();
-      _provinceController.clear();
       _rememberMe = false;
       _acceptTerms = false;
       _formKey.currentState?.reset();
@@ -468,7 +390,10 @@ void _initFacebookSDK() {
   Widget build(BuildContext context) {
     final auth = Provider.of<AuthProvider>(context);
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         leading: Padding(
           padding: const EdgeInsets.only(left: 8.0),
           child: InkWell(
@@ -490,8 +415,6 @@ void _initFacebookSDK() {
           ),
         ),
         leadingWidth: 90,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
       ),
       body: Container(
         decoration: BoxDecoration(
@@ -541,7 +464,7 @@ void _initFacebookSDK() {
         borderRadius: BorderRadius.circular(25),
         boxShadow: [
           BoxShadow(
-            color: Colors.green.withOpacity(0.1),
+            color: Colors.green.withValues(alpha: 0.1),
             blurRadius: 20,
             offset: const Offset(0, 10),
           )
@@ -572,30 +495,7 @@ void _initFacebookSDK() {
               const SizedBox(height: 8),
               _buildTextField(_businessNameController, 'Business/Futsal Name'),
               const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                value: _selectedBusinessType,
-                decoration: const InputDecoration(
-                  labelText: 'Business Type',
-                  border: OutlineInputBorder(),
-                ),
-                items: const [
-                  DropdownMenuItem(
-                      value: 'Individual Owner',
-                      child: Text('Individual Owner')),
-                  DropdownMenuItem(value: 'Company', child: Text('Company')),
-                ],
-                onChanged: (val) {
-                  if (val != null) setState(() => _selectedBusinessType = val);
-                },
-              ),
-              const SizedBox(height: 12),
               _buildTextField(_panVatController, 'PAN/VAT Number (optional)'),
-              const SizedBox(height: 12),
-              _buildTextField(_addressController, 'Address'),
-              const SizedBox(height: 12),
-              _buildTextField(_cityController, 'City'),
-              const SizedBox(height: 12),
-              _buildTextField(_provinceController, 'Province'),
               const SizedBox(height: 12),
 
               // Terms & Conditions checkbox
@@ -679,21 +579,21 @@ void _initFacebookSDK() {
           children: [
             // Google Button
             _buildSocialButton(
-              icon: 'assets/google_logo.png', // add your own asset
+              icon: 'assets/google_logo.png',
               assetIcon: false,
-              iconData: Icons.g_mobiledata, // fallback icon
+              iconData: Icons.g_mobiledata,
               color: Colors.red,
               onPressed: _handleGoogleSignIn,
             ),
-            const SizedBox(width: 20),
-            // Facebook Button
-            _buildSocialButton(
-              icon: 'assets/facebook_logo.png',
-              assetIcon: false,
-              iconData: Icons.facebook,
-              color: const Color(0xFF1877F2),
-              onPressed: _handleFacebookSignIn,
-            ),
+            // Facebook Button - DISABLED
+            // const SizedBox(width: 20),
+            // _buildSocialButton(
+            //   icon: 'assets/facebook_logo.png',
+            //   assetIcon: false,
+            //   iconData: Icons.facebook,
+            //   color: const Color(0xFF1877F2),
+            //   onPressed: _handleFacebookSignIn,
+            // ),
           ],
         ),
         if (_socialLoading)

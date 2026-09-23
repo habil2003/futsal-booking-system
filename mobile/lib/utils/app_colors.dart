@@ -15,4 +15,9 @@ class AppColors {
   static const accentPurple = Color(0xFF7C3AED);
   static const cardDark1 = Color(0xFF1E293B);
   static const cardDark2 = Color(0xFF0F172A);
+  
+  // Add these for convenience (same as existing colors)
+  static const white = Color(0xFFFFFFFF);  // Same as surface
+  static const text = Color(0xFF1E293B);   // Same as onBackground
+  static const textLight = Color(0xFF64748B); // Same as secondaryText
 }

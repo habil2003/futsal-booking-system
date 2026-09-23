@@ -2,13 +2,14 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/booking_provider.dart';
-import '../../providers/auth_provider.dart';
 import '../../models/booking.dart';
 import '../../models/futsal.dart';
 import '../../utils/date_formatter.dart';
 import '../../providers/review_provider.dart';
-import 'futsal_details_screen.dart';
+import 'check_availability_screen.dart';
+import 'payment_webview_screen.dart';
 import '../../services/api_service.dart';
+import '../../services/payment_service.dart';
 
 class BookingHistoryScreen extends StatefulWidget {
   const BookingHistoryScreen({super.key});
@@ -106,7 +107,6 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
 
   @override
   Widget build(BuildContext context) {
-    final auth = Provider.of<AuthProvider>(context);
     final bookingProvider = Provider.of<BookingProvider>(context);
 
     return Scaffold(
@@ -482,11 +482,11 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Row(
+        title: const Row(
           children: [
-            const Icon(Icons.receipt_long, color: Colors.green),
-            const SizedBox(width: 8),
-            const Text('Booking Details'),
+            Icon(Icons.receipt_long, color: Colors.green),
+            SizedBox(width: 8),
+            Text('Booking Details'),
           ],
         ),
         content: SingleChildScrollView(
@@ -546,7 +546,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
             OutlinedButton.icon(
               onPressed: () {
                 Navigator.pop(ctx);
-                // Navigate to payment
+                _payNow(booking);
               },
               icon: const Icon(Icons.payment, size: 18),
               label: const Text('Pay Now'),
@@ -607,10 +607,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => FutsalDetailsScreen(
-              futsal: futsal,
-              initialTabIndex: 1, // 1 = Slots tab (booking)
-            ),
+            builder: (context) => CheckAvailabilityScreen(futsal: futsal),
           ),
         );
       } else {
@@ -634,6 +631,88 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
     }
   }
 
+  Future<void> _payNow(Booking booking) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(
+        child: CircularProgressIndicator(color: Colors.green),
+      ),
+    );
+
+    try {
+      final response = await ApiService.post(
+        'bookings/${booking.id}/payment/initiate',
+        {'paymentMethod': 'KHALTI'},
+      );
+
+      if (!mounted) return;
+      Navigator.pop(context);
+
+      final paymentUrl = response['paymentUrl'];
+      final pidx = response['pidx'];
+
+      if (response['status'] == 'success' && paymentUrl != null && pidx != null) {
+        final result = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => KhaltiPaymentScreen(
+              paymentUrl: paymentUrl,
+              pidx: pidx,
+              bookingId: booking.id,
+            ),
+          ),
+        );
+
+        if (!mounted) return;
+
+        if (result == true) {
+          await PaymentService.verifyPayment(pidx);
+          if (!mounted) return;
+          _loadBookings();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Payment successful! Booking confirmed.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else if (result == false) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Payment was cancelled or failed.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        } else {
+          _loadBookings();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Payment may have succeeded. Check your booking status.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response['message'] ?? 'Could not initiate payment'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   void _showCancelDialog(Booking booking) {
     showDialog(
       context: context,
@@ -643,7 +722,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Are you sure you want to cancel this booking?'),
+            const Text('Are you sure you want to cancel this booking?'),
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),

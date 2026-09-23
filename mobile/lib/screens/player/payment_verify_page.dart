@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../services/payment_service.dart';
 
 class PaymentVerifyPage extends StatefulWidget {
@@ -69,9 +68,9 @@ class _PaymentVerifyPageState extends State<PaymentVerifyPage> {
       ),
       body: Center(
         child: _isVerifying
-            ? Column(
+            ? const Column(
                 mainAxisSize: MainAxisSize.min,
-                children: const [
+                children: [
                   CircularProgressIndicator(color: Colors.green),
                   SizedBox(height: 16),
                   Text('Verifying your payment...'),

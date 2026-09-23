@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '/models/futsal.dart';
+import '../../../../widgets/fullscreen_image_viewer.dart';
 
 class FutsalAppBar extends StatelessWidget {
   final Futsal futsal;
@@ -23,6 +24,19 @@ class FutsalAppBar extends StatelessWidget {
     this.isFavorite = false,
   });
 
+  void _showFullScreenImage(BuildContext context, int index) {
+    if (futsal.images.isEmpty) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => FullscreenImageViewer(
+          images: futsal.images,
+          initialIndex: index,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return SliverAppBar(
@@ -34,7 +48,23 @@ class FutsalAppBar extends StatelessWidget {
         background: Stack(
           fit: StackFit.expand,
           children: [
-            _buildImagePageView(),
+            // Wrap PageView with GestureDetector to make images clickable
+            GestureDetector(
+              onTap: () => _showFullScreenImage(context, selectedImageIndex),
+              child: PageView.builder(
+                itemCount: futsal.images.isNotEmpty ? futsal.images.length : 1,
+                onPageChanged: onPageChanged,
+                itemBuilder: (context, index) {
+                  return futsal.images.isNotEmpty
+                      ? Image.network(
+                          futsal.images[index],
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _placeholder(),
+                        )
+                      : _placeholder();
+                },
+              ),
+            ),
             _buildImageIndicators(),
             _buildGradient(),
           ],
@@ -60,22 +90,6 @@ class FutsalAppBar extends StatelessWidget {
     );
   }
 
-  Widget _buildImagePageView() {
-    return PageView.builder(
-      itemCount: futsal.images.isNotEmpty ? futsal.images.length : 1,
-      onPageChanged: onPageChanged,
-      itemBuilder: (context, index) {
-        return futsal.images.isNotEmpty
-            ? Image.network(
-                futsal.images[index],
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _placeholder(),
-              )
-            : _placeholder();
-      },
-    );
-  }
-
   Widget _placeholder() {
     return Container(
       color: Colors.green.shade200,
@@ -90,6 +104,10 @@ class FutsalAppBar extends StatelessWidget {
   }
 
   Widget _buildImageIndicators() {
+    if (futsal.images.isEmpty || futsal.images.length <= 1) {
+      return const SizedBox.shrink();
+    }
+    
     return Positioned(
       bottom: 16,
       left: 0,
@@ -97,7 +115,7 @@ class FutsalAppBar extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: List.generate(
-          futsal.images.isNotEmpty ? futsal.images.length : 1,
+          futsal.images.length,
           (index) => Container(
             width: 8,
             height: 8,
@@ -106,7 +124,7 @@ class FutsalAppBar extends StatelessWidget {
               shape: BoxShape.circle,
               color: selectedImageIndex == index
                   ? Colors.white
-                  : Colors.white.withOpacity(0.5),
+                  : Colors.white.withValues(alpha: 0.5),
             ),
           ),
         ),
@@ -125,7 +143,7 @@ class FutsalAppBar extends StatelessWidget {
           gradient: LinearGradient(
             colors: [
               Colors.transparent,
-              Colors.black.withOpacity(0.7),
+              Colors.black.withValues(alpha: 0.5),
             ],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,

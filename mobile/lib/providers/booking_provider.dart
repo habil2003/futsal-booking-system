@@ -179,13 +179,11 @@ class BookingProvider with ChangeNotifier {
 
       _todayBookings = [];
 
-      if (response is List) {
-        debugPrint('📅 Response is a List with ${response.length} items');
-        _todayBookings = response
-            .map((json) => Booking.fromJson(json as Map<String, dynamic>))
-            .toList();
-      }
-
+      debugPrint('📅 Response is a List with ${response.length} items');
+      _todayBookings = response
+          .map((json) => Booking.fromJson(json as Map<String, dynamic>))
+          .toList();
+    
       _todayBookings.sort((a, b) => a.startTime.compareTo(b.startTime));
       debugPrint(
           '📅 BookingProvider: Loaded ${_todayBookings.length} today\'s bookings');
@@ -211,13 +209,11 @@ class BookingProvider with ChangeNotifier {
 
       _upcomingBookings = [];
 
-      if (response is List) {
-        debugPrint('📅 Response is a List with ${response.length} items');
-        _upcomingBookings = response
-            .map((json) => Booking.fromJson(json as Map<String, dynamic>))
-            .toList();
-      }
-
+      debugPrint('📅 Response is a List with ${response.length} items');
+      _upcomingBookings = response
+          .map((json) => Booking.fromJson(json as Map<String, dynamic>))
+          .toList();
+    
       _upcomingBookings.sort((a, b) {
         if (a.date != b.date) return a.date.compareTo(b.date);
         return a.startTime.compareTo(b.startTime);
@@ -247,13 +243,11 @@ class BookingProvider with ChangeNotifier {
 
       List<Booking> bookings = [];
 
-      if (response is List) {
-        debugPrint('📅 Response is a List with ${response.length} items');
-        bookings = response
-            .map((json) => Booking.fromJson(json as Map<String, dynamic>))
-            .toList();
-      }
-
+      debugPrint('📅 Response is a List with ${response.length} items');
+      bookings = response
+          .map((json) => Booking.fromJson(json as Map<String, dynamic>))
+          .toList();
+    
       _calendarBookings = {};
       for (var booking in bookings) {
         final date =
@@ -283,13 +277,11 @@ class BookingProvider with ChangeNotifier {
 
       _ownerPastBookings = [];
 
-      if (response is List) {
-        debugPrint('📅 Response is a List with ${response.length} items');
-        _ownerPastBookings = response
-            .map((json) => Booking.fromJson(json as Map<String, dynamic>))
-            .toList();
-      }
-
+      debugPrint('📅 Response is a List with ${response.length} items');
+      _ownerPastBookings = response
+          .map((json) => Booking.fromJson(json as Map<String, dynamic>))
+          .toList();
+    
       _ownerPastBookings.sort((a, b) => b.date.compareTo(a.date));
       debugPrint(
           '📅 BookingProvider: Loaded ${_ownerPastBookings.length} owner past bookings');
@@ -328,19 +320,13 @@ Future<Map<String, dynamic>> checkInCustomer(int bookingId, int futsalId) async 
       final booking = _findBookingById(bookingId);
 
       if (booking != null) {
-        if (booking.paymentMethod == 'KHALTI') {
-          // Khalti: already paid, check-in completes the booking
-          _updateBookingStatus(bookingId, (b) => b.copyWith(
-            bookingStatus: 'COMPLETED',
-            checkInTime: DateTime.now(),
-          ));
-        } else {
-          // COD: check-in only changes status to CONFIRMED
-          _updateBookingStatus(bookingId, (b) => b.copyWith(
-            bookingStatus: 'CONFIRMED',
-            checkInTime: DateTime.now(),
-          ));
-        }
+        // Check-in marks the customer as arrived.
+        // The booking is NOT completed here regardless of payment method -
+        // completion should only happen after the time slot ends.
+        _updateBookingStatus(bookingId, (b) => b.copyWith(
+          bookingStatus: 'CONFIRMED',
+          checkInTime: DateTime.now(),
+        ));
       }
       await loadTodayBookings(futsalId);
       return response;

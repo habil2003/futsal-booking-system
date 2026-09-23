@@ -3,9 +3,12 @@ import 'package:provider/provider.dart';
 import '../../services/api_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/app_colors.dart';
+import '../../widgets/owner/owner_header_actions.dart';
 
 class OwnerNotificationScreen extends StatefulWidget {
-  const OwnerNotificationScreen({super.key});
+  const OwnerNotificationScreen({super.key, this.onOpenDrawer});
+
+  final VoidCallback? onOpenDrawer;
 
   @override
   State<OwnerNotificationScreen> createState() => _OwnerNotificationScreenState();
@@ -81,6 +84,12 @@ class _OwnerNotificationScreenState extends State<OwnerNotificationScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Notifications'),
+        leading: widget.onOpenDrawer != null
+            ? OwnerMenuButton(
+                onPressed: widget.onOpenDrawer!,
+                color: AppColors.onBackground,
+              )
+            : null,
         backgroundColor: Colors.white,
         foregroundColor: AppColors.onBackground,
         elevation: 0.5,
@@ -89,13 +98,13 @@ class _OwnerNotificationScreenState extends State<OwnerNotificationScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : _notifications.isEmpty
-              ? Center(
+              ? const Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.notifications_none_rounded,
                           size: 64, color: AppColors.secondaryText),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
                       Text('No notifications yet',
                           style: TextStyle(color: AppColors.secondaryText)),
                     ],
@@ -162,10 +171,10 @@ class _OwnerNotificationScreenState extends State<OwnerNotificationScreen> {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: isRead ? Colors.white : AppColors.primary.withOpacity(0.05),
+          color: isRead ? Colors.white : AppColors.primary.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isRead ? AppColors.divider : AppColors.primary.withOpacity(0.3),
+            color: isRead ? AppColors.divider : AppColors.primary.withValues(alpha: 0.3),
           ),
         ),
         child: Row(
@@ -174,7 +183,7 @@ class _OwnerNotificationScreenState extends State<OwnerNotificationScreen> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.1),
+                color: iconColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(icon, color: iconColor, size: 22),
@@ -194,7 +203,7 @@ class _OwnerNotificationScreenState extends State<OwnerNotificationScreen> {
                   const SizedBox(height: 4),
                   Text(
                     message,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 13,
                       color: AppColors.secondaryText,
                     ),
@@ -204,7 +213,7 @@ class _OwnerNotificationScreenState extends State<OwnerNotificationScreen> {
                     _formatDate(createdAt),
                     style: TextStyle(
                       fontSize: 11,
-                      color: AppColors.secondaryText.withOpacity(0.7),
+                      color: AppColors.secondaryText.withValues(alpha: 0.7),
                     ),
                   ),
                 ],

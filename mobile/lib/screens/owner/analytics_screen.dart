@@ -3,15 +3,18 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../providers/analytics_provider.dart';
+import '../../widgets/owner/owner_header_actions.dart';
 
 class AnalyticsScreen extends StatefulWidget {
   final int futsalId;
   final String futsalName;
+  final VoidCallback? onOpenDrawer;
 
   const AnalyticsScreen({
     super.key,
     required this.futsalId,
     required this.futsalName,
+    this.onOpenDrawer,
   });
 
   @override
@@ -49,7 +52,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       lastDate: DateTime.now(),
       initialDateRange: _selectedDateRange,
     );
-    
+    if (!mounted) return;
+
     if (picked != null) {
       setState(() {
         _selectedDateRange = picked;
@@ -89,6 +93,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     return Scaffold(
       appBar: AppBar(
         title: Text('${widget.futsalName} - Analytics'),
+        leading: widget.onOpenDrawer != null
+            ? OwnerMenuButton(onPressed: widget.onOpenDrawer!)
+            : null,
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -102,6 +109,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           ],
         ),
         actions: [
+          const OwnerHeaderActions(),
           IconButton(
             icon: Icon(
               _useDateRangeFilter ? Icons.filter_alt : Icons.filter_alt_outlined,
@@ -279,7 +287,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -385,7 +393,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                   topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                 ),
-                gridData: FlGridData(show: true, drawVerticalLine: false),
+                gridData: const FlGridData(show: true, drawVerticalLine: false),
                 borderData: FlBorderData(show: false),
                 barGroups: List.generate(provider.monthlyRevenue.length, (index) {
                   final isHighest = provider.monthlyRevenue[index]['revenue'] == maxRevenue;
@@ -475,7 +483,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                   topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                 ),
-                gridData: FlGridData(show: true, drawVerticalLine: false),
+                gridData: const FlGridData(show: true, drawVerticalLine: false),
                 borderData: FlBorderData(show: false),
                 barGroups: List.generate(provider.weeklyRevenue.length, (index) {
                   final isToday = index == provider.weeklyRevenue.length - 1;
@@ -568,7 +576,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                   topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                 ),
-                gridData: FlGridData(show: true, drawVerticalLine: false),
+                gridData: const FlGridData(show: true, drawVerticalLine: false),
                 borderData: FlBorderData(show: false),
                 barGroups: List.generate(sortedEntries.length, (index) {
                   final isPeak = sortedEntries[index].value == maxCount;
@@ -645,7 +653,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, color: color, size: 32),
@@ -740,7 +748,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       width: fullWidth ? double.infinity : null,
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
@@ -886,7 +894,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -1007,7 +1015,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -1239,7 +1247,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       borderRadius: BorderRadius.circular(16),
       boxShadow: [
         BoxShadow(
-          color: Colors.grey.withOpacity(0.1),
+          color: Colors.grey.withValues(alpha: 0.1),
           blurRadius: 6,
           offset: const Offset(0, 2),
         ),

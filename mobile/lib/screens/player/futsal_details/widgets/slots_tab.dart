@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../models/futsal.dart';
 import '../../../../providers/auth_provider.dart';
@@ -294,7 +293,7 @@ class _SlotsTabState extends State<SlotsTab> with WidgetsBindingObserver {
   void _addTemporaryLock(int slotId) {
     setState(() {
       _temporaryLocks[slotId] = DateTime.now().add(
-        Duration(minutes: FutsalConstants.lockDurationMinutes),
+        const Duration(minutes: FutsalConstants.lockDurationMinutes),
       );
     });
   }
@@ -387,77 +386,186 @@ class _SlotsTabState extends State<SlotsTab> with WidgetsBindingObserver {
     }
   }
 
-Future<void> _initiateKhaltiPayment() async {
-  if (_tempLockedSlot == null || _isProcessing) return;
-  setState(() => _isProcessing = true);
-  _showLoadingDialog();
-  try {
-    final response = await PaymentService.initiateKhaltiPayment(
-      _tempLockedSlot!['id'],
-      _tempSelectedDuration ?? 1,
-    ).timeout(
-      FutsalConstants.apiTimeout,
-      onTimeout: () => throw TimeoutException('Payment service timeout'),
-    );
-    if (!mounted) return;
-    Navigator.pop(context);
+  Future<void> _initiateKhaltiPayment() async {
+    if (_tempLockedSlot == null || _isProcessing) return;
     
-    final paymentUrl = response['paymentUrl'];
-    final pidx = response['pidx'];
-    _tempBookingId = response['bookingId'];
+    setState(() => _isProcessing = true);
+    _showLoadingDialog();
     
-    if (response['status'] == 'success' && paymentUrl != null && pidx != null) {
-      // Open WebView for payment
-      final result = await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => KhaltiPaymentScreen(
-            paymentUrl: paymentUrl,
-            pidx: pidx,
-          ),
-        ),
+    try {
+      final response = await PaymentService.initiateKhaltiPayment(
+        _tempLockedSlot!['id'],
+        _tempSelectedDuration ?? 1,
+      ).timeout(
+        FutsalConstants.apiTimeout,
+        onTimeout: () => throw TimeoutException('Payment service timeout'),
       );
       
-      print('🔙 Returned from WebView with result: $result');
+      if (!mounted) return;
+      Navigator.pop(context);
       
-      if (result == true) {
-        // Double-check with backend
-        final verifyResponse = await PaymentService.verifyPayment(pidx);
-        if (verifyResponse['paymentStatus'] == 'COMPLETED') {
-          await _handleBookingSuccess();
-          _showSnackBar('Payment successful! Booking confirmed.');
+      final paymentUrl = response['paymentUrl'];
+      final pidx = response['pidx'];
+      _tempBookingId = response['bookingId'];
+      
+      if (response['status'] == 'success' && paymentUrl != null && pidx != null) {
+        final result = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => KhaltiPaymentScreen(
+              paymentUrl: paymentUrl,
+              pidx: pidx,
+              bookingId: _tempBookingId!,
+            ),
+          ),
+        );
+        
+        if (result == true) {
+          await _confirmSuccessfulPayment(pidx);
+        } else if (result == false) {
+          _showPaymentFailedDialog();
         } else {
-          await _cancelBookingOnPaymentFailure();
-          _showSnackBar('Payment verification failed.', isError: true);
+          _showPaymentStatusUnknownDialog();
         }
+        return;
       } else {
-        await _cancelBookingOnPaymentFailure();
-        _showSnackBar('Payment failed or was cancelled.', isError: true);
+        await _handleBookingFailure(response['message'] ?? 'Payment initiation failed');
       }
-      return;
-    } else {
-      await _handleBookingFailure(
-          response['message'] ?? 'Payment initiation failed');
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      await _handleBookingFailure('Error: ${e.toString()}');
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
     }
-  } catch (e) {
-    if (!mounted) return;
-    Navigator.pop(context);
-    await _handleBookingFailure('Error: ${e.toString()}');
-  } finally {
-    if (mounted) setState(() => _isProcessing = false);
   }
-}
 
-  Future<void> _handleBookingSuccess() async {
-    await _safeUnlockSlot();
-    _clearBookingState();
-    await _fetchSlots();
+  Future<void> _confirmSuccessfulPayment(String pidx) async {
+    setState(() => _isProcessing = true);
+    _showLoadingDialog();
+    
+    try {
+      final verifyResponse = await PaymentService.verifyPayment(pidx);
+      
+      if (!mounted) return;
+      Navigator.pop(context);
+      
+      if (verifyResponse['paymentStatus'] == 'COMPLETED') {
+        await _handleBookingSuccess();
+        _showSnackBar('Payment successful! Booking confirmed.');
+      } else {
+        _showSnackBar(
+          'Payment may have been successful. Please check your bookings.',
+          isError: false,
+        );
+        await _handleBookingSuccess();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      _showSnackBar(
+        'Payment completed. Please check your bookings to confirm.',
+        isError: false,
+      );
+      await _handleBookingSuccess();
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  void _showPaymentFailedDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Payment Issue'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.warning_amber, size: 48, color: Colors.orange),
+            SizedBox(height: 12),
+            Text(
+              'Payment was not completed or was cancelled.',
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 8),
+            Text(
+              'No charges have been made. You can try again.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _cancelBookingOnPaymentFailure();
+            },
+            child: const Text('Cancel Booking'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _initiateKhaltiPayment();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+            ),
+            child: const Text('Try Again'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPaymentStatusUnknownDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Payment Status Unknown'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.help_outline, size: 48, color: Colors.blue),
+            SizedBox(height: 12),
+            Text(
+              'We are verifying your payment status.',
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Please check your booking history in a few minutes.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _handleBookingSuccess();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+            ),
+            child: const Text('Go to Bookings'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _cancelBookingOnPaymentFailure() async {
     if (_tempBookingId != null) {
       try {
-        await ApiService.cancelUserBooking(_tempBookingId!);
+        final checkResponse = await ApiService.get('bookings/$_tempBookingId');
+        if (checkResponse['booking']['status'] != 'CONFIRMED' &&
+            checkResponse['booking']['status'] != 'COMPLETED') {
+          await ApiService.cancelUserBooking(_tempBookingId!);
+        }
       } catch (e) {
         debugPrint('Failed to cancel booking: $e');
       }
@@ -466,7 +574,21 @@ Future<void> _initiateKhaltiPayment() async {
     _clearBookingState();
     await _fetchSlots();
     if (mounted) {
-      _showSnackBar('Payment cancelled', isError: true);
+      _showSnackBar('Booking cancelled', isError: true);
+    }
+  }
+
+  Future<void> _handleBookingSuccess() async {
+    await _safeUnlockSlot();
+    _clearBookingState();
+    await _fetchSlots();
+    if (!mounted) return;
+    
+    try {
+      final bookingProvider = Provider.of<BookingProvider>(context, listen: false);
+      await bookingProvider.loadUserBookings();
+    } catch (e) {
+      debugPrint('Error refreshing bookings: $e');
     }
   }
 
@@ -553,9 +675,9 @@ Future<void> _initiateKhaltiPayment() async {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-              color: Colors.grey.withOpacity(0.05),
+              color: Colors.grey.withValues(alpha: 0.05),
               blurRadius: 5,
-              offset: Offset(0, 2))
+              offset: const Offset(0, 2))
         ],
       ),
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
@@ -748,7 +870,7 @@ Future<void> _initiateKhaltiPayment() async {
             height: 10,
             decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
         const SizedBox(width: 4),
-        Text(label, style: TextStyle(fontSize: 14, color: Colors.black87)),
+        Text(label, style: const TextStyle(fontSize: 14, color: Colors.black87)),
       ],
     );
   }

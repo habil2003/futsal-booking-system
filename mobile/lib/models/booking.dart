@@ -10,6 +10,8 @@ class Booking {
   final String courtNumber;
   final String? customerName;
   final String? customerPhone;
+  final String? customerEmail;
+  final String? customerAvatar;
   final DateTime date;
   final String startTime;
   final String endTime;
@@ -33,6 +35,8 @@ class Booking {
     required this.courtNumber,
     this.customerName,
     this.customerPhone,
+    this.customerEmail,
+    this.customerAvatar,
     required this.date,
     required this.startTime,
     required this.endTime,
@@ -76,6 +80,8 @@ factory Booking.fromJson(Map<String, dynamic> json) {
     courtNumber: courtData['courtNumber'] ?? json['courtNumber'] ?? '1',             // ✅
     customerName: json['customerName'] ?? json['user']?['fullName'],
     customerPhone: json['customerPhone'] ?? json['user']?['phoneNumber'],
+    customerEmail: json['customerEmail'] ?? json['customer_email'] ?? json['user']?['email'],
+    customerAvatar: json['customerAvatar'] ?? json['customer_avatar'] ?? json['user']?['profileImage'],
     date: bookingDate,                                                                // ✅
     startTime: slotData['startTime'] ?? json['startTime'] ?? '00:00',
     endTime: slotData['endTime'] ?? json['endTime'] ?? '01:00',
@@ -102,6 +108,8 @@ factory Booking.fromJson(Map<String, dynamic> json) {
       'courtNumber': courtNumber,
       'customerName': customerName,
       'customerPhone': customerPhone,
+      'customerEmail': customerEmail,
+      'customerAvatar': customerAvatar,
       'date': date.toIso8601String().split('T')[0],
       'startTime': startTime,
       'endTime': endTime,
@@ -127,6 +135,8 @@ factory Booking.fromJson(Map<String, dynamic> json) {
     String? courtNumber,
     String? customerName,
     String? customerPhone,
+    String? customerEmail,
+    String? customerAvatar,
     DateTime? date,
     String? startTime,
     String? endTime,
@@ -150,6 +160,8 @@ factory Booking.fromJson(Map<String, dynamic> json) {
       courtNumber: courtNumber ?? this.courtNumber,
       customerName: customerName ?? this.customerName,
       customerPhone: customerPhone ?? this.customerPhone,
+      customerEmail: customerEmail ?? this.customerEmail,
+      customerAvatar: customerAvatar ?? this.customerAvatar,
       date: date ?? this.date,
       startTime: startTime ?? this.startTime,
       endTime: endTime ?? this.endTime,

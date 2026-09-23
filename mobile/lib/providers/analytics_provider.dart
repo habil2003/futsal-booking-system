@@ -235,18 +235,8 @@ class AnalyticsProvider with ChangeNotifier {
     try {
       final revenueList = await ApiService.getWeeklyRevenue(futsalId);
       
-      if (revenueList is List<double>) {
-        weeklyRevenue = revenueList;
-      } else if (revenueList is List) {
-        weeklyRevenue = revenueList.map((e) {
-          if (e is int) return e.toDouble();
-          if (e is double) return e;
-          return 0.0;
-        }).toList();
-      } else {
-        weeklyRevenue = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
-      }
-      
+      weeklyRevenue = revenueList;
+          
       if (weeklyRevenue.length != 7) {
         weeklyRevenue = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
       }
@@ -266,24 +256,8 @@ class AnalyticsProvider with ChangeNotifier {
     try {
       final peakData = await ApiService.getPeakHours(futsalId);
       
-      if (peakData is Map<String, int>) {
-        peakHours = peakData;
-      } else if (peakData is Map) {
-        Map<String, int> temp = {};
-        peakData.forEach((key, value) {
-          if (value is int) {
-            temp[key] = value;
-          } else if (value is double) {
-            temp[key] = value.toInt();
-          } else {
-            temp[key] = 0;
-          }
-        });
-        peakHours = temp;
-      } else {
-        peakHours = {};
-      }
-      
+      peakHours = peakData;
+          
       notifyListeners();
     } catch (e) {
       debugPrint('Error loading peak hours: $e');

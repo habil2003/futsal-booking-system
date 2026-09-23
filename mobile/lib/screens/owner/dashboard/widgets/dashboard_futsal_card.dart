@@ -28,7 +28,6 @@ class DashboardFutsalCard extends StatelessWidget {
     final isDeactivated = futsal.status == 'DEACTIVATED';
     final hasCourts = futsal.courts != null && futsal.courts!.isNotEmpty;
     final isMobile = Responsive.isMobile(context);
-    final isDesktop = Responsive.isDesktop(context);
     
     // Responsive values
     final cardMargin = isMobile ? 16.0 : 12.0;
@@ -310,7 +309,7 @@ class DashboardFutsalCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: enabled ? color.withOpacity(0.1) : Colors.grey.shade100,
+          color: enabled ? color.withValues(alpha: 0.1) : Colors.grey.shade100,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Icon(

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../services/api_service.dart';
 import '../../utils/app_colors.dart';
 
@@ -88,7 +87,9 @@ class _RegisterTeamScreenState extends State<RegisterTeamScreen> {
           'jerseyColor': null,
         },
       );
-      
+
+      if (!mounted) return;
+
       setState(() => _isLoading = false);
       
       if (response['status'] == 'success') {
@@ -100,20 +101,8 @@ class _RegisterTeamScreenState extends State<RegisterTeamScreen> {
         );
         Navigator.pop(context, true);
       } else {
-        String errorMessage = response['message'] ?? 'Registration failed';
-        
-        if (errorMessage.contains('full') || errorMessage.contains('Maximum teams')) {
-          errorMessage = '🏆 Tournament is full! No more teams can register.';
-        } else if (errorMessage.contains('already registered')) {
-          errorMessage = '⚠️ You have already registered a team in this tournament.';
-        } else if (errorMessage.contains('name already taken')) {
-          errorMessage = '📛 Team name is already taken. Please choose another name.';
-        } else if (errorMessage.contains('not open')) {
-          errorMessage = '🔒 Tournament registration is not open yet.';
-        } else if (errorMessage.contains('started')) {
-          errorMessage = '⏰ Tournament has already started. Registration closed.';
-        }
-        
+        final errorMessage =
+            _translateError(response['message'] ?? 'Registration failed');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(errorMessage),
@@ -124,13 +113,35 @@ class _RegisterTeamScreenState extends State<RegisterTeamScreen> {
       }
     } catch (e) {
       setState(() => _isLoading = false);
+      final raw = e.toString().replaceFirst('Exception: ', '').trim();
+      final errorMessage = _translateError(raw.isEmpty ? 'Registration failed' : raw);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Network error: Please try again'),
+          content: Text(errorMessage),
           backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
         ),
       );
     }
+  }
+
+  String _translateError(String raw) {
+    final lower = raw.toLowerCase();
+    if (lower.contains('full') || lower.contains('maximum teams')) {
+      return 'Tournament is full! No more teams can register.';
+    } else if (lower.contains('already registered')) {
+      return 'You have already registered a team in this tournament.';
+    } else if (lower.contains('name already taken')) {
+      return 'Team name is already taken. Please choose another name.';
+    } else if (lower.contains('not open')) {
+      return 'Tournament registration is not open yet.';
+    } else if (lower.contains('started') || lower.contains('closed')) {
+      return 'Tournament has already started. Registration closed.';
+    } else if (lower.contains('at least') || lower.contains('minimum')) {
+      return '${raw[0].toUpperCase()}${raw.substring(1)}';
+    }
+    return raw;
   }
   
   void _addPlayer() {
@@ -310,13 +321,13 @@ class _RegisterTeamScreenState extends State<RegisterTeamScreen> {
                                       width: 30,
                                       height: 30,
                                       decoration: BoxDecoration(
-                                        color: AppColors.primary.withOpacity(0.1),
+                                        color: AppColors.primary.withValues(alpha: 0.1),
                                         borderRadius: BorderRadius.circular(15),
                                       ),
                                       child: Center(
                                         child: Text(
                                           '${index + 1}',
-                                          style: TextStyle(
+                                          style: const TextStyle(
                                             color: AppColors.primary,
                                             fontWeight: FontWeight.bold,
                                           ),
@@ -429,7 +440,7 @@ class _RegisterTeamScreenState extends State<RegisterTeamScreen> {
           // Loading overlay
           if (_isLoading)
             Container(
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black.withValues(alpha: 0.3),
               child: const Center(
                 child: Card(
                   child: Padding(

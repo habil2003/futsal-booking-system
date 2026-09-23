@@ -24,7 +24,6 @@ class _PlayerTournamentDetailsScreenState extends State<PlayerTournamentDetailsS
   
   List<dynamic> _matches = [];
   List<dynamic> _standings = [];
-  List<dynamic> _teams = [];
   bool _isLoading = true;
   String? _error;
 
@@ -48,15 +47,13 @@ class _PlayerTournamentDetailsScreenState extends State<PlayerTournamentDetailsS
     });
 
     try {
-      // Fetch matches, standings, and teams in parallel
+      // Fetch matches and standings in parallel
       final matchesResponse = await ApiService.getList('tournaments/${widget.tournamentId}/matches');
       final standingsResponse = await ApiService.get('tournaments/${widget.tournamentId}/standings');
-      final teamsResponse = await ApiService.getList('tournaments/${widget.tournamentId}/teams');
 
       setState(() {
         _matches = matchesResponse;
         _standings = standingsResponse['standings'] ?? [];
-        _teams = teamsResponse;
         _isLoading = false;
       });
     } catch (e) {
@@ -484,12 +481,12 @@ class _PlayerTournamentDetailsScreenState extends State<PlayerTournamentDetailsS
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.1),
+            color: AppColors.primary.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Text(
             title,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.bold,
               color: AppColors.primary,

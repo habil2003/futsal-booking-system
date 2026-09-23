@@ -3,9 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../providers/admin_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../widgets/admin/admin_header_actions.dart';
 
 class AdminAllFutsalsScreen extends StatefulWidget {
-  const AdminAllFutsalsScreen({super.key});
+  const AdminAllFutsalsScreen({super.key, this.onOpenDrawer});
+
+  final VoidCallback? onOpenDrawer;
 
   @override
   State<AdminAllFutsalsScreen> createState() => _AdminAllFutsalsScreenState();
@@ -28,10 +31,14 @@ class _AdminAllFutsalsScreenState extends State<AdminAllFutsalsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('All Futsals'),
+        leading: widget.onOpenDrawer != null
+            ? AdminMenuButton(onPressed: widget.onOpenDrawer!)
+            : null,
         centerTitle: true,
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         actions: [
+          const AdminNotificationButton(),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () =>

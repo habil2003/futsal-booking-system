@@ -31,7 +31,7 @@ class AuthLogo extends StatelessWidget {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: primaryColor.withOpacity(0.3),
+                  color: primaryColor.withValues(alpha: 0.3),
                   blurRadius: 20,
                   spreadRadius: 5,
                 ),

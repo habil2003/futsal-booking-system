@@ -402,7 +402,6 @@ Future<void> markNotificationsAsRead() async {
     String? to,
     int page = 1,
   }) async {
-    final stopwatch = Stopwatch()..start();
     try {
       final response = await ApiService.getAdminBookings(
         status: status,
@@ -425,10 +424,6 @@ Future<void> markNotificationsAsRead() async {
       _allBookings = [];
       notifyListeners();
     }
-    stopwatch.stop();
-    print('⏱️ API call took: ${stopwatch.elapsedMilliseconds}ms');
-    print(
-        '📊 Returned: ${_allBookings.length} bookings of $totalBookingsCount total');
   }
 
   // ============================================

@@ -20,15 +20,19 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 const corsOptions = {
   origin: [
-    'https://futsal-pokhara.web.app', 
-    'http://192.168.100.146:5000',
+    'https://futsal-pokhara.web.app',
+    'https://web-production-132c2.up.railway.app',  // ← ADD YOUR RAILWAY URL
     'http://localhost:5000',
+    'http://localhost:4000',
+    'http://192.168.100.146:5000',
     'http://192.168.100.204:5000',
-    /^http:\/\/localhost:[0-9]+$/
+    /^http:\/\/localhost:[0-9]+$/,
+    /^https:\/\/.*\.up\.railway\.app$/  // ← Allow all Railway subdomains
   ],
   credentials: true,
   optionsSuccessStatus: 200
 };
+
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -59,6 +63,7 @@ import favoriteRoutes from './routes/favorite.routes.js';
 import settingsRoutes from './routes/settings.routes.js';
 import adRoutes from './routes/ad.routes.js';
 import analyticsRoutes from './routes/analytics.routes.js';   // ✅ Added
+import userRoutes from './routes/user.routes.js';
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -78,6 +83,7 @@ app.use('/api/admin/settings', settingsRoutes);
 app.use('/api/ads', adRoutes);
 app.use('/api/admin/analytics', analyticsRoutes);    
 app.use('/api/tournaments', tournamentRoutes); 
+app.use('/api/users', userRoutes);
 
 
 // Health check

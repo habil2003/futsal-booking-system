@@ -31,7 +31,7 @@ class AuthSubmitButton extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          disabledBackgroundColor: Colors.green.withOpacity(0.5),
+          disabledBackgroundColor: Colors.green.withValues(alpha: 0.5),
           elevation: isLoading ? 0 : 2,
         ),
         child: isLoading

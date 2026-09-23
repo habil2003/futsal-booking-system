@@ -11,9 +11,9 @@ class StatusCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: tournament.statusColor.withOpacity(0.1),
+        color: tournament.statusColor.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: tournament.statusColor.withOpacity(0.3)),
+        border: Border.all(color: tournament.statusColor.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [

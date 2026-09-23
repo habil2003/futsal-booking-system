@@ -319,7 +319,7 @@ export const lockSlot = async (req, res) => {
             futsal: {
               select: {
                 id: true,
-                isApproved: true,
+                status: true,
                 ownerId: true,
               },
             },
@@ -359,8 +359,8 @@ export const lockSlot = async (req, res) => {
       });
     }
 
-    // ✅ 3. Check if futsal is approved/active
-    if (!slot.court.futsal.isApproved) {
+    // ✅ 3. Check if futsal is active/approved
+    if (slot.court.futsal.status !== 'ACTIVE') {
       return res.status(400).json({
         status: "error",
         message: "This futsal is currently inactive. Bookings are disabled.",

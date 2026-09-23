@@ -101,7 +101,7 @@ class _MyTeamScreenState extends State<MyTeamScreen> {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [AppColors.primary, AppColors.primary.withOpacity(0.7)],
+                colors: [AppColors.primary, AppColors.primary.withValues(alpha: 0.7)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -229,10 +229,10 @@ class _MyTeamScreenState extends State<MyTeamScreen> {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.1),
+                          color: AppColors.primary.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: Icon(
+                        child: const Icon(
                           Icons.people,
                           color: AppColors.primary,
                           size: 20,
@@ -263,13 +263,13 @@ class _MyTeamScreenState extends State<MyTeamScreen> {
                               width: 30,
                               height: 30,
                               decoration: BoxDecoration(
-                                color: AppColors.primary.withOpacity(0.1),
+                                color: AppColors.primary.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(15),
                               ),
                               child: Center(
                                 child: Text(
                                   '${index + 1}',
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     color: AppColors.primary,
                                     fontWeight: FontWeight.bold,
                                   ),

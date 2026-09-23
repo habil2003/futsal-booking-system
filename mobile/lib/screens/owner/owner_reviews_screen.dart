@@ -3,15 +3,18 @@ import 'package:provider/provider.dart';
 import '../../providers/review_provider.dart';
 import '../../models/review.dart';
 import '../../utils/date_formatter.dart';
+import '../../widgets/owner/owner_header_actions.dart';
 
 class OwnerReviewsScreen extends StatefulWidget {
   final int futsalId;
   final String futsalName;
+  final VoidCallback? onOpenDrawer;
 
   const OwnerReviewsScreen({
     super.key,
     required this.futsalId,
     required this.futsalName,
+    this.onOpenDrawer,
   });
 
   @override
@@ -34,10 +37,14 @@ class _OwnerReviewsScreenState extends State<OwnerReviewsScreen> {
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
         title: Text('${widget.futsalName} — Reviews'),
+        leading: widget.onOpenDrawer != null
+            ? OwnerMenuButton(onPressed: widget.onOpenDrawer!)
+            : null,
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          const OwnerHeaderActions(),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () => Provider.of<ReviewProvider>(context, listen: false)
@@ -96,7 +103,7 @@ class _OwnerReviewsScreenState extends State<OwnerReviewsScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -195,7 +202,7 @@ class _OwnerReviewsScreenState extends State<OwnerReviewsScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),

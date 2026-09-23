@@ -78,7 +78,7 @@ Widget build(BuildContext context) {
               width: isSelected ? 2 : 1,
             ),
             boxShadow: isSelected
-                ? [BoxShadow(color: Colors.green.withOpacity(0.3), blurRadius: 8, offset: Offset(0, 4))]
+                ? [BoxShadow(color: Colors.green.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 4))]
                 : null,
           ),
           child: Padding(
@@ -105,6 +105,8 @@ Widget build(BuildContext context) {
                     fontWeight: FontWeight.w600,
                     color: isSelected ? Colors.white70 : Colors.green.shade700,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Container(

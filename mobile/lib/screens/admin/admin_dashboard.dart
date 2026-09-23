@@ -3,7 +3,6 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
 import '../../providers/admin_provider.dart';
 import '../../providers/admin_analytics_provider.dart';
-import '../../widgets/admin/futsal_details_modal.dart';
 import 'package:table_calendar/table_calendar.dart';
 
 // ============================================
@@ -43,7 +42,7 @@ class _CalendarCardState extends State<CalendarCard> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 12,
             offset: const Offset(0, 2),
           ),
@@ -123,7 +122,7 @@ class _CalendarCardState extends State<CalendarCard> {
             ),
             calendarStyle: CalendarStyle(
               todayDecoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.3),
+                color: Colors.green.withValues(alpha: 0.3),
                 shape: BoxShape.circle,
               ),
               selectedDecoration: const BoxDecoration(
@@ -273,7 +272,7 @@ class _RangeLineChartCardState extends State<RangeLineChartCard>
             isCurved: true,
             dotData: FlDotData(show: spots.length <= 30),
             belowBarData:
-                BarAreaData(show: true, color: widget.color.withOpacity(0.1)),
+                BarAreaData(show: true, color: widget.color.withValues(alpha: 0.1)),
           ),
         ],
         minX: minX,
@@ -284,8 +283,9 @@ class _RangeLineChartCardState extends State<RangeLineChartCard>
               showTitles: true,
               interval: _calculateInterval(spots.length),
               getTitlesWidget: (value, meta) {
-                if (value < 0 || value >= spots.length)
+                if (value < 0 || value >= spots.length) {
                   return const SizedBox.shrink();
+                }
                 return Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(_getLabelForIndex(value.toInt()),
@@ -455,11 +455,12 @@ class AdminDashboard extends StatelessWidget {
                     color: Colors.grey.shade600,
                     fontWeight: FontWeight.w500)),
             const SizedBox(height: 4),
-            Text('Dashboard Overview',
-                style: TextStyle(
-                    fontSize: isMobile ? 22 : 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade800)),
+            if (MediaQuery.of(context).size.width >= 1100)
+              Text('Dashboard Overview',
+                  style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey.shade800)),
           ],
         ),
         Container(
@@ -468,7 +469,7 @@ class AdminDashboard extends StatelessWidget {
               borderRadius: BorderRadius.circular(30),
               boxShadow: [
                 BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 10,
                     offset: const Offset(0, 2))
               ]),
@@ -610,7 +611,7 @@ class AdminDashboard extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-                color: (stat['color'] as Color).withOpacity(0.08),
+                color: (stat['color'] as Color).withValues(alpha: 0.08),
                 blurRadius: 8,
                 offset: const Offset(0, 2))
           ]),
@@ -659,7 +660,7 @@ class AdminDashboard extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
           boxShadow: [
             BoxShadow(
-                color: (stat['color'] as Color).withOpacity(0.08),
+                color: (stat['color'] as Color).withValues(alpha: 0.08),
                 blurRadius: 6,
                 offset: const Offset(0, 2))
           ]),
@@ -670,7 +671,7 @@ class AdminDashboard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                  color: (stat['color'] as Color).withOpacity(0.1),
+                  color: (stat['color'] as Color).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8)),
               child: Icon(stat['icon'] as IconData,
                   color: stat['color'] as Color, size: 18),
@@ -787,7 +788,7 @@ class AdminDashboard extends StatelessWidget {
       AdminProvider adminProvider,
       AdminAnalyticsProvider analyticsProvider,
       bool isMobile) {
-    if (isMobile)
+    if (isMobile) {
       return Column(
         children: [
           _buildPendingApprovalsCard(context, adminProvider, compact: true),
@@ -795,6 +796,7 @@ class AdminDashboard extends StatelessWidget {
           _buildRecentActivityCard(context, adminProvider, compact: true),
         ],
       );
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -831,7 +833,7 @@ class AdminDashboard extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: Colors.black.withValues(alpha: 0.04),
                 blurRadius: 20,
                 offset: const Offset(0, 4))
           ]),
@@ -937,7 +939,7 @@ class AdminDashboard extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: Colors.black.withValues(alpha: 0.04),
                 blurRadius: 20,
                 offset: const Offset(0, 4))
           ]),
@@ -1042,10 +1044,10 @@ class AdminDashboard extends StatelessWidget {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: categoryColor.withOpacity(0.1),
+                              color: categoryColor.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                  color: categoryColor.withOpacity(0.3),
+                                  color: categoryColor.withValues(alpha: 0.3),
                                   width: 1),
                             ),
                             child: Text(category,
@@ -1059,10 +1061,10 @@ class AdminDashboard extends StatelessWidget {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: statusColor.withOpacity(0.1),
+                              color: statusColor.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                  color: statusColor.withOpacity(0.3),
+                                  color: statusColor.withValues(alpha: 0.3),
                                   width: 1),
                             ),
                             child: Text(status.toUpperCase(),
@@ -1148,8 +1150,9 @@ class AdminDashboard extends StatelessWidget {
                     behavior: SnackBarBehavior.floating,
                   ),
                 );
-                if (result['status'] == 'success')
+                if (result['status'] == 'success') {
                   adminProvider.loadDashboardStats();
+                }
               }
             },
             child: const Text('Reject'),

@@ -20,7 +20,7 @@ class BannerCard extends StatelessWidget {
         gradient: LinearGradient(
           colors: [
             Color(int.parse('0xFF${banner['color']}')),
-            Color(int.parse('0xFF${banner['color']}')).withOpacity(0.8),
+            Color(int.parse('0xFF${banner['color']}')).withValues(alpha: 0.8),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -28,7 +28,7 @@ class BannerCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(15),
         boxShadow: [
           BoxShadow(
-            color: Color(int.parse('0xFF${banner['color']}')).withOpacity(0.3),
+            color: Color(int.parse('0xFF${banner['color']}')).withValues(alpha: 0.3),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -62,7 +62,7 @@ class BannerCard extends StatelessWidget {
                 Text(
                   banner['subtitle']!,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
+                    color: Colors.white.withValues(alpha: 0.9),
                     fontSize: 12,
                   ),
                 ),

@@ -60,7 +60,7 @@ class TodaySchedule extends StatelessWidget {
         borderRadius: BorderRadius.circular(isMobile ? 16 : 20),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -99,14 +99,14 @@ class TodaySchedule extends StatelessWidget {
           const SizedBox(height: 12),
           // Show actual bookings
           ...bookings.take(maxBookings).map((booking) => Padding(
-            padding: EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.only(bottom: 8),
             child: _buildBookingItem(booking, isMobile),
           )),
           // Add placeholder spaces if needed to maintain consistent height
           if (needsPlaceholders)
             ...List.generate(
               maxBookings - displayedCount,
-              (index) => SizedBox(height: 70),
+              (index) => const SizedBox(height: 70),
             ),
           if (bookings.length > maxBookings)
             Padding(

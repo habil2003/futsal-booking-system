@@ -30,7 +30,7 @@ class MatchCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: match.statusColor.withOpacity(0.1),
+                    color: match.statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
@@ -58,9 +58,9 @@ class MatchCard extends StatelessWidget {
                   color: Colors.red.shade100,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Row(
+                child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
+                  children: [
                     Icon(Icons.cancel, size: 14, color: Colors.red),
                     SizedBox(width: 4),
                     Text(

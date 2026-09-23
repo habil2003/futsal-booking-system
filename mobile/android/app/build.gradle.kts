@@ -19,13 +19,13 @@ android {
         jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
-    defaultConfig {
-        applicationId = "com.example.mobile"
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
-    }
+  defaultConfig {
+    applicationId = "com.example.mobile"
+    minSdk = flutter.minSdkVersion  // ← FORCE to 21 for Facebook
+    targetSdk = flutter.targetSdkVersion
+    versionCode = flutter.versionCode
+    versionName = flutter.versionName
+}
 
     buildTypes {
         release {
@@ -41,4 +41,5 @@ flutter {
 // ✅ ADD THESE DEPENDENCIES
 dependencies {
     implementation("com.google.android.gms:play-services-auth:20.7.0")
+     implementation("com.facebook.android:facebook-login:16.1.0")
 }

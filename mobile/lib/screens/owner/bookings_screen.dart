@@ -9,15 +9,18 @@ import 'bookings/widgets/compact_booking_card.dart';
 import 'bookings/widgets/calendar_grid.dart';
 import 'bookings/widgets/bookings_empty_state.dart';
 import 'bookings/widgets/booking_action_dialog.dart';
+import '../../widgets/owner/owner_header_actions.dart';
 
 class BookingsScreen extends StatefulWidget {
   final int futsalId;
   final String futsalName;
+  final VoidCallback? onOpenDrawer;
 
   const BookingsScreen({
     super.key,
     required this.futsalId,
     required this.futsalName,
+    this.onOpenDrawer,
   });
 
   @override
@@ -28,8 +31,6 @@ class _BookingsScreenState extends State<BookingsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   DateTime _selectedDate = DateTime.now();
-  String? _selectedStatus;
-  int? _selectedCourtId;
   final Map<int, bool> _blockedPlayers = {};
 
   @override
@@ -69,6 +70,9 @@ Future<void> _loadBookings() async {
     return Scaffold(
       appBar: AppBar(
         title: Text('${widget.futsalName} - Bookings'),
+        leading: widget.onOpenDrawer != null
+            ? OwnerMenuButton(onPressed: widget.onOpenDrawer!)
+            : null,
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -82,6 +86,7 @@ Future<void> _loadBookings() async {
           ],
         ),
         actions: [
+          const OwnerHeaderActions(),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadBookings,
@@ -313,7 +318,7 @@ Widget _buildPastBookingCard(Booking booking) {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
-              color: booking.statusColor.withOpacity(0.1),
+              color: booking.statusColor.withValues(alpha: 0.1),
               borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
             ),
             child: Row(
@@ -735,9 +740,6 @@ Widget _buildPastBookingCard(Booking booking) {
   // ============================================
   Future<void> _checkInCustomer(
       Booking booking, BookingProvider provider) async {
-    print('🟢 CHECK IN clicked for booking: ${booking.id}');
-    print('   Current status: ${booking.bookingStatus}');
-    print('   Payment method: ${booking.paymentMethod}');
     final confirmed = await BookingActionDialog.show(
       context: context,
       title: 'Check In Customer',
@@ -749,7 +751,6 @@ Widget _buildPastBookingCard(Booking booking) {
     _showLoading();
     final response =
         await provider.checkInCustomer(booking.id, widget.futsalId);
-    print('🟢 Check in response: $response');
     _hideLoadingAndShowResult(response);
   }
 

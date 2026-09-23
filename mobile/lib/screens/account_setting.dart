@@ -1,21 +1,58 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
 import '../providers/auth_provider.dart';
+import '../services/api_service.dart';
 import '../screens/login_screen.dart';
-import '../utils/app_colors.dart';
 
 import 'player/account/account_info.dart';
 import 'player/account/addresses.dart';
 import 'player/account/wishlist.dart';
-import 'player/account/payment_methods.dart';
 import 'player/account/change_password.dart';
 import 'player/account/language.dart';
+import 'player/account/pushnotification.dart';
 import 'player/account/privacy.dart';
 import 'player/account/about.dart';
 import 'player/account/support.dart';
 
 class AccountSetting extends StatelessWidget {
   const AccountSetting({super.key});
+
+  Future<void> _pickProfileImage(BuildContext context) async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final picker = ImagePicker();
+
+    XFile? picked;
+    try {
+      picked = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+    } catch (_) {}
+
+    if (picked == null) return;
+    if (!context.mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator(color: Color(0xFF059669))),
+    );
+
+    final ok = await auth.updateProfileImage(picked);
+
+    if (!context.mounted) return;
+    Navigator.pop(context);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(ok ? 'Profile picture updated' : 'Could not update profile picture'),
+        backgroundColor: ok ? const Color(0xFF16A34A) : Colors.red,
+      ),
+    );
+  }
 
   Future<void> _signOut(BuildContext context) async {
     final confirm = await showDialog<bool>(
@@ -36,9 +73,11 @@ class AccountSetting extends StatelessWidget {
       ),
     );
 
+    if (!context.mounted) return;
     if (confirm == true) {
       final auth = Provider.of<AuthProvider>(context, listen: false);
       await auth.logout();
+      if (!context.mounted) return;
 
       Navigator.pushAndRemoveUntil(
         context,
@@ -81,21 +120,45 @@ class AccountSetting extends StatelessWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      CircleAvatar(
-                        radius: 44,
-                        backgroundColor: Colors.white,
-                        child: Text(
-                          (user.fullName ?? "U")[0].toUpperCase(),
-                          style: const TextStyle(
-                            fontSize: 30,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF16A34A),
-                          ),
+                      GestureDetector(
+                        onTap: () => _pickProfileImage(context),
+                        child: Stack(
+                          alignment: Alignment.bottomRight,
+                          children: [
+                            CircleAvatar(
+                              radius: 44,
+                              backgroundColor: Colors.white,
+                              foregroundImage: user.profileImage != null && user.profileImage!.isNotEmpty
+                                  ? NetworkImage(user.profileImage!)
+                                  : null,
+                              child: user.profileImage == null || user.profileImage!.isEmpty
+                                  ? Text(
+                                      user.fullName[0].toUpperCase(),
+                                      style: const TextStyle(
+                                        fontSize: 30,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF16A34A),
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 2),
+                              ),
+                              child: const Padding(
+                                padding: EdgeInsets.all(4),
+                                child: Icon(Icons.camera_alt, size: 18, color: Color(0xFF059669)),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        user.fullName ?? "User",
+                        user.fullName,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 20,
@@ -109,6 +172,16 @@ class AccountSetting extends StatelessWidget {
                           fontSize: 13,
                         ),
                       ),
+                      if (user.phoneNumber != null && user.phoneNumber!.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          user.phoneNumber!,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -123,6 +196,8 @@ class AccountSetting extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const _ProfileStats(),
+                  const SizedBox(height: 20),
                   _sectionTitle("ACCOUNT"),
                   _menuCard(
                     icon: Icons.person_outline,
@@ -176,6 +251,16 @@ class AccountSetting extends StatelessWidget {
                       ),
                     ),
                   ),
+                  _menuCard(
+                    icon: Icons.notifications_none,
+                    title: "Notifications",
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const PushNotificationScreen(),
+                      ),
+                    ),
+                  ),
 
                   const SizedBox(height: 20),
 
@@ -218,7 +303,7 @@ class AccountSetting extends StatelessWidget {
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFF059669),
+                        backgroundColor: const Color(0xFF059669),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
@@ -280,7 +365,7 @@ class AccountSetting extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -290,7 +375,7 @@ class AccountSetting extends StatelessWidget {
         leading: Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: const Color(0xFF16A34A).withOpacity(0.1),
+            color: const Color(0xFF16A34A).withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(icon, color: const Color(0xFF16A34A)),
@@ -304,6 +389,106 @@ class AccountSetting extends StatelessWidget {
         trailing: const Icon(Icons.arrow_forward_ios, size: 14),
         onTap: onTap,
       ),
+    );
+  }
+}
+
+class _ProfileStats extends StatefulWidget {
+  const _ProfileStats();
+
+  @override
+  State<_ProfileStats> createState() => _ProfileStatsState();
+}
+
+class _ProfileStatsState extends State<_ProfileStats> {
+  int _bookings = 0;
+  double _spent = 0;
+  int _favorites = 0;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final bookingsRes = await ApiService.get('bookings/my-bookings');
+      final bookings = bookingsRes['bookings'] as List? ?? [];
+      var count = 0;
+      double spent = 0;
+      for (final b in bookings) {
+        final status = b['status']?.toString().toUpperCase() ?? '';
+        if (status == 'CANCELLED') continue;
+        count++;
+        spent += (b['totalPrice'] as num?)?.toDouble() ?? 0;
+      }
+
+      final favRes = await ApiService.get('favorites');
+      final favs = favRes['favorites'] as List? ?? [];
+
+      if (!mounted) return;
+      setState(() {
+        _bookings = count;
+        _spent = spent;
+        _favorites = favs.length;
+        _loaded = true;
+      });
+    } catch (e) {
+      debugPrint('Profile stats load error: $e');
+      if (!mounted) return;
+      setState(() => _loaded = true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _statItem(Icons.calendar_today_outlined, _bookings.toString(),
+              'Bookings'),
+          Container(width: 1, height: 34, color: Colors.grey.shade200),
+          _statItem(Icons.payments_outlined,
+              'रु${_spent.toStringAsFixed(0)}', 'Total Spent'),
+          Container(width: 1, height: 34, color: Colors.grey.shade200),
+          _statItem(Icons.favorite_outline, _favorites.toString(),
+              'Saved'),
+        ],
+      ),
+    );
+  }
+
+  Widget _statItem(IconData icon, String value, String label) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 20, color: const Color(0xFF16A34A)),
+        const SizedBox(height: 6),
+        Text(
+          _loaded ? value : '…',
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+        ),
+      ],
     );
   }
 }

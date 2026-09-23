@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
+import '../../widgets/owner/owner_header_actions.dart';
 
 class CustomersScreen extends StatefulWidget {
   final int futsalId;
   final String futsalName;
+  final VoidCallback? onOpenDrawer;
 
   const CustomersScreen({
     super.key,
     required this.futsalId,
     required this.futsalName,
+    this.onOpenDrawer,
   });
 
   @override
@@ -83,8 +86,14 @@ class _CustomersScreenState extends State<CustomersScreen>
     return Scaffold(
       appBar: AppBar(
         title: Text('${widget.futsalName} - Customers'),
+        leading: widget.onOpenDrawer != null
+            ? OwnerMenuButton(onPressed: widget.onOpenDrawer!)
+            : null,
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
+        actions: const [
+          OwnerHeaderActions(),
+        ],
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
@@ -185,6 +194,9 @@ class _CustomersScreenState extends State<CustomersScreen>
                           backgroundColor: c['isBlocked'] == true 
                               ? Colors.red.shade100 
                               : Colors.green.shade100,
+                          foregroundImage: c['avatar'] != null && c['avatar'].toString().isNotEmpty
+                              ? NetworkImage(c['avatar'].toString())
+                              : null,
                           child: Text(
                             c['name']?.substring(0, 1).toUpperCase() ?? '?',
                             style: TextStyle(
@@ -227,6 +239,11 @@ class _CustomersScreenState extends State<CustomersScreen>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(c['email'] ?? 'No email'),
+                            if (c['phone'] != null && c['phone'].toString().trim().isNotEmpty) ...[
+                              const SizedBox(height: 2),
+                              Text(c['phone'].toString(),
+                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                            ],
                             const SizedBox(height: 2),
                             Text(
                               'Bookings: ${c['totalBookings']} | Spent: रु${c['totalSpent']}',
@@ -262,7 +279,7 @@ class _CustomersScreenState extends State<CustomersScreen>
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.grey.withOpacity(0.1),
+                color: Colors.grey.withValues(alpha: 0.1),
                 blurRadius: 4,
                 offset: const Offset(0, 2),
               ),
@@ -363,7 +380,7 @@ class _CustomersScreenState extends State<CustomersScreen>
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.grey.withOpacity(0.1),
+                  color: Colors.grey.withValues(alpha: 0.1),
                   blurRadius: 4,
                 ),
               ],
@@ -435,7 +452,7 @@ class _CustomersScreenState extends State<CustomersScreen>
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),

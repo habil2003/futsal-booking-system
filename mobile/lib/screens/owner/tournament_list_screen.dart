@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/tournament_provider.dart';
-import '../../providers/auth_provider.dart';
 import '../../models/tournament.dart';
 import 'create_tournament_screen.dart';
 import 'tournament_details_screen.dart';
 import 'tournament_list/widgets/stat_card.dart';
 import 'tournament_list/widgets/tournament_card.dart';
 import 'tournament_list/widgets/tournament_empty_state.dart';
+import '../../widgets/owner/owner_header_actions.dart';
 
 class TournamentListScreen extends StatefulWidget {
-  const TournamentListScreen({super.key});
+  const TournamentListScreen({super.key, this.onOpenDrawer});
+
+  final VoidCallback? onOpenDrawer;
 
   @override
   State<TournamentListScreen> createState() => _TournamentListScreenState();
@@ -39,13 +41,8 @@ class _TournamentListScreenState extends State<TournamentListScreen>
 
 
   Future<void> _loadTournaments() async {
-    print('🏆 Loading tournaments for owner...');
     final provider = Provider.of<TournamentProvider>(context, listen: false);
     await provider.loadMyTournaments();
-    print('🏆 Loaded ${provider.myTournaments.length} tournaments');
-    for (var t in provider.myTournaments) {
-      print('   - ${t.name} (${t.status})');
-    }
     if (mounted) setState(() {});
   }
 
@@ -69,6 +66,9 @@ class _TournamentListScreenState extends State<TournamentListScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Tournaments'),
+        leading: widget.onOpenDrawer != null
+            ? OwnerMenuButton(onPressed: widget.onOpenDrawer!)
+            : null,
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -85,6 +85,7 @@ class _TournamentListScreenState extends State<TournamentListScreen>
           indicatorColor: Colors.white,
         ),
         actions: [
+          const OwnerHeaderActions(),
           IconButton(
             icon: _isRefreshing
                 ? const SizedBox(
@@ -101,7 +102,7 @@ class _TournamentListScreenState extends State<TournamentListScreen>
                 : () async {
                     setState(() => _isRefreshing = true);
                     await _loadTournaments();
-                    if (mounted) {
+                    if (context.mounted) {
                       setState(() => _isRefreshing = false);
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -147,7 +148,6 @@ class _TournamentListScreenState extends State<TournamentListScreen>
             context,
             MaterialPageRoute(builder: (context) => const CreateTournamentScreen()),
           ).then((_) {
-            print('🏆 Returning from Create Tournament, refreshing...');
             _loadTournaments();
           });
         },
@@ -298,7 +298,6 @@ class _TournamentListScreenState extends State<TournamentListScreen>
                   ),
                 ),
               ).then((_) {
-                print('🏆 Returning from Tournament Details, refreshing...');
                 _loadTournaments();
               });
             },

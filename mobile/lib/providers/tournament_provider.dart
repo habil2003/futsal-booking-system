@@ -97,31 +97,26 @@ class TournamentProvider with ChangeNotifier {
       debugPrint('🏆 Full tournament response: $response');
 
       // Check if response contains tournament data
-      if (response != null) {
-        // The API returns { status: 'success', tournament: {...} }
-        // So we need to extract the tournament object
-        Map<String, dynamic> tournamentData;
+      // The API returns { status: 'success', tournament: {...} }
+      // So we need to extract the tournament object
+      Map<String, dynamic> tournamentData;
 
-        if (response['tournament'] != null) {
-          // If response has tournament wrapper
-          tournamentData = response['tournament'];
-        } else {
-          // If response is directly the tournament object
-          tournamentData = response;
-        }
-
-        debugPrint('🏆 Tournament data extracted: $tournamentData');
-        _currentTournament = Tournament.fromJson(tournamentData);
-
-        // Log the parsed data to verify
-        debugPrint('🏆 Tournament loaded: ${_currentTournament?.name}');
-        debugPrint('🏆 Max Teams: ${_currentTournament?.maxTeams}');
-        debugPrint('🏆 Start Date: ${_currentTournament?.startDate}');
+      if (response['tournament'] != null) {
+        // If response has tournament wrapper
+        tournamentData = response['tournament'];
       } else {
-        debugPrint('🏆 Tournament response is null');
-        error = 'Tournament not found';
+        // If response is directly the tournament object
+        tournamentData = response;
       }
 
+      debugPrint('🏆 Tournament data extracted: $tournamentData');
+      _currentTournament = Tournament.fromJson(tournamentData);
+
+      // Log the parsed data to verify
+      debugPrint('🏆 Tournament loaded: ${_currentTournament?.name}');
+      debugPrint('🏆 Max Teams: ${_currentTournament?.maxTeams}');
+      debugPrint('🏆 Start Date: ${_currentTournament?.startDate}');
+    
       // Load teams and matches regardless
       await Future.wait([
         loadTeams(tournamentId),
@@ -411,7 +406,7 @@ class TournamentProvider with ChangeNotifier {
         return {
           'status': 'error',
           'message':
-              response['message'] ?? 'Failed to ${actionMessage} tournament',
+              response['message'] ?? 'Failed to $actionMessage tournament',
         };
       }
     } catch (e) {
@@ -423,7 +418,7 @@ class TournamentProvider with ChangeNotifier {
 
       return {
         'status': 'error',
-        'message': 'Network error: Could not ${actionMessage} tournament',
+        'message': 'Network error: Could not $actionMessage tournament',
       };
     }
   }

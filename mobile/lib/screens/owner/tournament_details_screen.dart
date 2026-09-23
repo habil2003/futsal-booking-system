@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/tournament_provider.dart';
-import '../../providers/auth_provider.dart';
 import '../../models/tournament.dart';
-import '../../models/team.dart';
 import '../../models/match.dart';
 import 'add_teams_screen.dart';
-import 'tournament/fixtures_screen.dart';
 import 'tournament/round_robin_leaderboard.dart';
 import 'tournament/knockout_bracket.dart';
 import 'create_tournament_screen.dart';
@@ -93,7 +90,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(actionTitle),
-        content: Text('Are you sure you want to ${action} this tournament?'),
+        content: Text('Are you sure you want to $action this tournament?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('NO')),
           ElevatedButton(
@@ -189,6 +186,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen>
         builder: (context) => CreateTournamentScreen(tournamentToEdit: tournament),
       ),
     ).then((_) {
+      if (!mounted) return;
       Provider.of<TournamentProvider>(context, listen: false)
           .loadTournament(widget.tournamentId);
     });

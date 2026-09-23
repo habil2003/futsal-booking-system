@@ -38,7 +38,7 @@ class QuickActions extends StatelessWidget {
         borderRadius: BorderRadius.circular(isMobile ? 16 : 20),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -274,7 +274,7 @@ class QuickActions extends StatelessWidget {
             Container(
               padding: EdgeInsets.all(padding),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(borderRadius),
               ),
               child: Icon(icon, color: color, size: iconSize),

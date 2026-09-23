@@ -2,25 +2,16 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:provider/provider.dart';
-import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
+import '../../widgets/admin/admin_header_actions.dart';
 
 class AdsBannerScreen extends StatefulWidget {
-  const AdsBannerScreen({super.key});
+  const AdsBannerScreen({super.key, this.onOpenDrawer});
+
+  final VoidCallback? onOpenDrawer;
 
   @override
   State<AdsBannerScreen> createState() => _AdsBannerScreenState();
-}
-
-String _formatDate(String? dateString) {
-  if (dateString == null) return 'Unknown date';
-  try {
-    final date = DateTime.parse(dateString);
-    return '${date.day}/${date.month}/${date.year}';
-  } catch (e) {
-    return 'Invalid date';
-  }
 }
 
 class _AdsBannerScreenState extends State<AdsBannerScreen> {
@@ -60,6 +51,7 @@ class _AdsBannerScreenState extends State<AdsBannerScreen> {
         _ads = response.cast<Map<String, dynamic>>();
       });
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
             content: Text('Failed to load ads: $e'),
@@ -118,7 +110,7 @@ class _AdsBannerScreenState extends State<AdsBannerScreen> {
 
       final response = _editingAdId == null
           ? await ApiService.createAd(adData)
-          : await ApiService.put('ads/${_editingAdId}', adData);
+          : await ApiService.put('ads/$_editingAdId', adData);
 
       if (!mounted) return;
 
@@ -178,6 +170,7 @@ class _AdsBannerScreenState extends State<AdsBannerScreen> {
 
     try {
       final response = await ApiService.delete('ads/$id');
+      if (!mounted) return;
       if (response['status'] == 'success') {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -189,6 +182,7 @@ class _AdsBannerScreenState extends State<AdsBannerScreen> {
         throw response['message'] ?? 'Delete failed';
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
       );
@@ -203,6 +197,7 @@ class _AdsBannerScreenState extends State<AdsBannerScreen> {
         _loadAds();
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
       );
@@ -226,10 +221,14 @@ class _AdsBannerScreenState extends State<AdsBannerScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Manage Advertisements'),
+        leading: widget.onOpenDrawer != null
+            ? AdminMenuButton(onPressed: widget.onOpenDrawer!)
+            : null,
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          const AdminNotificationButton(),
           if (_editingAdId != null)
             IconButton(
               icon: const Icon(Icons.close),
@@ -353,14 +352,19 @@ class _AdsBannerScreenState extends State<AdsBannerScreen> {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Colors.grey.shade400),
         ),
-        child: _previewImageUrl != null
+        child: _selectedImage != null
             ? ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: kIsWeb
-                    ? Image.network(_previewImageUrl!, fit: BoxFit.cover)
-                    : Image.file(File(_selectedImage!.path), fit: BoxFit.cover),
+                child: Image.file(File(_selectedImage!.path),
+                    fit: BoxFit.cover),
               )
-            : Column(
+            : _previewImageUrl != null
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.network(_previewImageUrl!,
+                        fit: BoxFit.cover),
+                  )
+                : Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.add_photo_alternate_outlined,

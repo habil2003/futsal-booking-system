@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
+import '../../widgets/admin/admin_header_actions.dart';
 
 class ManageTournamentsScreen extends StatefulWidget {
-  const ManageTournamentsScreen({super.key});
+  const ManageTournamentsScreen({super.key, this.onOpenDrawer});
+
+  final VoidCallback? onOpenDrawer;
 
   @override
   State<ManageTournamentsScreen> createState() =>
@@ -29,6 +30,7 @@ class _ManageTournamentsScreenState extends State<ManageTournamentsScreen> {
         _tournaments = List<Map<String, dynamic>>.from(response['tournaments'] ?? []);
       });
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to load tournaments: $e'),
@@ -49,10 +51,14 @@ class _ManageTournamentsScreenState extends State<ManageTournamentsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('All Tournaments'),
+        leading: widget.onOpenDrawer != null
+            ? AdminMenuButton(onPressed: widget.onOpenDrawer!)
+            : null,
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          const AdminNotificationButton(),
           IconButton(
             icon: _isLoadingTournaments
                 ? const SizedBox(
@@ -101,7 +107,7 @@ class _ManageTournamentsScreenState extends State<ManageTournamentsScreen> {
   Widget _buildTournamentCard(Map<String, dynamic> tournament) {
     final bool isPublished = tournament['isPublished'] ?? false;
     final String startDate = _formatShortDate(tournament['startDate']);
-    final String? endDate = _formatShortDate(tournament['endDate']);
+    final String endDate = _formatShortDate(tournament['endDate']);
     final String type = tournament['type'] ?? 'LEAGUE';
     final String status = tournament['status'] ?? 'DRAFT';
     final int maxTeams = tournament['maxTeams'] ?? 0;
@@ -110,7 +116,7 @@ class _ManageTournamentsScreenState extends State<ManageTournamentsScreen> {
     final futsalName = futsal?['name'] ?? 'Unknown Futsal';
     final ownerId = futsal?['ownerId'] ?? 'N/A';
 
-    Color _getStatusColor(String status) {
+    Color getStatusColor(String status) {
       switch (status.toUpperCase()) {
         case 'ONGOING':
           return Colors.green;
@@ -123,7 +129,7 @@ class _ManageTournamentsScreenState extends State<ManageTournamentsScreen> {
       }
     }
 
-    String _getStatusLabel(String status) {
+    String getStatusLabel(String status) {
       switch (status.toUpperCase()) {
         case 'ONGOING':
           return 'Ongoing';
@@ -150,15 +156,15 @@ class _ManageTournamentsScreenState extends State<ManageTournamentsScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: _getStatusColor(status).withOpacity(0.1),
+                    color: getStatusColor(status).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    _getStatusLabel(status),
+                    getStatusLabel(status),
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
-                      color: _getStatusColor(status),
+                      color: getStatusColor(status),
                     ),
                   ),
                 ),
@@ -166,7 +172,7 @@ class _ManageTournamentsScreenState extends State<ManageTournamentsScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: isPublished ? Colors.green.withOpacity(0.1) : Colors.grey.withOpacity(0.1),
+                    color: isPublished ? Colors.green.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
@@ -247,7 +253,7 @@ class _ManageTournamentsScreenState extends State<ManageTournamentsScreen> {
               children: [
                 _buildInfoChip(
                   Icons.calendar_today,
-                  '$startDate${endDate != null ? ' - $endDate' : ''}',
+                  '$startDate${' - $endDate'}',
                 ),
                 _buildInfoChip(
                   Icons.people,

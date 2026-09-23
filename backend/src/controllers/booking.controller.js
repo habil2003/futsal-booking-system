@@ -30,6 +30,10 @@ export const createBooking = async (req, res) => {
         ) {
           throw new Error("Slot lock expired");
         }
+        // Futsal must be ACTIVE (approved + not deactivated)
+        if (startSlot.court.futsal.status !== "ACTIVE") {
+          throw new Error("This futsal is currently inactive");
+        }
 
         const futsalId = startSlot.court.futsalId;
         const isBlocked = await tx.block.findFirst({
@@ -184,6 +188,15 @@ export const getUserBookings = async (req, res) => {
     const bookings = await prisma.booking.findMany({
       where: { userId: req.user.id },
       include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            phoneNumber: true,
+            email: true,
+            profileImage: true,
+          },
+        },
         slot: { include: { court: { include: { futsal: true } } } },
         payment: true,
       },
@@ -415,9 +428,9 @@ export const initiatePayment = async (req, res) => {
       website_url: frontendUrl,
       // Optional but recommended: Add customer info
       customer_info: {
-        name: req.user.name || req.user.email,
+        name: req.user.fullName || req.user.email,
         email: req.user.email,
-        phone: req.user.phone || "9800000000", // Use actual phone if available
+        phone: req.user.phoneNumber || "9800000000",
       },
     };
 

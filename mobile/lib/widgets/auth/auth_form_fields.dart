@@ -252,7 +252,7 @@ class _AuthFormFieldsState extends State<AuthFormFields> {
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: widget.selectedRole,
+          initialValue: widget.selectedRole,
           decoration: _buildInputDecoration(
             label: 'Register as',
             hint: null,

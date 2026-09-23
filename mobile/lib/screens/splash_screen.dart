@@ -46,13 +46,15 @@ class _SplashScreenState extends State<SplashScreen> {
     // 3. Onboarding already done – proceed with normal auth flow
     final auth = Provider.of<AuthProvider>(context, listen: false);
     await auth.checkAuth();
+    if (!mounted) return;
 
     if (auth.isAuthenticated) {
       // Restore last route if available
       final lastRoute = await getLastRoute();
+      if (!mounted) return;
       if (lastRoute != null) {
         switch (lastRoute) {
-          case '/home':
+          case '/player/home':
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (_) => const PlayerHomeScreen()),

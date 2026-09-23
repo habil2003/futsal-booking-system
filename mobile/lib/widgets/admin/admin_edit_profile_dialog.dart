@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
 
@@ -35,6 +36,39 @@ class _AdminEditProfileDialogState extends State<AdminEditProfileDialog> {
     _nameController.dispose();
     _phoneController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickProfileImage() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final picker = ImagePicker();
+
+    XFile? picked;
+    try {
+      picked = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+    } catch (_) {}
+
+    if (picked == null) return;
+
+    setState(() => _isLoading = true);
+    final ok = await auth.updateProfileImage(picked);
+    await auth.loadAdminProfile();
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(ok
+            ? 'Profile picture updated'
+            : 'Could not update profile picture'),
+        backgroundColor: ok ? Colors.green : Colors.red,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Future<void> _updateProfile() async {
@@ -122,18 +156,51 @@ class _AdminEditProfileDialogState extends State<AdminEditProfileDialog> {
             
             // Avatar
             Center(
-              child: CircleAvatar(
-                radius: 50,
-                backgroundColor: Colors.green.shade100,
-                child: Text(
-                  (profile['fullName'] ?? 'A')[0].toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 40,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green.shade800,
-                  ),
+              child: GestureDetector(
+                onTap: _isLoading ? null : _pickProfileImage,
+                child: Stack(
+                  alignment: Alignment.bottomRight,
+                  children: [
+                    CircleAvatar(
+                      radius: 50,
+                      backgroundColor: Colors.green.shade100,
+                      foregroundImage:
+                          (profile['profileImage'] != null &&
+                                  (profile['profileImage'] as String)
+                                      .isNotEmpty)
+                              ? NetworkImage(profile['profileImage'] as String)
+                              : null,
+                      child: (profile['profileImage'] == null ||
+                              (profile['profileImage'] as String).isEmpty)
+                          ? Text(
+                              (profile['fullName'] ?? 'A')[0].toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 40,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green.shade800,
+                              ),
+                            )
+                          : null,
+                    ),
+                    Container(
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Padding(
+                        padding: EdgeInsets.all(5),
+                        child: Icon(Icons.camera_alt,
+                            size: 18, color: Color(0xFF059669)),
+                      ),
+                    ),
+                  ],
                 ),
               ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Tap the picture to change it',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
             ),
             const SizedBox(height: 8),
             

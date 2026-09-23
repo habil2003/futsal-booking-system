@@ -81,7 +81,7 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -196,7 +196,7 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
-              disabledBackgroundColor: Colors.green.withOpacity(0.5),
+              disabledBackgroundColor: Colors.green.withValues(alpha: 0.5),
             ),
             child: widget.submitting
                 ? const SizedBox(

@@ -78,14 +78,16 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
   }
 
   Widget _buildHeader(AdminAnalyticsProvider provider) {
+    final screenWidth = MediaQuery.of(context).size.width;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Advanced Analytics',
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
+            if (screenWidth >= 1100)
+              const Text('Advanced Analytics',
+                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
             Text('Daily, weekly & monthly trends',
                 style: TextStyle(color: Colors.grey.shade600)),
           ],
@@ -224,7 +226,7 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
                     isCurved: true,
                     dotData: FlDotData(show: spots.length <= 31),
                     belowBarData:
-                        BarAreaData(show: true, color: color.withOpacity(0.1)),
+                        BarAreaData(show: true, color: color.withValues(alpha: 0.1)),
                   ),
                 ],
                 titlesData: FlTitlesData(
@@ -243,8 +245,9 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
                       interval: _calculateInterval(labels.length),
                       getTitlesWidget: (value, meta) {
                         int index = value.toInt();
-                        if (index < 0 || index >= labels.length)
+                        if (index < 0 || index >= labels.length) {
                           return const SizedBox.shrink();
+                        }
                         return Padding(
                           padding: const EdgeInsets.only(top: 8),
                           child: Text(labels[index],
@@ -367,6 +370,12 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
   }
 
   // Generic bordered table with left alignment
+  String _nameHeaderFor(String metric) {
+    if (metric == 'Bookings') return 'Player';
+    if (metric == 'Teams') return 'Tournament';
+    return 'Ground';
+  }
+
   Widget _buildBorderedTable(List<Map<String, dynamic>> data, String metric,
       {bool isRevenue = false}) {
     if (data.isEmpty) {
@@ -388,7 +397,7 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
           border: TableBorder.all(color: Colors.grey.shade300),
           columns: [
             DataColumn(
-              label: Text(metric == 'Bookings' ? 'Player' : 'Ground',
+              label: Text(_nameHeaderFor(metric),
                   style: const TextStyle(fontWeight: FontWeight.bold)),
             ),
             DataColumn(
@@ -402,7 +411,9 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
                 : (item['name'] ?? item['fullName'] ?? 'Unknown');
             final value = isRevenue
                 ? 'रू ${(item['revenue'] as num).toStringAsFixed(0)}'
-                : '${item['bookingCount']}';
+                : metric == 'Teams'
+                    ? '${item['teamCount']}'
+                    : '${item['bookingCount']}';
             return DataRow(cells: [
               DataCell(Text(name,
                   style: const TextStyle(fontWeight: FontWeight.w500))),
@@ -444,7 +455,7 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
                     );
                   }).toList(),
                   titlesData: FlTitlesData(
-                    leftTitles: AxisTitles(
+                    leftTitles: const AxisTitles(
                         sideTitles:
                             SideTitles(showTitles: true, reservedSize: 40)),
                     bottomTitles: AxisTitles(
@@ -532,7 +543,7 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-            colors: [color.withOpacity(0.1), color.withOpacity(0.2)]),
+            colors: [color.withValues(alpha: 0.1), color.withValues(alpha: 0.2)]),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(children: [

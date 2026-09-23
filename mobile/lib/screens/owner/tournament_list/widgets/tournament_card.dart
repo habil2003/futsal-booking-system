@@ -48,7 +48,7 @@ class TournamentCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: tournament.statusColor.withOpacity(0.1),
+        color: tournament.statusColor.withValues(alpha: 0.1),
         borderRadius: const BorderRadius.vertical(
           top: Radius.circular(15),
         ),

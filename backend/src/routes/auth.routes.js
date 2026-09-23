@@ -7,7 +7,8 @@ import {
   resendOtp,
   forgotPassword,
   resetPassword,
-  changePassword           
+  changePassword,
+  updateProfile
 } from '../controllers/auth.controller.js';
 import { authenticate } from '../middleware/auth.js';
 import { facebookLogin, googleLogin } from '../controllers/socialAuth.controller.js';
@@ -22,6 +23,7 @@ router.post('/resend-otp', resendOtp);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 router.put('/change-password', authenticate, changePassword);   
+router.put('/profile', authenticate, updateProfile);
 
 // Social Login routes (PLAYER only)
 router.post('/google', googleLogin);

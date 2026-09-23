@@ -1,10 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../providers/auth_provider.dart';
 import '../screens/player/home_screen.dart';
-import '../screens/login_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -132,7 +129,7 @@ final List<OnboardingItem> _items = const [
                             errorBuilder: (context, error, stackTrace) =>
                                 Container(
                               decoration: BoxDecoration(
-                                color: item.fallbackColor.withOpacity(0.1),
+                                color: item.fallbackColor.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Icon(

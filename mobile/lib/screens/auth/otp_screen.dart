@@ -64,8 +64,12 @@ class _OtpScreenState extends State<OtpScreen> {
 
   @override
   void dispose() {
-    for (final c in _controllers) c.dispose();
-    for (final f in _focusNodes) f.dispose();
+    for (final c in _controllers) {
+      c.dispose();
+    }
+    for (final f in _focusNodes) {
+      f.dispose();
+    }
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -348,7 +352,7 @@ class _OtpScreenState extends State<OtpScreen> {
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.green.withOpacity(0.1),
+            color: Colors.green.withValues(alpha: 0.1),
             blurRadius: 20,
             spreadRadius: 5,
           ),
@@ -399,11 +403,11 @@ class _OtpScreenState extends State<OtpScreen> {
   }
 
   Widget _buildOtpBox(int index) {
-  return RawKeyboardListener(
+  return KeyboardListener(
     focusNode: FocusNode(),
-    onKey: (RawKeyEvent event) {
+    onKeyEvent: (KeyEvent event) {
       // Check if backspace was pressed
-      if (event is RawKeyDownEvent && 
+      if (event is KeyDownEvent && 
           event.logicalKey == LogicalKeyboardKey.backspace) {
         
         final currentText = _controllers[index].text;
@@ -478,7 +482,7 @@ class _OtpScreenState extends State<OtpScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(15),
           ),
-          disabledBackgroundColor: Colors.green.withOpacity(0.5),
+          disabledBackgroundColor: Colors.green.withValues(alpha: 0.5),
         ),
         onPressed: isLoading ? null : () {
           if (_isPasswordReset) {

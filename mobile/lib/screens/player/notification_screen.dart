@@ -96,13 +96,13 @@ class _NotificationScreenState extends State<NotificationScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : _notifications.isEmpty
-              ? Center(
+              ? const Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.notifications_none_rounded,
                           size: 64, color: AppColors.secondaryText),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
                       Text('No notifications yet',
                           style: TextStyle(color: AppColors.secondaryText)),
                     ],
@@ -157,10 +157,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: isRead ? Colors.white : AppColors.primary.withOpacity(0.05),
+          color: isRead ? Colors.white : AppColors.primary.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isRead ? AppColors.divider : AppColors.primary.withOpacity(0.3),
+            color: isRead ? AppColors.divider : AppColors.primary.withValues(alpha: 0.3),
           ),
         ),
         child: Row(
@@ -169,7 +169,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.1),
+                color: iconColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(icon, color: iconColor, size: 22),
@@ -189,7 +189,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                   const SizedBox(height: 4),
                   Text(
                     message,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 13,
                       color: AppColors.secondaryText,
                     ),
@@ -199,7 +199,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                     _formatDate(createdAt),
                     style: TextStyle(
                       fontSize: 11,
-                      color: AppColors.secondaryText.withOpacity(0.7),
+                      color: AppColors.secondaryText.withValues(alpha: 0.7),
                     ),
                   ),
                 ],

@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../../providers/tournament_provider.dart';
 import '../../../services/api_service.dart';
-import '../../../models/tournament.dart';
 
 class RoundRobinLeaderboard extends StatefulWidget {
   final int tournamentId;
@@ -44,24 +41,14 @@ class _RoundRobinLeaderboardState extends State<RoundRobinLeaderboard> {
     }
   }
 
-  // Add this method to check if we need to refresh when screen is focused
-  Future<void> _checkForUpdates() async {
-    final provider = Provider.of<TournamentProvider>(context, listen: false);
-    
-    // Check if tournament status changed to COMPLETED
-    if (provider.currentTournament?.status == TournamentStatus.completed) {
-      // Refresh standings
-      _loadStandings();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
         // Return true to allow pop, and pass data back
         Navigator.pop(context, true);
-        return false;
       },
       child: Scaffold(
         appBar: AppBar(
@@ -290,7 +277,7 @@ class _RoundRobinLeaderboardState extends State<RoundRobinLeaderboard> {
           borderRadius: BorderRadius.circular(15),
           boxShadow: [
             BoxShadow(
-              color: Colors.green.withOpacity(0.3),
+              color: Colors.green.withValues(alpha: 0.3),
               blurRadius: 10,
               offset: const Offset(0, 5),
             ),
@@ -300,7 +287,7 @@ class _RoundRobinLeaderboardState extends State<RoundRobinLeaderboard> {
           children: [
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: Colors.white,
                 shape: BoxShape.circle,
               ),
@@ -334,7 +321,7 @@ class _RoundRobinLeaderboardState extends State<RoundRobinLeaderboard> {
                   Text(
                     '${_standings.first['points']} points',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.white.withValues(alpha: 0.9),
                       fontSize: 14,
                     ),
                   ),

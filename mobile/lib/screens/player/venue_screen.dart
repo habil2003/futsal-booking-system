@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../models/futsal.dart';
 import '../../providers/futsal_provider.dart';
-import '../../providers/favorite_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../login_screen.dart';
 import 'futsal_details_screen.dart';
@@ -17,40 +16,56 @@ class VenueScreen extends StatefulWidget {
   State<VenueScreen> createState() => _VenueScreenState();
 }
 
-class _VenueScreenState extends State<VenueScreen> {
+class _VenueScreenState extends State<VenueScreen> with AutomaticKeepAliveClientMixin {
   final TextEditingController _searchController = TextEditingController();
   String _query = '';
-
   String _selectedFilter = 'All';
-  static final List<String> _filters = [
-    'All',
-    'Nearby',
-    'Popular',
-    '5-A-Side',
-    '6-A-Side',
-  ]..sort((a, b) {
-    if (a == 'All') return -1; 
-    if (b == 'All') return 1;
-    return a.compareTo(b);       
-  });
+  static const List<String> _actionFilters = ['All', 'Nearby', 'Popular'];
 
   Position? _userPosition;
-  bool _isGettingLocation = false;
   static const double _nearbyRadiusKm = 10.0;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
     super.initState();
     _getUserLocation();
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<FutsalProvider>(context, listen: false).fetchFutsals();
     });
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  // Responsive helper methods
+  double _getResponsiveFontSize(double baseSize) {
+    final width = MediaQuery.of(context).size.width;
+    final scale = (width / 375.0).clamp(0.85, 1.2);
+    return baseSize * scale;
+  }
+
+  double _getResponsivePadding() {
+    final width = MediaQuery.of(context).size.width;
+    if (width > 1200) return 32.0;
+    if (width > 800) return 24.0;
+    return 16.0;
+  }
+
+  int _getCrossAxisCount() {
+    final width = MediaQuery.of(context).size.width;
+    if (width > 1200) return 3;
+    if (width > 800) return 2;
+    return 1;
+  }
+
   // ─────────── Location ───────────
   Future<void> _getUserLocation() async {
-    setState(() => _isGettingLocation = true);
     try {
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
@@ -74,8 +89,6 @@ class _VenueScreenState extends State<VenueScreen> {
       setState(() => _userPosition = position);
     } catch (e) {
       debugPrint('Error getting location: $e');
-    } finally {
-      if (mounted) setState(() => _isGettingLocation = false);
     }
   }
 
@@ -103,11 +116,12 @@ class _VenueScreenState extends State<VenueScreen> {
             f.address.toLowerCase().contains(_query.toLowerCase());
       }).toList();
     }
+    
     if (_selectedFilter == 'Popular') {
       futsals.sort((a, b) => (b.averageRating ?? 0).compareTo(a.averageRating ?? 0));
     } else if (_selectedFilter == 'Nearby') {
       if (_userPosition == null) {
-        return []; 
+        return [];
       }
       for (var futsal in futsals) {
         if (futsal.latitude != null && futsal.longitude != null) {
@@ -129,6 +143,30 @@ class _VenueScreenState extends State<VenueScreen> {
     return futsals;
   }
 
+  // Distinct court types derived from the loaded venue data.
+  List<String> get _courtTypeFilters {
+    final futsalProvider = Provider.of<FutsalProvider>(context, listen: false);
+    final types = <String>{};
+    for (final futsal in futsalProvider.futsals) {
+      types.addAll(futsal.getCourtTypes());
+    }
+    final sorted = types.toList()..sort();
+    return sorted;
+  }
+
+  // All filter chips: base action filters + court types.
+  List<String> get _filters => [..._actionFilters, ..._courtTypeFilters];
+
+  // Human-friendly label for a court type filter, e.g. "5-a-side" -> "5-A-Side".
+  String _filterLabel(String filter) {
+    return filter
+        .split('-')
+        .map((part) => part.isEmpty
+            ? part
+            : part[0].toUpperCase() + part.substring(1))
+        .join('-');
+  }
+
   // ─────────── Navigation ───────────
   void _onBookPressed(BuildContext context, Futsal futsal) async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
@@ -137,6 +175,7 @@ class _VenueScreenState extends State<VenueScreen> {
         context,
         MaterialPageRoute(builder: (_) => const LoginScreen()),
       );
+      if (!context.mounted) return;
       if (didLogin == true) {
         _proceedToBooking(context, futsal);
       }
@@ -155,22 +194,21 @@ class _VenueScreenState extends State<VenueScreen> {
   }
 
   @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    super.build(context);
+    
     final filtered = _getFilteredList();
-
+    final responsivePadding = _getResponsivePadding();
+    final crossAxisCount = _getCrossAxisCount();
+    final isDesktop = MediaQuery.of(context).size.width > 800;
+    
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        toolbarHeight: 100, 
-        titleSpacing: 16,
+        toolbarHeight: isDesktop ? 120 : 100,
+        titleSpacing: responsivePadding,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -178,27 +216,36 @@ class _VenueScreenState extends State<VenueScreen> {
             Text(
               'Find Futsal',
               style: TextStyle(
-                fontSize: 22,
+                fontSize: _getResponsiveFontSize(isDesktop ? 28 : 22),
                 fontWeight: FontWeight.bold,
                 color: AppColors.onBackground,
               ),
             ),
-            const SizedBox(height: 10),
-            // Search bar
+            SizedBox(height: isDesktop ? 16 : 10),
+            // Search bar - responsive width
             Container(
-              height: 44,
+              constraints: BoxConstraints(
+                maxWidth: isDesktop ? 600 : double.infinity,
+              ),
+              height: isDesktop ? 48 : 44,
               decoration: BoxDecoration(
                 color: AppColors.background,
-                borderRadius: BorderRadius.circular(22),
+                borderRadius: BorderRadius.circular(isDesktop ? 24 : 22),
                 border: Border.all(color: AppColors.divider),
               ),
               child: TextField(
                 controller: _searchController,
                 onChanged: (value) => setState(() => _query = value),
-                style: const TextStyle(fontSize: 15, color: AppColors.onBackground),
+                style: TextStyle(
+                  fontSize: _getResponsiveFontSize(15),
+                  color: AppColors.onBackground,
+                ),
                 decoration: InputDecoration(
                   hintText: 'Search venues...',
-                  hintStyle: TextStyle(color: AppColors.secondaryText.withOpacity(0.7)),
+                  hintStyle: TextStyle(
+                    fontSize: _getResponsiveFontSize(14),
+                    color: AppColors.secondaryText.withValues(alpha: 0.7),
+                  ),
                   prefixIcon: const Icon(Icons.search_rounded, color: AppColors.primary),
                   suffixIcon: _query.isNotEmpty
                       ? IconButton(
@@ -210,7 +257,7 @@ class _VenueScreenState extends State<VenueScreen> {
                         )
                       : null,
                   border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                  contentPadding: EdgeInsets.symmetric(vertical: isDesktop ? 12 : 10),
                 ),
               ),
             ),
@@ -219,31 +266,37 @@ class _VenueScreenState extends State<VenueScreen> {
       ),
       body: Column(
         children: [
-          // Filter chips
+          // Filter chips - responsive wrapping
           Container(
             color: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: EdgeInsets.symmetric(horizontal: responsivePadding, vertical: 8),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: _filters.map((filter) {
                   final isSelected = _selectedFilter == filter;
                   return Padding(
-                    padding: const EdgeInsets.only(right: 8),
+                    padding: EdgeInsets.only(right: isDesktop ? 12 : 8),
                     child: ChoiceChip(
-                      label: Text(filter),
+                      label: Text(
+                        _filterLabel(filter),
+                        style: TextStyle(
+                          fontSize: _getResponsiveFontSize(isDesktop ? 14 : 13),
+                        ),
+                      ),
                       selected: isSelected,
                       selectedColor: AppColors.primary,
                       labelStyle: TextStyle(
                         color: isSelected ? Colors.white : AppColors.onBackground,
                         fontWeight: FontWeight.w600,
-                        fontSize: 13,
                       ),
                       backgroundColor: Colors.white,
                       side: BorderSide(
                         color: isSelected ? AppColors.primary : AppColors.divider,
                       ),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
                       onSelected: (selected) {
                         if (selected) {
                           setState(() => _selectedFilter = filter);
@@ -255,33 +308,45 @@ class _VenueScreenState extends State<VenueScreen> {
               ),
             ),
           ),
-          // Venue list
+          // Venue list - responsive grid or list
           Expanded(
-            child: _buildResultsList(filtered),
+            child: _buildResultsList(filtered, crossAxisCount, isDesktop),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildResultsList(List<Futsal> results) {
+  Widget _buildResultsList(List<Futsal> results, int crossAxisCount, bool isDesktop) {
     if (_selectedFilter == 'Nearby' && _userPosition == null) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.location_off, size: 64, color: AppColors.secondaryText),
+            Icon(Icons.location_off, size: isDesktop ? 80 : 64, color: AppColors.secondaryText),
             const SizedBox(height: 12),
-            Text('Location not available',
-                style: TextStyle(color: AppColors.secondaryText, fontSize: 16)),
+            Text(
+              'Location not available',
+              style: TextStyle(
+                fontSize: _getResponsiveFontSize(isDesktop ? 18 : 16),
+                color: AppColors.secondaryText,
+              ),
+            ),
             const SizedBox(height: 8),
             ElevatedButton.icon(
               onPressed: _getUserLocation,
               icon: const Icon(Icons.my_location),
-              label: const Text('Enable Location'),
+              label: Text(
+                'Enable Location',
+                style: TextStyle(fontSize: _getResponsiveFontSize(14)),
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(
+                  horizontal: isDesktop ? 24 : 16,
+                  vertical: isDesktop ? 12 : 10,
+                ),
               ),
             ),
           ],
@@ -294,23 +359,55 @@ class _VenueScreenState extends State<VenueScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.search_off, size: 64, color: AppColors.secondaryText),
+            Icon(Icons.search_off, size: isDesktop ? 80 : 64, color: AppColors.secondaryText),
             const SizedBox(height: 12),
-            Text('No venues found',
-                style: TextStyle(color: AppColors.secondaryText, fontSize: 16)),
+            Text(
+              'No venues found',
+              style: TextStyle(
+                fontSize: _getResponsiveFontSize(isDesktop ? 18 : 16),
+                color: AppColors.secondaryText,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Try adjusting your search or filter',
+              style: TextStyle(
+                fontSize: _getResponsiveFontSize(14),
+                color: AppColors.secondaryText,
+              ),
+            ),
           ],
         ),
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: results.length,
-      itemBuilder: (context, index) => _buildResultCard(results[index]),
-    );
+    final responsivePadding = _getResponsivePadding();
+    
+    // Use GridView for desktop/tablet, ListView for mobile
+    if (crossAxisCount > 1) {
+      return Padding(
+        padding: EdgeInsets.all(responsivePadding),
+        child: GridView.builder(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            childAspectRatio: 1.1,
+          ),
+          itemCount: results.length,
+          itemBuilder: (context, index) => _buildResultCard(results[index], isDesktop),
+        ),
+      );
+    } else {
+      return ListView.builder(
+        padding: EdgeInsets.all(responsivePadding),
+        itemCount: results.length,
+        itemBuilder: (context, index) => _buildResultCard(results[index], isDesktop),
+      );
+    }
   }
 
-  Widget _buildResultCard(Futsal futsal) {
+  Widget _buildResultCard(Futsal futsal, bool isDesktop) {
     final imageUrl = futsal.images.isNotEmpty
         ? futsal.images[0]
         : 'https://via.placeholder.com/300x180?text=Futsal';
@@ -321,137 +418,257 @@ class _VenueScreenState extends State<VenueScreen> {
     return GestureDetector(
       onTap: () => _onBookPressed(context, futsal),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(12),
+        margin: isDesktop ? EdgeInsets.zero : const EdgeInsets.only(bottom: 12),
+        padding: EdgeInsets.all(isDesktop ? 16 : 12),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
+          borderRadius: BorderRadius.circular(isDesktop ? 20 : 16),
+          boxShadow: const [
             BoxShadow(
               color: AppColors.shadow,
               blurRadius: 10,
-              offset: const Offset(0, 4),
+              offset: Offset(0, 4),
             ),
           ],
         ),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.network(
-                imageUrl,
-                width: 100,
-                height: 100,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  width: 100,
-                  height: 100,
-                  color: AppColors.primary.withOpacity(0.05),
-                  child: const Icon(Icons.sports_soccer, color: AppColors.primary, size: 40),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
+        child: isDesktop
+            ? Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(futsal.name,
-                      style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 16,
-                          color: AppColors.onBackground),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
+                  // Image on top for desktop
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.network(
+                      imageUrl,
+                      height: 150,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        height: 150,
+                        color: AppColors.primary.withValues(alpha: 0.05),
+                        child: const Icon(Icons.sports_soccer, color: AppColors.primary, size: 50),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    futsal.name,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: _getResponsiveFontSize(16),
+                      color: AppColors.onBackground,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      Icon(Icons.location_on_outlined, size: 14, color: AppColors.secondaryText),
+                      const Icon(Icons.location_on_outlined, size: 14, color: AppColors.secondaryText),
                       const SizedBox(width: 4),
                       Expanded(
-                        child: Text(futsal.address,
-                            style: TextStyle(fontSize: 13, color: AppColors.secondaryText),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis),
+                        child: Text(
+                          futsal.address,
+                          style: TextStyle(
+                            fontSize: _getResponsiveFontSize(12),
+                            color: AppColors.secondaryText,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: AppColors.accentAmber.withOpacity(0.15),
+                          color: AppColors.accentAmber.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.star_rounded, size: 14, color: AppColors.accentAmber),
+                            const Icon(Icons.star_rounded, size: 14, color: AppColors.accentAmber),
                             const SizedBox(width: 4),
-                            Text(rating.toStringAsFixed(1),
-                                style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.onBackground)),
+                            Text(
+                              rating.toStringAsFixed(1),
+                              style: TextStyle(
+                                fontSize: _getResponsiveFontSize(12),
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.onBackground,
+                              ),
+                            ),
                           ],
                         ),
                       ),
                       if (distance != null) ...[
-                        const SizedBox(width: 12),
-                        Icon(Icons.directions_walk, size: 14, color: AppColors.secondaryText),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.directions_walk, size: 14, color: AppColors.secondaryText),
                         const SizedBox(width: 4),
-                        Text('${distance.toStringAsFixed(1)} km',
-                            style: TextStyle(fontSize: 13, color: AppColors.secondaryText)),
+                        Text(
+                          '${distance.toStringAsFixed(1)} km',
+                          style: TextStyle(
+                            fontSize: _getResponsiveFontSize(12),
+                            color: AppColors.secondaryText,
+                          ),
+                        ),
                       ],
                       const Spacer(),
                       Text(
                         price != null ? 'Rs. ${price.toStringAsFixed(0)}/hr' : 'Price varies',
                         style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.primaryDark),
+                          fontSize: _getResponsiveFontSize(13),
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primaryDark,
+                        ),
                       ),
                     ],
                   ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => _onBookPressed(context, futsal),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: Text(
+                        'Book Now',
+                        style: TextStyle(fontSize: _getResponsiveFontSize(13)),
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            : Row(
+                // Original mobile layout (image left, content right)
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.network(
+                      imageUrl,
+                      width: 100,
+                      height: 100,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        width: 100,
+                        height: 100,
+                        color: AppColors.primary.withValues(alpha: 0.05),
+                        child: const Icon(Icons.sports_soccer, color: AppColors.primary, size: 40),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          futsal.name,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: _getResponsiveFontSize(16),
+                            color: AppColors.onBackground,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(Icons.location_on_outlined, size: 14, color: AppColors.secondaryText),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                futsal.address,
+                                style: TextStyle(
+                                  fontSize: _getResponsiveFontSize(12),
+                                  color: AppColors.secondaryText,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.accentAmber.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.star_rounded, size: 14, color: AppColors.accentAmber),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    rating.toStringAsFixed(1),
+                                    style: TextStyle(
+                                      fontSize: _getResponsiveFontSize(12),
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.onBackground,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (distance != null) ...[
+                              const SizedBox(width: 8),
+                              const Icon(Icons.directions_walk, size: 14, color: AppColors.secondaryText),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${distance.toStringAsFixed(1)} km',
+                                style: TextStyle(
+                                  fontSize: _getResponsiveFontSize(12),
+                                  color: AppColors.secondaryText,
+                                ),
+                              ),
+                            ],
+                            const Spacer(),
+                            Text(
+                              price != null ? 'Rs. ${price.toStringAsFixed(0)}/hr' : 'Price varies',
+                              style: TextStyle(
+                                fontSize: _getResponsiveFontSize(12),
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.primaryDark,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () => _onBookPressed(context, futsal),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: Text(
+                              'Book Now',
+                              style: TextStyle(fontSize: _getResponsiveFontSize(13)),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
-            ),
-            Consumer<FavoriteProvider>(
-              builder: (context, favProvider, child) {
-                final isFav = favProvider.isFavorite(futsal.id);
-                return IconButton(
-                  icon: Icon(
-                    isFav ? Icons.bookmark : Icons.bookmark_border,
-                    color: isFav ? AppColors.primary : AppColors.secondaryText,
-                    size: 28,
-                  ),
-                  onPressed: () async {
-                    final auth = Provider.of<AuthProvider>(context, listen: false);
-                    if (!auth.isAuthenticated) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text('Please log in to save favorites'),
-                            backgroundColor: Colors.orange),
-                      );
-                      return;
-                    }
-                    final success = await favProvider.toggleFavorite(futsal.id);
-                    if (success && context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(isFav ? 'Removed from favorites' : 'Added to favorites'),
-                          backgroundColor: Colors.green,
-                          duration: const Duration(seconds: 1),
-                        ),
-                      );
-                    }
-                  },
-                );
-              },
-            ),
-          ],
-        ),
       ),
     );
   }

@@ -42,8 +42,8 @@ class PrivacyScreen extends StatelessWidget {
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          Colors.black.withOpacity(0.25),
-                          Colors.black.withOpacity(0.75),
+                          Colors.black.withValues(alpha: 0.25),
+                          Colors.black.withValues(alpha: 0.75),
                         ],
                       ),
                     ),
@@ -253,7 +253,7 @@ class PrivacyScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),

@@ -13,9 +13,9 @@ import 'system_settings_screen.dart';
 import 'admin_analytics_screen.dart';
 import 'manage_tournaments.dart';
 import 'admin_dashboard.dart';
-import 'recent_activity.dart';
 import '../login_screen.dart';
-import '../../widgets/admin/notification_bottom_sheet.dart';
+import '../../widgets/admin/admin_header_actions.dart';
+import '../player/home_screen.dart';
 
 class AdminAccountScreen extends StatefulWidget {
   const AdminAccountScreen({super.key});
@@ -79,6 +79,26 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
 
     return Scaffold(
       key: _scaffoldKey,
+      appBar: (isMobile || isTablet) && _usesShellAppBar()
+          ? AppBar(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              leading: IconButton(
+                icon: const Icon(Icons.menu, color: Colors.white),
+                tooltip: 'Menu',
+                onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+              ),
+              title: Text(_selectedMenu),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.sports_soccer, color: Colors.white),
+                  tooltip: 'Player Mode',
+                  onPressed: _openPlayerMode,
+                ),
+                const AdminNotificationButton(),
+              ],
+            )
+          : null,
       drawer: (isMobile || isTablet) ? _buildDrawer() : null,
       body: Row(
         children: [
@@ -114,7 +134,7 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 20,
             offset: const Offset(2, 0),
           ),
@@ -159,6 +179,12 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
                 );
               },
             ),
+          ),
+          _buildSidebarItem(
+            icon: Icons.sports_soccer,
+            title: 'Player Mode',
+            isSelected: false,
+            onTap: _openPlayerMode,
           ),
           _buildSidebarProfile(),
         ],
@@ -218,6 +244,15 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
                 },
               ),
             ),
+            _buildDrawerItem(
+              icon: Icons.sports_soccer,
+              title: 'Player Mode',
+              isSelected: false,
+              onTap: () {
+                Navigator.pop(context);
+                _openPlayerMode();
+              },
+            ),
             _buildDrawerProfile(),
           ],
         ),
@@ -233,7 +268,7 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(
@@ -279,7 +314,7 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(
@@ -326,14 +361,14 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               color: isSelected
-                  ? Colors.white.withOpacity(0.15)
+                  ? Colors.white.withValues(alpha: 0.15)
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(12),
               gradient: isSelected
                   ? LinearGradient(
                       colors: [
-                        Colors.white.withOpacity(0.15),
-                        Colors.white.withOpacity(0.05)
+                        Colors.white.withValues(alpha: 0.15),
+                        Colors.white.withValues(alpha: 0.05)
                       ],
                     )
                   : null,
@@ -390,7 +425,7 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
         ),
       ),
       selected: isSelected,
-      selectedTileColor: Colors.white.withOpacity(0.1),
+      selectedTileColor: Colors.white.withValues(alpha: 0.1),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       onTap: onTap,
     );
@@ -403,8 +438,8 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.1),
-            border: Border(top: BorderSide(color: Colors.white24)),
+            color: Colors.black.withValues(alpha: 0.1),
+            border: const Border(top: BorderSide(color: Colors.white24)),
           ),
           child: Material(
             color: Colors.transparent,
@@ -469,7 +504,7 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
                           position: RelativeRect.fromLTRB(
                               center.dx, center.dy, center.dx, center.dy),
                           items: [
-                            PopupMenuItem(
+                            const PopupMenuItem(
                               value: 'profile',
                               child: Row(
                                 children: [
@@ -479,7 +514,7 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
                                 ],
                               ),
                             ),
-                            PopupMenuItem(
+                            const PopupMenuItem(
                               value: 'logout',
                               child: Row(
                                 children: [
@@ -494,10 +529,12 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
                         ).then((value) {
                           if (value == 'profile') {
                             authProvider.loadAdminProfile().then((_) {
-                              if (mounted)
+                              if (context.mounted) {
                                 _showProfileDialog(context, authProvider);
+                              }
                             });
                           } else if (value == 'logout') {
+                            if (!context.mounted) return;
                             _showLogoutConfirmation(context, authProvider);
                           }
                         });
@@ -522,7 +559,7 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
           ),
           child: ListTile(
             leading: CircleAvatar(
@@ -554,7 +591,7 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
                   position: RelativeRect.fromLTRB(
                       center.dx, center.dy, center.dx, center.dy),
                   items: [
-                    PopupMenuItem(
+                    const PopupMenuItem(
                       value: 'profile',
                       child: Row(
                         children: [
@@ -564,7 +601,7 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
                         ],
                       ),
                     ),
-                    PopupMenuItem(
+                    const PopupMenuItem(
                       value: 'logout',
                       child: Row(
                         children: [
@@ -578,9 +615,10 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
                 ).then((value) {
                   if (value == 'profile') {
                     authProvider.loadAdminProfile().then((_) {
-                      if (mounted) _showProfileDialog(context, authProvider);
+                      if (context.mounted) _showProfileDialog(context, authProvider);
                     });
                   } else if (value == 'logout') {
+                    if (!context.mounted) return;
                     _showLogoutConfirmation(context, authProvider);
                   }
                 });
@@ -618,7 +656,7 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
               onTap: () async {
                 Navigator.pop(ctx);
                 await authProvider.loadAdminProfile();
-                if (mounted) _showProfileDialog(context, authProvider);
+                if (context.mounted) _showProfileDialog(context, authProvider);
               },
             ),
             ListTile(
@@ -638,103 +676,15 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
   }
 
   Widget _buildContent() {
-    final isMobile = MediaQuery.of(context).size.width < 600;
-    final isTablet = MediaQuery.of(context).size.width >= 600 &&
-        MediaQuery.of(context).size.width < 1100;
-
-    return Column(
-      children: [
-        if (isMobile || isTablet)
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.menu, color: Colors.green),
-                    onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    _selectedMenu,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Spacer(),
-                  Consumer<AdminProvider>(
-                    builder: (context, adminProvider, _) {
-                      return Stack(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.notifications_outlined),
-                            onPressed: () {
-                              showModalBottomSheet(
-                                context: context,
-                                isScrollControlled: true,
-                                shape: const RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.vertical(
-                                      top: Radius.circular(20)),
-                                ),
-                                builder: (ctx) =>
-                                    const NotificationBottomSheet(),
-                              );
-                            },
-                          ),
-                          if (adminProvider.unreadNotificationCount > 0)
-                            Positioned(
-                              right: 8,
-                              top: 8,
-                              child: Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: const BoxDecoration(
-                                  color: Colors.red,
-                                  shape: BoxShape.circle,
-                                ),
-                                constraints: const BoxConstraints(
-                                  minWidth: 16,
-                                  minHeight: 16,
-                                ),
-                                child: Text(
-                                  adminProvider.unreadNotificationCount > 9
-                                      ? '9+'
-                                      : '${adminProvider.unreadNotificationCount}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                            ),
-                        ],
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-        Expanded(
-          child: _getContentWidget(),
-        ),
-      ],
-    );
+    return _getContentWidget();
   }
 
   Widget _getContentWidget() {
+    final isCompact = MediaQuery.of(context).size.width < 1100;
+    final VoidCallback? onOpenDrawer = isCompact
+        ? () => _scaffoldKey.currentState?.openDrawer()
+        : null;
+
     switch (_selectedMenu) {
       case 'Dashboard':
         return AdminDashboard(
@@ -742,25 +692,36 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
       case 'Analytics':
         return const AdminAnalyticsScreen();
       case 'Manage Users':
-        return const AdminUsersScreen();
+        return AdminUsersScreen(onOpenDrawer: onOpenDrawer);
       case 'All Bookings':
-        return const AdminBookingsScreen();
+        return AdminBookingsScreen(onOpenDrawer: onOpenDrawer);
       case 'All Futsals':
-        return const AdminAllFutsalsScreen();
+        return AdminAllFutsalsScreen(onOpenDrawer: onOpenDrawer);
       case 'Pending Futsals':
-        return const FutsalApprovalScreen();
+        return FutsalApprovalScreen(onOpenDrawer: onOpenDrawer);
       case 'Manage Ads':
-        return const AdsBannerScreen();
+        return AdsBannerScreen(onOpenDrawer: onOpenDrawer);
       case 'Manage Tournaments':
-        return const ManageTournamentsScreen();
+        return ManageTournamentsScreen(onOpenDrawer: onOpenDrawer);
       case 'Settings':
-        return const SystemSettingsScreen();
+        return SystemSettingsScreen(onOpenDrawer: onOpenDrawer);
       case 'Recent Activity':
         return _buildRecentActivity();
       default:
         return AdminDashboard(
             onMenuSelect: (menu) => setState(() => _selectedMenu = menu));
     }
+  }
+
+  bool _usesShellAppBar() {
+    return _selectedMenu == 'Dashboard' ||
+        _selectedMenu == 'Analytics' ||
+        _selectedMenu == 'Recent Activity';
+  }
+
+  void _openPlayerMode() {
+    Navigator.push(
+        context, MaterialPageRoute(builder: (_) => const PlayerHomeScreen()));
   }
 
   Widget _buildRecentActivity() {
@@ -830,7 +791,7 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
                   children: [
                     CircleAvatar(
                       radius: 16,
-                      backgroundColor: categoryColor.withOpacity(0.1),
+                      backgroundColor: categoryColor.withValues(alpha: 0.1),
                       child: Icon(
                         category == 'Booking'
                             ? Icons.book_online
@@ -852,7 +813,7 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
                               Flexible(
                                 child: Text(
                                   name,
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     fontWeight: FontWeight.w600,
                                     fontSize: 13,
                                   ),
@@ -919,7 +880,7 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: categoryColor.withOpacity(0.1),
+                            color: categoryColor.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
@@ -936,7 +897,7 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: statusColor.withOpacity(0.1),
+                            color: statusColor.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
@@ -987,13 +948,20 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
             CircleAvatar(
               radius: 50,
               backgroundColor: Colors.green.shade100,
-              child: Text(
-                (user?.fullName ?? 'A')[0].toUpperCase(),
-                style: TextStyle(
-                    fontSize: 40,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green.shade800),
-              ),
+              foregroundImage: (user?.profileImage != null &&
+                      user!.profileImage!.isNotEmpty)
+                  ? NetworkImage(user.profileImage!)
+                  : null,
+              child: (user?.profileImage == null ||
+                      user!.profileImage!.isEmpty)
+                  ? Text(
+                      (user?.fullName ?? 'A')[0].toUpperCase(),
+                      style: TextStyle(
+                          fontSize: 40,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green.shade800),
+                    )
+                  : null,
             ),
             const SizedBox(height: 16),
             Text(user?.fullName ?? 'Admin',
@@ -1083,12 +1051,14 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
   debugPrint('🔍 Admin shouldLogout = $shouldLogout');
   if (shouldLogout != true) return;
 
+  if (!context.mounted) return;
+
   final auth = Provider.of<AuthProvider>(context, listen: false);
   debugPrint('🔍 Admin calling logout...');
   await auth.logout();
   debugPrint('🔍 Admin logout done, mounted = $mounted');
 
-  if (!mounted) {
+  if (!context.mounted) {
     debugPrint('🔍 Admin not mounted, aborting navigation');
     return;
   }

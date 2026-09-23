@@ -1,7 +1,11 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../index.js';
-import { sendOtpEmail, generateOtp } from '../config/email.js';
+// import { sendOtpEmail, generateOtp } from '../config/email.js';
+// import { sendOtpEmail, generateOtp } from '../config/email-resend.js';
+// import { sendOtpEmail, generateOtp } from '../config/email.js';
+// import { sendOtpEmail, generateOtp } from '../config/email-resend.js';
+import { sendOtpEmail, generateOtp } from '../config/email-brevo.js';
 import { logActivity } from '../utils/activityLogger.js';
 
 /**
@@ -9,7 +13,15 @@ import { logActivity } from '../utils/activityLogger.js';
  */
 export const register = async (req, res) => {
   try {
-    const { email, password, fullName, phoneNumber, role } = req.body;
+    const {
+      email,
+      password,
+      fullName,
+      phoneNumber,
+      role,
+      businessName,
+      panVatNumber,
+    } = req.body;
 
     if (!email || !password || !fullName) {
       return res.status(400).json({ 
@@ -35,14 +47,25 @@ export const register = async (req, res) => {
     const otp = generateOtp();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
 
+    // Honor auto-approve setting for owners
+    let isApproved = role === 'OWNER' ? false : true;
+    try {
+      const settings = await prisma.systemSettings.findFirst();
+      if (role === 'OWNER' && settings?.autoApproveOwners === true) {
+        isApproved = true;
+      }
+    } catch (_) {}
+
     const user = await prisma.user.create({
       data: {
         email,
         password: hashedPassword,
         fullName,
         phoneNumber,
+        businessName: businessName || undefined,
+        panVatNumber: panVatNumber || undefined,
         role: role || 'PLAYER',
-        isApproved: role === 'OWNER' ? false : true,
+        isApproved,
         isEmailVerified: false,
         otp,
         otpExpiry,
@@ -52,9 +75,10 @@ export const register = async (req, res) => {
         email: true,
         fullName: true,
         phoneNumber: true,
+        businessName: true,
         role: true,
         isApproved: true,
-        isEmailVerified: true,
+        isEmailVerified: false,
         createdAt: true
       }
     });
@@ -353,13 +377,6 @@ export const login = async (req, res) => {
       });
     }
 
-    if (!user.isApproved && user.role === 'OWNER') {
-      return res.status(403).json({
-        status: 'fail',
-        message: 'Your account is pending admin approval.'
-      });
-    }
-
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET,
@@ -405,8 +422,10 @@ export const getMe = async (req, res) => {
         email: true,
         fullName: true,
         phoneNumber: true,
+        profileImage: true,
         role: true,
         isApproved: true,
+        isActive: true,
         createdAt: true,
         _count: {
           select: {
@@ -472,6 +491,55 @@ export const changePassword = async (req, res) => {
     res.json({ status: "success", message: "Password changed successfully" });
   } catch (error) {
     console.error("Change password error:", error);
+    res.status(500).json({ status: "error", message: "Server error" });
+  }
+};
+
+export const updateProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { fullName, phoneNumber, profileImage } = req.body;
+
+    const data = {};
+    if (fullName !== undefined && fullName !== null) {
+      if (String(fullName).trim().length === 0) {
+        return res.status(400).json({
+          status: "error",
+          message: "Full name cannot be empty",
+        });
+      }
+      data.fullName = String(fullName).trim();
+    }
+    if (phoneNumber !== undefined && phoneNumber !== null) {
+      data.phoneNumber = String(phoneNumber).trim() || null;
+    }
+    if (profileImage !== undefined && profileImage !== null) {
+      data.profileImage = String(profileImage).trim() || null;
+    }
+
+    await prisma.user.update({
+      where: { id: userId },
+      data,
+    });
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        phoneNumber: true,
+        profileImage: true,
+        role: true,
+        isApproved: true,
+        isActive: true,
+        createdAt: true,
+      },
+    });
+
+    res.json({ status: "success", message: "Profile updated", user });
+  } catch (error) {
+    console.error("Update profile error:", error);
     res.status(500).json({ status: "error", message: "Server error" });
   }
 };

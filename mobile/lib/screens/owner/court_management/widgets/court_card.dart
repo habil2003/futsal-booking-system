@@ -100,8 +100,8 @@ class CourtCard extends StatelessWidget {
                   height: 50,
                   decoration: BoxDecoration(
                     color: court.isActive
-                        ? Colors.green.withOpacity(0.2)
-                        : Colors.grey.withOpacity(0.2),
+                        ? Colors.green.withValues(alpha: 0.2)
+                        : Colors.grey.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Center(
@@ -256,30 +256,30 @@ class CourtCard extends StatelessWidget {
                       icon: const Icon(Icons.more_vert, size: 20),
                       itemBuilder: (ctx) => [
                         PopupMenuItem(
+                          onTap: onEdit,
                           child: const ListTile(
                             leading: Icon(Icons.edit, size: 18),
                             title: Text('Edit Court'),
                             contentPadding: EdgeInsets.zero,
                           ),
-                          onTap: onEdit,
                         ),
                         PopupMenuItem(
+                          onTap: onSetPeakPrice,
                           child: const ListTile(
                             leading: Icon(Icons.trending_up,
                                 size: 18, color: Colors.orange),
                             title: Text('Set Peak Price'),
                             contentPadding: EdgeInsets.zero,
                           ),
-                          onTap: onSetPeakPrice,
                         ),
                         PopupMenuItem(
+                          onTap: onDelete,
                           child: const ListTile(
                             leading: Icon(Icons.delete, size: 18, color: Colors.red),
                             title: Text('Delete Court',
                                 style: TextStyle(color: Colors.red)),
                             contentPadding: EdgeInsets.zero,
                           ),
-                          onTap: onDelete,
                         ),
                       ],
                     ),

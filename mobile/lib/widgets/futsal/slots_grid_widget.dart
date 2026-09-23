@@ -206,7 +206,7 @@ Widget _buildCourtSlotsGrid(BuildContext context, List<Map<String, dynamic>> slo
             getCourtNumber(slot),
             style: TextStyle(
               fontSize: courtFontSize,
-              color: textColor.withOpacity(0.8),
+              color: textColor.withValues(alpha: 0.8),
             ),
           ),
           SizedBox(height: isLargeScreen ? 6 : 4),
@@ -217,6 +217,8 @@ Widget _buildCourtSlotsGrid(BuildContext context, List<Map<String, dynamic>> slo
               fontWeight: FontWeight.w600,
               color: textColor,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           if (statusText != null)
             Container(
